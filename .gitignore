@@ -1,0 +1,145 @@
+############################################
+# OS / Editor junk
+############################################
+.DS_Store
+Thumbs.db
+
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+.idea/
+*.swp
+*.swo
+*~
+
+############################################
+# C++ build artifacts
+############################################
+# Object files
+*.o
+*.obj
+*.lo
+*.la
+
+# Binaries
+*.exe
+*.out
+*.app
+*.dll
+*.so
+*.dylib
+
+# Static libs
+*.a
+*.lib
+
+# Build directories
+/build/
+build/
+cmake-build-*/
+out/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+CTestTestfile.cmake
+
+############################################
+# Python
+############################################
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Packaging
+*.egg-info/
+.eggs/
+dist/
+build/
+pip-wheel-metadata/
+
+# Jupyter
+.ipynb_checkpoints/
+
+############################################
+# PyBind11 / Python Extensions
+############################################
+# Compiled extension modules
+*.so
+*.pyd
+*.dll
+
+# Wheels
+*.whl
+
+############################################
+# Machine Learning artifacts
+############################################
+# Model checkpoints
+*.pt
+*.pth
+*.ckpt
+*.onnx
+
+# TensorFlow / PyTorch logs
+runs/
+logs/
+lightning_logs/
+
+# Weights & Biases
+wandb/
+
+# Datasets (keep structure, not data)
+data/*
+!data/.gitkeep
+
+datasets/*
+!datasets/.gitkeep
+
+############################################
+# Experiment outputs
+############################################
+results/
+outputs/
+experiments/
+
+############################################
+# Testing / Coverage
+############################################
+.coverage
+htmlcov/
+.pytest_cache/
+.cache/
+
+############################################
+# Misc
+############################################
+.env
+.env.*
+secrets.*
+*.so
+poker_hand_stats.csv
+venv
+__pycache__
+build
+pybind11
+a
+ignore
+known_data
+misc
+a
+test.py
+test2.py
+test.cpp
+outputs

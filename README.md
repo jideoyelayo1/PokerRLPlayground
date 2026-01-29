@@ -1,0 +1,633 @@
+# PokerAI
+
+## Project Overview
+This project implements a Texas Hold’em–style poker environment and a set of reinforcement learning agents that learn to play the game through self-play. The poker engine itself is written in C++ for performance and determinism, while the learning agents are implemented in Python using PyTorch. The two are connected via pybind11, allowing Python-based agents to directly control players inside the C++ simulation. Each AI agent has full control over its assigned player and selects actions at every decision point. Agents have access only to public game information (community cards, pot size, betting state, etc.) and their own private hole cards, mirroring the partial observability of real poker. No hidden opponent information is exposed. Importantly, no poker strategy or rules are injected into the model beforehand. The agents are not told which hands are strong, how betting “should” work, or what optimal play looks like. Instead, they learn purely through reinforcement learning by interacting with the environment and maximising long-term reward.
+
+To ensure transparency and reproducibility, the poker rules implemented in this project are described explicitly, as they are a simplified and controlled variant of traditional Texas Hold’em.
+- A standard 52-card deck is used and shuffled randomly each hand.
+- At the start of each hand, every player is dealt two private cards.
+The game proceeds through the usual betting rounds with community cards revealed.
+
+Supported player actions are:
+- Fold
+- Check
+- Call
+- Raise
+- All-In
+
+To reduce action complexity and stabilise learning, raises are restricted to three discrete sizes:
+- Big Blind
+- Half Pot
+- Full Pot
+Blind positions rotate by one seat after each hand.
+This action abstraction keeps the state–action space manageable while still allowing meaningful strategic decisions.
+
+The agents are trained using Deep Q-Learning (DQN) in a self-play setting. Multiple agents compete against one another over hundreds of thousands of hands, continuously updating their policies based on observed rewards. The reward signal is derived from chip (big blind) profit and loss, encouraging agents to learn strategies that maximise expected value over time rather than short-term wins.
+
+To improve interpretability and validate learned behaviour, symbolic regression is applied after training. Using the agent’s simulated data:
+Inputs: pocket hand representation (e.g. card ranks, suitedness)
+Output: expected value (EV)
+This allows explicit mathematical expressions to be discovered that approximate the model’s internal valuation of starting hands. These expressions can then be compared against theoretical expectations and empirical poker knowledge, offering insight into what the agent has learned and why certain hands are favoured.
+
+## Technical Stack
+
+- **C++20** – Core poker engine, game logic, state transitions, and performance-critical simulation
+- **Python 3.14** – Reinforcement learning, training loops, evaluation, and analysis
+- **pybind11** – Bindings between the C++ poker engine and Python agents
+- **PyTorch** – Deep Q-Learning models and optimisation
+- **NumPy / Pandas** – Data processing and statistical analysis
+- **Matplotlib** – Training curves, EV plots, and hand-strength visualisations
+
+
+## AI Training Process
+
+### Learning setup
+
+**RL formulation**
+- **State (`s`)**: `encode_observation(obs, big_blind)` produces a fixed-length feature vector from the current player’s observation. The observation contains the player’s private hole cards plus public game information (street, pot/to-call, stacks, etc.).
+- **Action (`a`)**: a discrete action index chosen from:
+  - Fold, Check, Call, Raise(BB), Raise(Half Pot), Raise(Pot), All-In (exact mapping via `ACTION_NAME` / `A_*` constants).
+- **Reward (`r`)**: sparse, terminal-only. When the hand ends (`done=True`), the acting player receives:
+  - `reward = (stack_end[player] - stack_start[player]) / big_blind`
+  - i.e. profit/loss in **big blinds** for that hand.
+- **Episode termination**: one poker **hand** is treated as an episode. A hand ends when `g.hand_terminal()` becomes true.
+
+**Self-play (multi-agent)**
+- Training is **multi-agent self-play** with `n_players = len(models)`. Each seat is controlled by its own `DQNAgent(model_i)`.
+- Opponents are the other agents in the same hand (no external bots).
+- The opponent pool is effectively **latest-only** (each agent always plays the current versions of the others). There is no snapshot/league system in this implementation.
+
+**Exploration + legality**
+- Action selection uses **epsilon-greedy** inside `agents[acting].select_action(s, mask)` (exact epsilon schedule is defined in `DQNAgent`).
+- **Legal-action masking**: `mask = legal_mask_from_obs(obs)` marks illegal actions. The agent selects using the mask, and a safety fallback forces a random legal action if needed:
+  - If `mask[a_idx] != 0.0`, choose `random.choice(legal_idxs)`.
+- Additional robustness: `step_with_fallback(...)` may adjust the action if the engine rejects it, and the executed action is what gets logged and learned from.
+
+---
+
+### Data generation
+
+**Per-hand logging**
+For every completed hand, a row is logged **per player** with:
+- identifiers: `run_id`, `hand_id`, `player_id`
+- starting hand: `pocket` (e.g. “AKs”, “72o”) derived from `obs_i.hole`
+- terminal street information:
+  - `street_end`, `street_end_name` (where the player folded or where the hand ended)
+- profitability and outcomes:
+  - `bb_delta` (stack change in BB units)
+  - `profitable` (bb_delta > 0)
+  - `folded`
+  - `went_showdown` (street_end == river and not folded)
+  - `non_showdown_win`
+- behavioural stats:
+  - `first_action`, `first_action_name`
+  - `bb_raised` (BB raised preflop)
+  - `raises_made`, `raises_faced`
+  - `aggressive` (made at least one raise)
+
+**Hands trained (order of magnitude)**
+- Training runs for `max_hands` hands (episodes). In the example call, `max_hands=10`, but typical training is intended to scale to **thousands to hundreds of thousands** of hands depending on compute and stability.
+- In this codebase, a “hand” means **one full poker hand** across all players, and the dataset logs **one row per player per hand**.
+
+---
+
+### Training loop details
+
+**Replay buffer**
+- Each agent stores transitions via `agents[acting].remember(s, a, r, s2, done)`.
+- A short-term update happens immediately with `train_short_memory(...)`.
+- A long-term update happens once per hand with `train_long_memory()` (typically sampling from replay).
+- (Buffer size, warmup, batch size, and sampling strategy are defined inside `DQNAgent`.)
+
+**Target network**
+- If your `DQNAgent` includes a target network, it is used inside `train_short_memory` / `train_long_memory` (update frequency defined there). The loop is compatible with standard DQN + target network updates.
+
+**Optimisation**
+- Standard DQN training: predicted Q(s,a) vs target computed from reward + discounted max Q(s’,·).
+- (Loss function, optimiser, learning rate, and any gradient clipping are implemented in `DQNAgent`.)
+
+**Update cadence**
+- **Per-step updates**: the currently acting player performs `train_short_memory(...)` every decision.
+- **Per-hand updates**: after the hand ends, every agent runs `train_long_memory()` once.
+
+---
+
+### Reward shaping and multi-player credit assignment
+
+**Reward shaping**
+- Rewards are **sparse** (terminal only). During the hand, `reward=0.0`; when `done=True`, reward becomes that player’s **end-of-hand BB profit/loss**.
+
+**Multi-player credit assignment**
+- The acting player receives its terminal reward when it takes the final action that ends the hand.
+- For the other players, terminal rewards are added as a final “terminal transition”:
+  - `agents[i].remember(None, 0, r_i, None, True)`
+  - where `r_i` is each non-acting player’s BB profit/loss for the hand.
+- This ensures every player receives a learning signal per hand, but it also means some terminal updates do not have an associated `(state, action)` pair (tracked as a limitation in the project write-up).
+
+---
+
+### Stability / safety controls (implementation detail)
+- Hands are aborted if they exceed `MAX_STEPS_PER_HAND` or `HAND_TIMEOUT_SEC`, or if no legal action exists.
+- If a hand is aborted, the tournament is reset and the hand is not logged.
+
+
+
+## Models
+
+All models in this project are intentionally **simple, lightweight implementations** designed to test the learning setup and compare how different network families behave in a poker-style, partially observed environment. Each model outputs **Q-values per action** (Deep Q-Learning), and action selection uses **legal-action masking** so the agent cannot choose invalid moves (e.g., raising when it is not allowed).
+
+### Common I/O (Deep Q)
+- **Input (state)**: A compact numeric representation of the current game state (feature vector), such as public cards, pot/bet sizes, street, and the agent’s private hole cards (plus any additional engineered features you include).
+- **Output (actions)**: Q-values for the discrete action set (e.g. Fold, Check, Call, Raise[BB/HalfPot/Pot], All-In). Invalid actions are masked before taking `argmax`.
+
+---
+
+### MLPModel (baseline Q-network)
+**What it is:** A feed-forward multi-layer perceptron that maps a **single state vector → Q-values**.
+
+**Why it exists (baseline):**
+- Fastest and most stable model to train in self-play.
+- Good default when the state is already engineered into a fixed-size vector.
+
+**Pros (poker relevance):**
+- Works well when “memory” is not required and you encode enough information in the state.
+- Efficient for large-scale simulation (millions of decisions).
+
+**Cons:**
+- No explicit notion of history; if past betting/action context matters, you must encode it manually as features.
+
+---
+
+### TransformerQModel (attention-based Q-network)
+**What it is:** A transformer encoder that processes input as a **sequence** (or as a length-1 sequence if you only pass a vector), then outputs Q-values from the final token.
+
+**Why it exists:**
+- Transformers can model relationships between elements (e.g., cards, betting tokens, action-history tokens) using attention.
+- Useful if you represent poker state as a sequence: `[hole cards] + [board cards] + [betting/action tokens]`.
+
+**Pros (poker relevance):**
+- Can be extended to handle **action history** naturally (important in imperfect-information games).
+- Attention can learn “what matters” in complex state representations (e.g., board texture, draw potential).
+
+**Cons:**
+- Heavier than MLP; can be more data-hungry and less stable in self-play if not carefully regularised.
+- If you feed only a single feature vector (T=1), it behaves more like a richer function approximator than a true sequence model.
+
+**Key hyperparameters (current defaults):**
+- `d_model=256`, `nhead=8`, `num_layers=3`, `dim_feedforward=512`, `dropout=0.05`
+
+---
+
+### LSTMModel (recurrent Q-network)
+**What it is:** An LSTM that processes a **sequence of state or state-history features**, producing Q-values from the last timestep.
+
+**Why it exists:**
+- Poker is **partially observable**; memory of past actions/bets can matter.
+- LSTMs provide a simple way to incorporate temporal context without hand-engineering history features.
+
+**Pros (poker relevance):**
+- Can learn patterns over sequences like: betting round progression, aggression trends, or “line” taken this hand.
+- Handles variable-length histories naturally (with padding/masking if needed).
+
+**Cons:**
+- Harder to train than MLP, and can be slower.
+- Still limited compared to attention if long-range dependencies are important.
+
+**Key hyperparameters (current defaults):**
+- `hidden_dim=1024`, `layer_dim=3`, `dropout=0.05`
+
+---
+
+### GRUModel (recurrent Q-network, lighter than LSTM)
+**What it is:** A GRU-based sequence model similar to the LSTM approach, generally with fewer gates and slightly cheaper compute.
+
+**Why it exists:**
+- Same motivation as LSTM (history matters), but with a simpler recurrent cell.
+
+**Pros (poker relevance):**
+- Often trains faster than LSTM and can be more stable.
+- Good “middle ground” between MLP simplicity and sequence modelling.
+
+**Cons:**
+- Still recurrent (sequential compute), so slower than MLP.
+- Like LSTM, performance depends heavily on how you format and feed the sequence.
+
+**Key hyperparameters (current defaults):**
+- `hidden_dim=1024`, `layer_dim=3`, `dropout=0.05`
+
+---
+
+### Why not bigger models?
+Bigger networks are not automatically better here because:
+- **Self-play overfitting risk:** larger models can overfit to quirks of the current opponent pool.
+- **Diminishing returns:** poker performance often improves more from better state representation, evaluation, and opponent diversity than from scaling parameters.
+- **Compute constraints:** simulation + training is already expensive; smaller models allow more hands, more experiments, and faster iteration.
+
+
+## Convergence Insight
+
+The primary metric tracked during training is **big blind delta (BB/hand)**, which directly measures profitability and aligns with standard poker evaluation. Convergence is assessed by analysing both **aggregate pocket-level statistics** and **time-evolving cumulative averages**.
+
+### Comparison to theoretical preflop equity
+
+As a reference point, the theoretical preflop win rates for a **4-player game** are shown below:
+
+<p align="center">
+  <img src="images/4_person_expected_value_perfect_plat.png" width="500">
+</p>
+
+These values represent idealised equity assuming perfect play and no postflop skill differences.
+
+The following plots show the **simulated expected value by pocket hand** after self-play training:
+
+<p align="center">
+  <img src="images/expected_value_of_pocketcards_50000_iter.png" width="500">
+</p>
+
+<p align="center">
+  <img src="images/expected_value_of_pocketcards_100000_iter.png" width="500">
+</p>
+
+At **50,000 hands**, the learned ordering incorrectly ranks **QQ above AA**, indicating insufficient exploration and unstable estimates. By **100,000 hands**, **pocket aces (AA)** emerge as the highest-EV hand, matching theoretical expectations. This shift suggests that the agents are gradually correcting early misestimations as more data is observed.
+
+While this alignment with theory is encouraging, it is **not sufficient on its own** to claim convergence.
+
+---
+
+### Cumulative average EV curves (stronger indicator)
+
+A more reliable signal comes from tracking the **cumulative average BB/hand over time** for individual pocket hands:
+
+<p align="center">
+  <img src="images/ev_curves_by_pocket_cum_avg.png" width="700">
+</p>
+
+These curves show:
+- High-variance behaviour early in training
+- Gradual flattening as the number of hands increases
+- Reduced drift in later stages, indicating stabilising policies
+
+Moving averages are applied to reduce noise from short-term variance, making long-run trends clearer.
+
+Convergence is identified heuristically when:
+- The slope of cumulative EV curves approaches zero over a large window
+- Relative ordering between strong hands (AA, KK, QQ) stabilises
+- Weak hands (e.g. 72o) consistently converge to negative EV
+
+---
+
+### What convergence does *not* mean
+
+Observed convergence does **not** imply:
+- A Nash equilibrium
+- Exploitability minimisation
+- Robustness against unseen opponent strategies
+
+The policies are only guaranteed to be stable **within the self-play population** used during training. Changes to opponent behaviour, bet sizing, or reward structure may invalidate these equilibria.
+
+These limitations are discussed further in the *Limitations & Future Work* section.
+
+
+
+## Symbolic Regression
+
+### Purpose
+
+Symbolic regression is used to **interpret** the behaviour learned by the reinforcement learning agents by compressing empirical outcomes into **human-readable mathematical expressions**.
+
+The goals are:
+- **Interpretability**: identify which hand features most strongly influence expected value (EV).
+- **Sanity checking**: compare learned relationships against known poker theory (e.g. pair dominance, rank ordering).
+- **Model comparison**: analyse how different architectures encode hand strength.
+
+---
+
+### Features and targets
+
+The following features are provided to the symbolic regression model:
+
+- `rank_high`: higher of the two hole card ranks  
+- `rank_low`: lower of the two hole card ranks  
+- `is_pair`: binary indicator for pocket pairs  
+- `is_suited`: binary indicator for suited hands  
+
+The regression targets include:
+- **Expected value (EV / BB delta)**
+- **Win probability**
+- **Non-showdown win rate**
+- **Profitability probability**
+
+---
+
+### Discovered equations
+
+Below are representative symbolic expressions discovered for EV estimation.
+
+**Theoretical preflop data**
+```
+
+square(((rank_low * 0.0174) / (0.6269 ^ is_pair)) + 0.3986)
+
+```
+
+**Simulated data (all models combined)**
+```
+
+(cube(is_pair + sqrt(rank_low)) - 14.4768) * 0.01224
+
+```
+
+**Per-model learned structures**
+- **MLP**
+```
+
+square((is_pair + (rank_low * 0.2322)) * 0.2567) - 0.1335
+
+```
+
+- **LSTM**
+```
+
+((rank_high / 13.2923) * (is_pair + 0.6166)) - 0.4758
+
+```
+
+- **GRU**
+```
+
+(cube(is_pair + log(rank_low)) * 0.02798) - 0.1522
+
+```
+
+- **Transformer**
+```
+
+(rank_low * ((is_pair * 0.0560) + 0.0454)) - 0.2473
+
+```
+
+---
+
+### Interpretation
+
+The **absolute constants and outer nonlinearities** (e.g. square, cube) are less important than the **relative influence of variables**, which can be analysed via partial derivatives.
+
+Key observations:
+- In the **theoretical equation**, EV is primarily driven by the *lower-ranked card*, with a **multiplicative boost for pocket pairs**.
+- In the **simulated and learned equations**, EV consistently depends on:
+  - card rank (rank_low and/or rank_high)
+  - a strong non-linear boost when `is_pair = 1`
+- Across models, **pair status dominates** hand valuation, while non-pair hands rely more heavily on raw rank magnitude.
+
+Architectural differences emerge:
+- **MLP / GRU** emphasise `rank_low` combined with `is_pair`
+- **LSTM** incorporates both `rank_high` and `is_pair`, suggesting some sensitivity to relative rank ordering
+- **Transformer** learns a nearly linear interaction between rank and pair status, consistent with its bias toward additive structure
+
+Overall, the learned symbolic structures closely mirror known poker theory: **pairs dominate, higher ranks matter more, and non-pair hands scale gradually with card strength**.
+
+---
+
+### Takeaway
+
+Symbolic regression confirms that, despite being trained purely through self-play without injected rules, the agents learn **interpretable, theory-aligned representations of hand strength**, while still exhibiting architecture-specific biases in how that strength is encoded.
+
+
+
+## Validation & Metrics
+
+Given the self-play nature of this project, validation focuses on **internal consistency, stability over time, and alignment with known poker theory**, rather than external optimality guarantees.
+
+---
+
+### Reported metrics
+
+All metrics are computed from the per-hand CSV logs generated during training.
+
+- **Mean EV (`bb_delta`)**  
+  Average profit/loss per hand in big blinds.
+- **EV standard deviation**  
+  Used to quantify variance and risk.
+- **Sharpe-style ratio**  
+  Mean EV divided by standard deviation, used as a stability proxy.
+- **Profitability rate**  
+  Fraction of hands with `bb_delta > 0`.
+- **Showdown vs non-showdown win rates**
+- **Fold rate and aggression indicators**  
+  (raises made, raises faced, BB raised preflop)
+
+Metrics are analysed both **globally** and **per pocket hand**.
+
+---
+
+### Validation approach
+
+**Convergence analysis**
+- Cumulative average EV (BB/hand) is tracked over time.
+- Stabilisation and flattening of these curves are used as a primary convergence signal.
+
+**Pocket-level consistency**
+- Learned EV rankings across the 169 starting hands are compared against:
+  - Theoretical preflop equity ordering
+  - Expected dominance of pairs over non-pairs
+  - Suited vs offsuit differentials
+
+**Sample size awareness**
+- EV is analysed alongside occurrence counts.
+- Hands with low frequency are treated as higher-variance estimates rather than strong conclusions.
+
+**Model comparison**
+- Different architectures (MLP, LSTM, GRU, Transformer) are evaluated using the same metrics.
+- Agreement in high-level trends across models increases confidence that results are not architecture-specific artefacts.
+
+---
+
+### What this validation does and does not show
+
+This validation demonstrates that:
+- Agents learn **stable, poker-consistent hand valuations**
+- Learned strategies converge to internally coherent policies
+- Results are reproducible across architectures and training runs
+
+However, it does **not** guarantee:
+- Nash equilibrium strategies
+- Minimal exploitability
+- Robustness against unseen opponent populations
+
+Stronger validation methods such as cross-play leagues, fixed baseline bots, and exploitability-style testing are left as future work.
+
+
+## Limitations & Future Work
+
+### Limitations
+
+This project intentionally uses a **simplified poker environment**, which introduces several known limitations.
+
+**Action abstraction**
+- Raise sizes are restricted to a small discrete set (BB, half-pot, pot, all-in).
+- This reduces realism and limits the agents’ ability to express nuanced bet sizing strategies.
+
+**Self-play overfitting**
+- Agents are trained exclusively against a fixed set of opponents.
+- Over time, policies may overfit to the specific tendencies of these agents rather than learning broadly robust strategies.
+- This can lead to meta-cycling and population-specific equilibria.
+
+**Partial observability and limited memory**
+- The environment is partially observable by design.
+- When using feed-forward models, agents are effectively memoryless and rely entirely on the current encoded state.
+- This limits the ability to condition decisions on betting history or inferred opponent behaviour.
+
+**Multi-player RL instability**
+- Training occurs in a multi-agent, non-stationary environment.
+- Each agent’s learning alters the effective environment for all others, which can slow convergence and introduce instability.
+
+**Initial-condition bias**
+- The ratio between starting stack size and blind size is relatively fixed.
+- This may bias strategies toward deep-stack play and reduce exposure to edge cases such as short-stack or all-in-dominated scenarios.
+
+**Sample size limitations**
+- Some pocket hands occur infrequently, leading to noisy EV estimates despite large overall hand counts.
+
+**Performance constraints**
+- Training relies on frequent data transfer between C++ (simulation) and Python (learning) via pybind11.
+- This introduces significant overhead; for example, ~30,000 hands required several hundred CPU hours.
+- The current setup prioritises correctness and flexibility over raw throughput.
+
+---
+
+### Future Work
+
+Several extensions could meaningfully improve realism, stability, and performance:
+
+- **Richer temporal modelling**
+  - Use GRU/LSTM models or explicit action-history tokens for transformer-based agents.
+- **Improved self-play diversity**
+  - Population-based training or opponent snapshotting to reduce overfitting.
+- **Stronger evaluation**
+  - Cross-play leagues, fixed baseline bots, and exploitability-style testing.
+- **More realistic game dynamics**
+  - Finer-grained bet sizing, variable stack depths, and rake modelling.
+- **Richer state representations**
+  - Explicit position encoding, pot odds, implied odds, and betting-history features.
+- **Alternative learning algorithms**
+  - Actor–critic methods (e.g. PPO) or NFSP-style approaches for imperfect-information games.
+- **Performance optimisation**
+  - Move the agent logic and training loop fully into C++ using libtorch to eliminate Python↔C++ transfer overhead and enable much larger-scale training.
+
+
+## How to run
+
+### 1) Create a virtual environment + install Python deps
+```bash
+python -m venv venv
+source venv/bin/activate   # macOS/Linux
+# venv\Scripts\activate    # Windows (PowerShell)
+
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+### 2) Build / sanity-check the C++ engine
+
+```bash
+cd PokerEngine
+g++ -std=c++20 poker.cpp Player.cpp GameEngine.cpp -O2 -o poker_engine && ./poker_engine
+```
+
+### 3) Build the pybind11 module (C++ ↔ Python bindings)
+
+```bash
+python setup.py build_ext --inplace
+```
+
+### 4) Run training / experiments (Jupyter)
+
+Open `main.ipynb` and edit the model list / hyperparameters:
+
+```python
+model_0 = MLPModel(input_features=input_features, output_features=output_features,
+                   hidden=(512, 1024, 2048, 1024, 512))
+model_1 = LSTMModel(input_dim=input_features, output_dim=output_features)
+model_2 = GRUModel(input_dim=input_features, output_dim=output_features)
+model_3 = TransformerQModel(input_size=input_features, num_actions=output_features)
+
+models = [model_0, model_1, model_2, model_3]
+```
+
+Game + training parameters:
+
+```python
+MA_WINDOW = 50
+STARTING_AMOUNT = 10000
+BIG_BLIND = 2
+SMALL_BLIND = 1
+MAX_HANDS = 10
+
+agents, history = train_poker_dqn(
+    models=models,
+    n_players=len(models),
+    starting_stack=STARTING_AMOUNT,
+    big_blind=BIG_BLIND,
+    small_blind=SMALL_BLIND,
+    max_hands=MAX_HANDS,
+    device="cpu",
+    ma_window=MA_WINDOW,
+)
+```
+
+## Results
+
+This section summarises the learned behaviour of the agents after self-play training, focusing on expected value (EV), stability, and variance across starting hands.
+
+---
+
+### Pocket hand expected value (100,000 hands)
+
+<p align="center">
+  <img src="images/expected_value_of_pocketcards_100000_iter.png" width="500">
+</p>
+
+This heatmap shows the **mean EV (BB/hand)** for each of the 169 starting hand combinations after 100,000 simulated hands.  
+Stronger hands (AA, KK, QQ, AK) consistently emerge as high-EV, while weak offsuit hands converge to negative EV, broadly matching theoretical expectations.
+
+---
+
+### Convergence behaviour (cumulative average EV)
+
+<p align="center">
+  <img src="images/ev_curves_by_pocket_cum_avg.png" width="700">
+</p>
+
+The cumulative average EV per hand is plotted over time for selected pocket hands.  
+Early training exhibits high variance, while later stages show **flattening curves**, indicating stabilisation of learned strategies. Strong hands converge to positive EV, while weak hands stabilise below zero.
+
+---
+
+### EV vs risk (Sharpe-style analysis)
+
+<p align="center">
+  <img src="images/pocket_cards_ev_vs_sharpe.png" width="700">
+</p>
+
+This scatter plot compares **mean EV** against a Sharpe-style risk metric (mean / standard deviation).  
+Some hands exhibit high EV but also high variance, while others achieve more stable returns. This highlights that maximising EV alone does not necessarily minimise risk.
+
+---
+
+### Expected value vs occurrence frequency
+
+<p align="center">
+  <img src="images/expected_value_vs_occurence.png" width="700">
+</p>
+
+This plot shows EV as a function of how often each pocket hand appears.  
+Hands with low occurrence counts tend to have noisier EV estimates, reinforcing the need for large sample sizes when evaluating individual pocket performance.
+
+---
+
+### Key observations
+
+- **Premium hands are sometimes overplayed early**, leading to unnecessary variance in multiway pots.
+- **EV estimates stabilise over time**, with correct ordering of top hands emerging only after sufficient training.
+- **Rare hands exhibit higher variance**, even late in training, due to limited samples.
+- The learned ordering of hands broadly aligns with theoretical preflop strength, despite no hard-coded poker knowledge.
