@@ -18,3 +18,6 @@ foreach(t test_hand_eval test_betting eval_exhaustive)
   target_link_libraries(${t} poker_core Threads::Threads)
   add_test(NAME ${t} COMMAND ${t})
 endforeach()
+
+add_executable(bench_engine bench/bench_engine.cpp)
+target_link_libraries(bench_engine poker_core)
