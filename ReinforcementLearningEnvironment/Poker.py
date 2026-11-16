@@ -50,6 +50,7 @@ def train_poker_dqn(
         "delta_bb": {i: [] for i in range(n_players)},
         "ma_bb":    {i: [] for i in range(n_players)},
         "resets":   [],
+        "aborted":  [],
     }
 
     hands_played = 0
@@ -165,6 +166,7 @@ def train_poker_dqn(
                         agents[i].remember(None, 0, r_i, None, True)
 
         if hand_aborted:
+            history["aborted"].append(hands_played)
             history["resets"].append(hands_played)
             g.reset_tournament(starting_stack)
             pbar.set_postfix_str("hand_aborted")
