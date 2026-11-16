@@ -1,0 +1,11 @@
+# python bench/check_training_log.py <worktree of 6727091: fixed engine, original training loop> 30
+checkout 6727091, 30 hands, 98 rows
+rows per hand: {1: 1, 2: 3, 3: 13, 4: 13}
+rows with folded=1: 0
+sum over the 4 players of a hand's bb_delta: min 1.5, max 1.5
+
+# python bench/check_training_log.py . 30 (this branch)
+checkout PokerRLPlayground, 30 hands, 78 rows
+rows per hand: {2: 20, 3: 2, 4: 8}
+rows with folded=1: 23
+sum over the 4 players of a hand's bb_delta: min 0.0, max 0.0

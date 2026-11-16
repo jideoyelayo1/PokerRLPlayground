@@ -68,13 +68,14 @@ def train_poker_dqn(
 
         # Stacks before the blinds, so the reward and bb_delta include them
         stacks_start = list(g.getObservation(0).stack[:n_players])
+        # Dealt in = has chips (start_hand may also finish the hand and drop whoever busts in it)
+        dealt_in = [st > 0 for st in stacks_start]
 
         g.start_hand()
 
         # Pocket cards now: a folded player's observation hides them by the end of the hand,
         # and a busted player still holds stale cards from the hand they busted in
-        alive = g.getObservation(0).alive
-        pockets = [pocket_key(*g.getObservation(i).hole) if alive[i] else None for i in range(n_players)]
+        pockets = [pocket_key(*g.getObservation(i).hole) if dealt_in[i] else None for i in range(n_players)]
 
         # Determine BB player for this hand (heuristic)
         bb_player = None
@@ -104,12 +105,12 @@ def train_poker_dqn(
             steps += 1
 
             if steps > MAX_STEPS_PER_HAND or (time.time() - t0) > HAND_TIMEOUT_SEC:
-                hand_aborted = True
+                hand_aborted = "steps" if steps > MAX_STEPS_PER_HAND else "timeout"
                 break
 
             acting = g.currentPlayerSafe()
             if acting < 0:
-                hand_aborted = True
+                hand_aborted = "no current player"
                 break
 
             obs = g.getObservation(acting)
@@ -118,7 +119,7 @@ def train_poker_dqn(
             mask = legal_mask_from_obs(obs)
             legal_idxs = np.where(mask == 0.0)[0]
             if len(legal_idxs) == 0:
-                hand_aborted = True
+                hand_aborted = "no legal action"
                 break
             
             a_idx = agents[acting].select_action(s, mask)
@@ -127,8 +128,8 @@ def train_poker_dqn(
 
             try:
                 a_idx, done = step_with_fallback(g, acting, a_idx, obs)
-            except Exception:
-                hand_aborted = True
+            except Exception as e:
+                hand_aborted = f"error: {e}"
                 break
 
             # Record fold street using the *executed* action (after fallback)
@@ -166,7 +167,7 @@ def train_poker_dqn(
                         agents[i].remember(None, 0, r_i, None, True)
 
         if hand_aborted:
-            history["aborted"].append(hands_played)
+            history["aborted"].append((hands_played, hand_aborted))
             history["resets"].append(hands_played)
             g.reset_tournament(starting_stack)
             pbar.set_postfix_str("hand_aborted")

@@ -1,0 +1,4 @@
+# python bench/rerun_training.py --seed 2 --train-hands 2000 | load average before: { 4.81 24.18 21.36 } | Mon 16 Nov 2026 22:48:10 GMT
+seed 2: 2000 hands in 708 s, aborted [(114, 'timeout'), (441, 'timeout'), (452, 'timeout'), (454, 'timeout'), (455, 'timeout'), (588, 'timeout'), (639, 'timeout')]
+training log rows: committed 6592, rerun 6067; first difference at row 285
+# load average after: { 12.89 10.69 13.93 } | Mon 16 Nov 2026 23:00:00 GMT

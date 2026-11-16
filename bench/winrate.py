@@ -15,8 +15,8 @@ Baselines:
   random  uniform over the legal action indices the agent sees (3 raise sizes count separately)
   call    calls when facing a bet, otherwise checks
   tight   preflop: pot-raise TT+/AK/AQ, call other pairs, two broadway cards or suited aces,
-          otherwise check/fold; postflop: call/check with a pair or better that uses a hole
-          card, otherwise check/fold
+          otherwise check/fold; postflop: call/check with a pocket pair or a hole card that
+          pairs the board, otherwise check/fold
 
     python bench/winrate.py --seeds 1 2 3 --train-hands 2000 --eval-deals 1000
 """
@@ -160,7 +160,8 @@ def main():
         r1 = resource.getrusage(resource.RUSAGE_SELF)
         train = {"seed": seed, "train_hands": a.train_hands, "wall_s": time.time() - t0,
                  "cpu_s": (r1.ru_utime - r0.ru_utime) + (r1.ru_stime - r0.ru_stime),
-                 "tournament_resets": len(history["resets"]), "aborted_hands": len(history["aborted"])}
+                 "tournament_resets": len(history["resets"]), "aborted_hands": len(history["aborted"]),
+                 "abort_reasons": [r for _, r in history["aborted"]]}
         print(json.dumps(train), flush=True)
         for ag in agents:
             ag.random_range = 0  # epsilon 0
