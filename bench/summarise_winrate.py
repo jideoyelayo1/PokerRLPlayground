@@ -1,12 +1,14 @@
-"""Markdown table from bench/raw/winrate_seed*.json.
+"""Markdown table from bench/raw/winrate_seed*.json, plus what the agents did late in training.
 
 Per seed: bb/100 with its 95% CI over deals. Across seeds: mean of the per-seed bb/100 with a
 95% t-interval over seeds (this one includes the variation between training runs).
 
     python bench/summarise_winrate.py
 """
+import csv
 import json
 import statistics
+from collections import Counter
 import sys
 from pathlib import Path
 
@@ -35,6 +37,19 @@ def main(raw=Path(__file__).resolve().parent / "raw"):
         print(f"\nseed {t['seed']}: trained {t['train_hands']} hands in {t['wall_s'] / 60:.1f} min wall "
               f"({t['cpu_s'] / 3600:.2f} CPU-hours, {t['tournament_resets']} tournament resets, {t['aborted_hands']} aborted hands); "
               f"evaluation {t['eval_wall_s'] / 60:.1f} min, {r['results'][0]['deals']} deals x 4 seats per cell")
+    # First action of each player, last quarter of training (epsilon is already 0 after hand 80)
+    print("\n| seed | seat (model) | first actions in the last 25% of training hands |\n|---|---|---|")
+    for r in runs:
+        seed, n = r["train"]["seed"], r["train"]["train_hands"]
+        log = list(csv.DictReader(open(raw / f"train_seed{seed}.csv")))
+        folded = sum(x["folded"] == "1" for x in log)
+        print(f"| {seed} | all | {folded} of {len(log)} logged rows are folds ({100 * folded / len(log):.1f}%); the old logging dropped every one of them |")
+        rows = [x for x in log if int(x["hand_id"]) >= 0.75 * n]
+        for pid in range(4):
+            c = Counter(x["first_action_name"] for x in rows if int(x["player_id"]) == pid)
+            tot = sum(c.values())
+            desc = ", ".join(f"{k} {100 * v / tot:.0f}%" for k, v in c.most_common()) if tot else "not dealt in (busted)"
+            print(f"| {seed} | {pid} ({agents[pid]}) | {desc} (n={tot}) |")
 
 
 if __name__ == "__main__":

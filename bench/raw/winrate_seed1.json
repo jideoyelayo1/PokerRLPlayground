@@ -1,0 +1,193 @@
+{
+ "meta": {
+  "python": "3.14.6",
+  "torch": "2.9.1",
+  "numpy": "2.4.1",
+  "torch_threads": 8,
+  "device": "cpu",
+  "train_hands": 2000,
+  "eval_deals": 1000,
+  "seats": 4,
+  "stack": 10000,
+  "blinds": [
+   1,
+   2
+  ]
+ },
+ "train": {
+  "seed": 1,
+  "train_hands": 2000,
+  "wall_s": 570.2128481864929,
+  "cpu_s": 1235.170878,
+  "tournament_resets": 21,
+  "aborted_hands": 0,
+  "eval_wall_s": 220.50401711463928
+ },
+ "results": [
+  {
+   "bb100": -1852.9375000000002,
+   "ci95_lo": -14901.591979754818,
+   "ci95_hi": 11195.716979754816,
+   "sd_bb_per_deal": 2105.2790079890156,
+   "deals": 1000,
+   "hands": 4000,
+   "seed": 1,
+   "agent": "MLP",
+   "baseline": "random"
+  },
+  {
+   "bb100": 0.0,
+   "ci95_lo": 0.0,
+   "ci95_hi": 0.0,
+   "sd_bb_per_deal": 0.0,
+   "deals": 1000,
+   "hands": 4000,
+   "seed": 1,
+   "agent": "MLP",
+   "baseline": "call"
+  },
+  {
+   "bb100": -2013.1125000000002,
+   "ci95_lo": -3601.4912258156273,
+   "ci95_hi": -424.73377418437315,
+   "sd_bb_per_deal": 256.2701306394629,
+   "deals": 1000,
+   "hands": 4000,
+   "seed": 1,
+   "agent": "MLP",
+   "baseline": "tight"
+  },
+  {
+   "bb100": 9928.35,
+   "ci95_lo": -2645.407741589895,
+   "ci95_hi": 22502.107741589894,
+   "sd_bb_per_deal": 2028.658837275456,
+   "deals": 1000,
+   "hands": 4000,
+   "seed": 1,
+   "agent": "LSTM",
+   "baseline": "random"
+  },
+  {
+   "bb100": -1.925,
+   "ci95_lo": -4.615133507707244,
+   "ci95_hi": 0.7651335077072451,
+   "sd_bb_per_deal": 0.4340280150149501,
+   "deals": 1000,
+   "hands": 4000,
+   "seed": 1,
+   "agent": "LSTM",
+   "baseline": "call"
+  },
+  {
+   "bb100": -21866.375,
+   "ci95_lo": -28069.20414072171,
+   "ci95_hi": -15663.545859278287,
+   "sd_bb_per_deal": 1000.7687766094742,
+   "deals": 1000,
+   "hands": 4000,
+   "seed": 1,
+   "agent": "LSTM",
+   "baseline": "tight"
+  },
+  {
+   "bb100": 8540.349999999999,
+   "ci95_lo": -3159.8428790883604,
+   "ci95_hi": 20240.54287908836,
+   "sd_bb_per_deal": 1887.717273530728,
+   "deals": 1000,
+   "hands": 4000,
+   "seed": 1,
+   "agent": "GRU",
+   "baseline": "random"
+  },
+  {
+   "bb100": 0.0,
+   "ci95_lo": 0.0,
+   "ci95_hi": 0.0,
+   "sd_bb_per_deal": 0.0,
+   "deals": 1000,
+   "hands": 4000,
+   "seed": 1,
+   "agent": "GRU",
+   "baseline": "call"
+  },
+  {
+   "bb100": -69993.575,
+   "ci95_lo": -81983.61092267957,
+   "ci95_hi": -58003.539077320434,
+   "sd_bb_per_deal": 1934.4807521890798,
+   "deals": 1000,
+   "hands": 4000,
+   "seed": 1,
+   "agent": "GRU",
+   "baseline": "tight"
+  },
+  {
+   "bb100": -8575.725,
+   "ci95_lo": -16209.278652195168,
+   "ci95_hi": -942.1713478048318,
+   "sd_bb_per_deal": 1231.602866430282,
+   "deals": 1000,
+   "hands": 4000,
+   "seed": 1,
+   "agent": "Transformer",
+   "baseline": "random"
+  },
+  {
+   "bb100": 0.0,
+   "ci95_lo": 0.0,
+   "ci95_hi": 0.0,
+   "sd_bb_per_deal": 0.0,
+   "deals": 1000,
+   "hands": 4000,
+   "seed": 1,
+   "agent": "Transformer",
+   "baseline": "call"
+  },
+  {
+   "bb100": -11481.512499999999,
+   "ci95_lo": -16359.34757332201,
+   "ci95_hi": -6603.677426677991,
+   "sd_bb_per_deal": 786.9933103240803,
+   "deals": 1000,
+   "hands": 4000,
+   "seed": 1,
+   "agent": "Transformer",
+   "baseline": "tight"
+  },
+  {
+   "bb100": -791.9875000000001,
+   "ci95_lo": -13325.649797281378,
+   "ci95_hi": 11741.674797281377,
+   "sd_bb_per_deal": 2022.1898103463056,
+   "deals": 1000,
+   "hands": 4000,
+   "seed": 1,
+   "agent": "random-bot",
+   "baseline": "random"
+  },
+  {
+   "bb100": -1096.3374999999999,
+   "ci95_lo": -13583.75533116774,
+   "ci95_hi": 11391.08033116774,
+   "sd_bb_per_deal": 2014.7286959535725,
+   "deals": 1000,
+   "hands": 4000,
+   "seed": 1,
+   "agent": "random-bot",
+   "baseline": "call"
+  },
+  {
+   "bb100": -34147.55,
+   "ci95_lo": -41179.89976229012,
+   "ci95_hi": -27115.200237709876,
+   "sd_bb_per_deal": 1134.6042118255345,
+   "deals": 1000,
+   "hands": 4000,
+   "seed": 1,
+   "agent": "random-bot",
+   "baseline": "tight"
+  }
+ ]
+}

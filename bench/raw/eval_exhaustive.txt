@@ -25,5 +25,5 @@ Seven-card hands (GameEngine::bestHandOf7): 133784560 hands, 0 disagreements wit
   High card            23294460     23294460       407       407 ok
   distinct hand values: 4824
 
-threads 10, wall time 62.0 s
+threads 10, wall time 62.7 s
 PASS
