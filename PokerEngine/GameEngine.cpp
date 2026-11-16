@@ -51,19 +51,20 @@ void GameEngine::start_hand() {
     // Preflop min raise = BB
     min_raise_ = big_blind_;
 
-    // Next to act (UTG)
+    // Next to act (UTG), skipping anyone the blinds put all-in
     ++current_betting_player_;
     if (current_betting_player_ == activate_player_ids_.end())
         current_betting_player_ = activate_player_ids_.begin();
-
-    // Action closes on BB if no full raise
-    end_action_it_ = iterOf(bbId);
-    end_action_valid_ = (end_action_it_ != activate_player_ids_.end());
+    if (!canActNow(*current_betting_player_)) advanceToNextPlayer();
+    resetPending();
 
     // Rotate BB position for next hand
     ++big_blind_position_;
     if (big_blind_position_ == activate_player_ids_.end())
         big_blind_position_ = activate_player_ids_.begin();
+
+    // Blinds alone can leave no betting possible (short stacks all-in)
+    if (bettingOver()) runOutAndShowdown();
 }
 
 Observation GameEngine::step(const Action& a, int viewerId) {
@@ -103,13 +104,9 @@ Observation GameEngine::step(const Action& a, int viewerId) {
         return getObservation(viewerId);
     }
 
-    // If everyone left is all-in (or folded), run out and showdown
-    if (everyoneActiveIsAllInOrFolded()) {
-        runOutBoardToFive();
-        showdownAndPayout();
-        eliminateBustedPlayers();
-        hand_terminal_ = true;
-        hand_winner_id_ = -1; // could be split; leave unknown
+    // If no more betting is possible (all-in), run out and showdown
+    if (bettingOver()) {
+        runOutAndShowdown();
         return getObservation(viewerId);
     }
 
@@ -117,8 +114,7 @@ Observation GameEngine::step(const Action& a, int viewerId) {
     advanceToNextPlayer();
 
     // If betting round is complete, advance street automatically (no extra actions here)
-    // Completion condition mirrors runBettingRound's break:
-    if (allNonAllInMatched() && end_action_valid_ && current_betting_player_ == end_action_it_) {
+    if (roundClosed()) {
         // Advance street / or showdown if river complete
         if (street_ == Street::Preflop) {
             dealFlop();
@@ -333,14 +329,28 @@ int GameEngine::lastActivePlayerId() const {
 }
 
 
-// ---- If all remaining players are all-in, no more betting possible.
-bool GameEngine::everyoneActiveIsAllInOrFolded() const {
-    for (int id : activate_player_ids_) {
-        const auto& p = players_[id];
-        if (p.hasFolded()) continue;
-        if (!p.isAllIn()) return false;
-    }
-    return true; // everyone not folded is all-in (or nobody)
+void GameEngine::resetPending() {
+    pending_.assign(players_.size(), 0);
+    for (int id : activate_player_ids_) pending_[id] = canActNow(id);
+}
+
+bool GameEngine::roundClosed() const {
+    for (int id : activate_player_ids_)
+        if (canActNow(id) && pending_[id]) return false;
+    return allNonAllInMatched();
+}
+
+bool GameEngine::bettingOver() const {
+    int n = countCanActNow();
+    return n == 0 || (n == 1 && allNonAllInMatched());
+}
+
+void GameEngine::runOutAndShowdown() {
+    runOutBoardToFive();
+    showdownAndPayout();
+    eliminateBustedPlayers();
+    hand_terminal_ = true;
+    hand_winner_id_ = -1; // could be split; leave unknown
 }
     
 void GameEngine::startNewStreet() {
@@ -350,9 +360,7 @@ void GameEngine::startNewStreet() {
     // NLH min-raise resets each street to BB
     min_raise_ = big_blind_;
 
-    // Your simplified "end action" seat: big blind position (postflop)
-    end_action_it_ = big_blind_position_;
-    end_action_valid_ = (end_action_it_ != activate_player_ids_.end());
+    resetPending();
 
     current_betting_player_ = big_blind_position_;
     advanceToNextPlayer(); // first to act
@@ -399,14 +407,12 @@ void GameEngine::startNewRound() {
     // Preflop: minimum raise is BB
     min_raise_ = big_blind_;
 
-    // Next to act (UTG)
+    // Next to act (UTG), skipping anyone the blinds put all-in
     ++current_betting_player_;
     if (current_betting_player_ == activate_player_ids_.end())
         current_betting_player_ = activate_player_ids_.begin();
-
-    // Preflop action closes on BB if no raises
-    end_action_it_ = iterOf(bbId);
-    end_action_valid_ = (end_action_it_ != activate_player_ids_.end());
+    if (!canActNow(*current_betting_player_)) advanceToNextPlayer();
+    resetPending();
 
     // Rotate BB position for next hand (your simplified logic)
     ++big_blind_position_;
@@ -460,6 +466,12 @@ void GameEngine::applyAction(int id, const Action& a) {
 
     auto& p = players_[id];
     int need = playerToCall(id);
+    pending_[id] = 0;
+    // A bet or raise means everyone else who can still act must act again.
+    auto reopen = [&] {
+        for (int other : activate_player_ids_)
+            if (other != id && canActNow(other)) pending_[other] = 1;
+    };
 
     switch (a.type) {
         case ActionType::Fold:
@@ -492,14 +504,8 @@ void GameEngine::applyAction(int id, const Action& a) {
                 bool fullRaise = (raiseInc >= min_raise_);
                 to_call_ = newToCall;
 
-                if (fullRaise) {
-                    min_raise_ = raiseInc;
-                    auto it = iterOf(id);
-                    if (it != activate_player_ids_.end()) {
-                        end_action_it_ = it;
-                        end_action_valid_ = true;
-                    }
-                }
+                if (fullRaise) min_raise_ = raiseInc;
+                reopen();
             }
             return;
         }
@@ -517,14 +523,8 @@ void GameEngine::applyAction(int id, const Action& a) {
                 bool fullRaise = (raiseInc >= min_raise_);
                 to_call_ = newToCall;
 
-                if (fullRaise) {
-                    min_raise_ = raiseInc;
-                    auto it = iterOf(id);
-                    if (it != activate_player_ids_.end()) {
-                        end_action_it_ = it;
-                        end_action_valid_ = true;
-                    }
-                }
+                if (fullRaise) min_raise_ = raiseInc;
+                reopen();
             }
             return;
         }
@@ -568,26 +568,17 @@ void GameEngine::advanceToNextPlayer() {
 }
 
 void GameEngine::runBettingRound() {
-    if (countCanActNow() == 0) return;
-    if (!end_action_valid_) return;
+    if (bettingOver()) return;
 
     if (!canActNow(*current_betting_player_)) advanceToNextPlayer();
 
     int safety = 0;
     const int SAFETY_MAX = 100000;
 
-    while (true) {
+    while (!roundClosed()) {
         if (++safety > SAFETY_MAX) throw std::runtime_error("Betting loop safety break");
 
-        // End condition: everyone matched and we're at the end-of-action seat
-        if (allNonAllInMatched() && current_betting_player_ == end_action_it_) break;
-
         int id = *current_betting_player_;
-        if (!canActNow(id)) {
-            advanceToNextPlayer();
-            if (countCanActNow() == 0) break;
-            continue;
-        }
 
         Action act{ ActionType::Check, RaiseSize::BB };
         auto it = controllers_.find(id);
@@ -598,9 +589,9 @@ void GameEngine::runBettingRound() {
 
         // applyAction will throw if illegal
         applyAction(id, act);
+        if (handEndedByFolds() || bettingOver()) break;
 
         advanceToNextPlayer();
-        if (countCanActNow() == 0) break;
     }
 }
 
@@ -758,6 +749,7 @@ GameEngine::GameEngine(int numPlayers, int startingMoney, int big_blind, int sma
     }
     // Set big blind position
     big_blind_position_ = activate_player_ids_.begin();
+    pending_.assign(numPlayers, 0);
     big_blind_ = big_blind;
     small_blind_ = small_blind;
 
@@ -771,7 +763,7 @@ void GameEngine::playOneHand() {
     runBettingRound();
     if (handEndedByFolds()) { showdownAndPayout(); eliminateBustedPlayers(); return; }
 
-    if (everyoneActiveIsAllInOrFolded()) {
+    if (bettingOver()) {
         runOutBoardToFive();
         showdownAndPayout();
         eliminateBustedPlayers();
@@ -782,7 +774,7 @@ void GameEngine::playOneHand() {
     startNewStreet();
     runBettingRound();
     if (handEndedByFolds()) { showdownAndPayout(); eliminateBustedPlayers(); return; }
-    if (everyoneActiveIsAllInOrFolded()) {
+    if (bettingOver()) {
         runOutBoardToFive();
         showdownAndPayout();
         eliminateBustedPlayers();
@@ -793,7 +785,7 @@ void GameEngine::playOneHand() {
     startNewStreet();
     runBettingRound();
     if (handEndedByFolds()) { showdownAndPayout(); eliminateBustedPlayers(); return; }
-    if (everyoneActiveIsAllInOrFolded()) {
+    if (bettingOver()) {
         runOutBoardToFive();
         showdownAndPayout();
         eliminateBustedPlayers();

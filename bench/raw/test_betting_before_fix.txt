@@ -1,0 +1,38 @@
+# test_betting.cpp from this branch compiled against the engine before the fix (commit 41a6b22), Apple clang 21, -O3
+FAIL PokerEngine/tests/test_betting.cpp:23: flop dealt after preflop, street 0
+FAIL PokerEngine/tests/test_betting.cpp:26: three live players close the flop in three checks, took 0
+FAIL PokerEngine/tests/test_betting.cpp:47: 4 players: seat 2 acted 2 times on street 0
+FAIL PokerEngine/tests/test_betting.cpp:47: 4 players: seat 3 acted 2 times on street 0
+FAIL PokerEngine/tests/test_betting.cpp:47: 4 players: seat 1 acted 0 times on street 1
+FAIL PokerEngine/tests/test_betting.cpp:47: 4 players: seat 1 acted 0 times on street 2
+FAIL PokerEngine/tests/test_betting.cpp:47: 4 players: seat 1 acted 0 times on street 3
+FAIL PokerEngine/tests/test_betting.cpp:47: 4 players: seat 0 acted 2 times on street 0
+FAIL PokerEngine/tests/test_betting.cpp:47: 4 players: seat 3 acted 2 times on street 0
+FAIL PokerEngine/tests/test_betting.cpp:47: 4 players: seat 2 acted 0 times on street 1
+FAIL PokerEngine/tests/test_betting.cpp:47: 4 players: seat 2 acted 0 times on street 2
+FAIL PokerEngine/tests/test_betting.cpp:47: 4 players: seat 2 acted 0 times on street 3
+FAIL PokerEngine/tests/test_betting.cpp:47: 4 players: seat 0 acted 2 times on street 0
+FAIL PokerEngine/tests/test_betting.cpp:47: 4 players: seat 1 acted 2 times on street 0
+FAIL PokerEngine/tests/test_betting.cpp:47: 4 players: seat 3 acted 0 times on street 1
+FAIL PokerEngine/tests/test_betting.cpp:47: 4 players: seat 3 acted 0 times on street 2
+FAIL PokerEngine/tests/test_betting.cpp:47: 4 players: seat 3 acted 0 times on street 3
+FAIL PokerEngine/tests/test_betting.cpp:47: 4 players: seat 1 acted 2 times on street 0
+FAIL PokerEngine/tests/test_betting.cpp:47: 4 players: seat 2 acted 2 times on street 0
+FAIL PokerEngine/tests/test_betting.cpp:47: 4 players: seat 0 acted 0 times on street 1
+FAIL PokerEngine/tests/test_betting.cpp:47: 4 players: seat 0 acted 0 times on street 2
+FAIL PokerEngine/tests/test_betting.cpp:47: 4 players: seat 0 acted 0 times on street 3
+FAIL PokerEngine/tests/test_betting.cpp:47: 2 players: seat 1 acted 0 times on street 1
+FAIL PokerEngine/tests/test_betting.cpp:47: 2 players: seat 1 acted 0 times on street 2
+FAIL PokerEngine/tests/test_betting.cpp:47: 2 players: seat 1 acted 0 times on street 3
+FAIL PokerEngine/tests/test_betting.cpp:47: 2 players: seat 0 acted 0 times on street 1
+FAIL PokerEngine/tests/test_betting.cpp:47: 2 players: seat 0 acted 0 times on street 2
+FAIL PokerEngine/tests/test_betting.cpp:47: 2 players: seat 0 acted 0 times on street 3
+FAIL PokerEngine/tests/test_betting.cpp:75: random + 3 call: 1280 of 5000 hands did not finish within 2000 steps
+FAIL PokerEngine/tests/test_betting.cpp:75: random + checkfold + 2 call: 2480 of 5000 hands did not finish within 2000 steps
+FAIL PokerEngine/tests/test_betting.cpp:76: random x4 (tournament): 15 hands reached a player with no legal action
+FAIL PokerEngine/tests/test_betting.cpp:77: random x4 (tournament): 12 hands did not conserve chips
+FAIL PokerEngine/tests/test_betting.cpp:75: random + 3 call (tournament): 38 of 5000 hands did not finish within 2000 steps
+FAIL PokerEngine/tests/test_betting.cpp:75: 3 call + checkfold (tournament): 1666 of 5000 hands did not finish within 2000 steps
+FAIL PokerEngine/tests/test_betting.cpp:75: heads-up random vs call (tournament): 881 of 5000 hands did not finish within 2000 steps
+FAIL PokerEngine/tests/test_betting.cpp:76: heads-up random vs call (tournament): 7 hands reached a player with no legal action
+test_betting: 124 checks, 36 failures

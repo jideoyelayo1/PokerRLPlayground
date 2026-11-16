@@ -31,9 +31,14 @@ class GameEngine{
 
         std::array<Card,5> boardFixed() const;
 
-        // Betting-round termination (end of action)
-        std::list<int>::iterator end_action_it_{};
-        bool end_action_valid_ = false;
+        // Betting-round termination: pending_[id] == 1 while seat id still has to act on this
+        // street (reset at the start of each street and for everyone else after a raise).
+        std::vector<uint8_t> pending_;
+        void resetPending();
+        bool roundClosed() const;
+        // No more betting possible: nobody can act, or only one player can and has matched.
+        bool bettingOver() const;
+        void runOutAndShowdown();
 
         // Minimum raise tracking (NLH-style)
         int min_raise_ = 0;         // minimum raise increment for this street
@@ -88,9 +93,6 @@ class GameEngine{
             return countActiveInHand() <= 1;
         }
 
-        // ---- If all remaining players are all-in, no more betting possible.
-        bool everyoneActiveIsAllInOrFolded() const;
-            
         void startNewStreet();
 
         void startNewRound();
