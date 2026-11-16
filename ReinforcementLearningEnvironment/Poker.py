@@ -27,9 +27,12 @@ def train_poker_dqn(
     max_hands: int = 2000,
     device="cpu",
     ma_window: int = 200,
+    seed=None,
 ):
 
     g = pe.GameEngine(n_players, starting_stack, big_blind, small_blind)
+    if seed is not None:
+        g.seed(seed)  # deals only; seed random/numpy/torch in the caller for exploration and weights
     bb = float(big_blind)
 
     # ---- Infer state_dim (probe hand), then reset so training starts clean ----
@@ -62,7 +65,15 @@ def train_poker_dqn(
             history["resets"].append(hands_played)
             g.reset_tournament(starting_stack)
 
+        # Stacks before the blinds, so the reward and bb_delta include them
+        stacks_start = list(g.getObservation(0).stack[:n_players])
+
         g.start_hand()
+
+        # Pocket cards now: a folded player's observation hides them by the end of the hand,
+        # and a busted player still holds stale cards from the hand they busted in
+        alive = g.getObservation(0).alive
+        pockets = [pocket_key(*g.getObservation(i).hole) if alive[i] else None for i in range(n_players)]
 
         # Determine BB player for this hand (heuristic)
         bb_player = None
@@ -83,9 +94,6 @@ def train_poker_dqn(
             }
             for i in range(n_players)
         }
-
-        obs0 = g.getObservation(0)
-        stacks_start = list(obs0.stack[:n_players])
 
         t0 = time.time()
         steps = 0
@@ -171,12 +179,11 @@ def train_poker_dqn(
                 hand_actions[i]["exit_street"] = int(obs_end.street)
 
         stacks_end = list(obs_end.stack[:n_players])
+        assert sum(stacks_end) == sum(stacks_start), "chips not conserved"
 
         rows = []
         for i in range(n_players):
-            obs_i = g.getObservation(i)
-            c1, c2 = obs_i.hole
-            pkey = pocket_key(c1, c2)
+            pkey = pockets[i]
             if pkey is None:
                 continue
 
