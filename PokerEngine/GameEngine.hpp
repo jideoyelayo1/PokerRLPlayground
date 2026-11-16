@@ -16,6 +16,8 @@ class GameEngine{
         std::list<int>::iterator big_blind_position_;
         std::list<int>::iterator button_position_;
         bool reshuffleAlways_ = true;
+        // Deck RNG: clock-seeded by default (as before); call seed() for repeatable deals.
+        std::mt19937_64 rng_{static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count())};
         int big_blind_, small_blind_;
         std::vector<Pot> pots_;
 
@@ -201,6 +203,9 @@ class GameEngine{
         // Single-step advance: apply exactly ONE action for current player.
         // Returns Observation for `viewerId` (usually the same as the next player who will act).
         Observation step(const Action& a, int viewerId);
+
+        // Re-seed the deck RNG; every later shuffle follows from this seed.
+        void seed(uint64_t s) { rng_.seed(s); }
 
         // Convenience
         int bigBlind() const { return big_blind_; }

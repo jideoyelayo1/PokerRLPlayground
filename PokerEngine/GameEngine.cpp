@@ -230,9 +230,8 @@ void GameEngine::initialiseDeck(){
             intermeddiateDeck_.emplace_back(static_cast<Suits>(s), static_cast<Ranks>(r));
         }
     }
-    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
     // Shuffle deck
-    std::shuffle(intermeddiateDeck_.begin(), intermeddiateDeck_.end(), std::default_random_engine(seed));
+    std::shuffle(intermeddiateDeck_.begin(), intermeddiateDeck_.end(), rng_);
 
     for(const auto& card : intermeddiateDeck_) {
         deck_.push(card);
