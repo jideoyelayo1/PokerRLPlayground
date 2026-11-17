@@ -1,16 +1,20 @@
-# python bench/check_terminal_rewards.py ../A2-base   (training loop at 876dd82, before the fix)
+# python bench/check_terminal_rewards.py ../A2-base   (training loop at 876dd82, the head of PR #2, before the fix)
 hand 0 seat 0: bb_delta -69.0, stored (reward, done) [(0.0, False), (0.0, False), (0.0, False), (0.0, False)]
 hand 0 seat 2: bb_delta -100.0, stored (reward, done) [(0.0, False), (0.0, False), (0.0, False)]
 hand 0 seat 3: bb_delta 269.0, stored (reward, done) [(0.0, False), (0.0, False), (0.0, False), (0.0, False)]
 hand 1 seat 3: bb_delta 31.0, stored (reward, done) [(0.0, False), (0.0, False), (0.0, False)]
 hand 2 seat 0: bb_delta -62.5, stored (reward, done) [(0.0, False), (0.0, False), (0.0, False), (0.0, False)]
-checkout A2-base: 300 hands checked (0 aborted, skipped)
-hands where two or more seats acted: 289
-seats that acted: 656; last decision terminal with the seat's bb_delta: 299
-seat-hands breaking the rule: 357; terminal rewards stored without a state (never trained): 897
+checkout A2-base, tournament: 300 hands checked (0 aborted, skipped)
+  hands where two or more seats acted: 289
+  seats that acted: 656; last decision terminal with the seat's bb_delta: 299
+  seat-hands breaking the rule: 357; terminal rewards stored without a state (never trained): 897
 
-# python bench/check_terminal_rewards.py   (after the fix)
-checkout A2: 300 hands checked (0 aborted, skipped)
-hands where two or more seats acted: 296
-seats that acted: 979; last decision terminal with the seat's bb_delta: 979
-seat-hands breaking the rule: 0; terminal rewards stored without a state (never trained): 0
+# python bench/check_terminal_rewards.py   (commit abdf6f8)
+checkout A2, tournament: 300 hands checked (0 aborted, skipped)
+  hands where two or more seats acted: 257
+  seats that acted: 707; last decision terminal with the seat's bb_delta: 707
+  seat-hands breaking the rule: 0; terminal rewards stored without a state (never trained): 0
+checkout A2, stacks reset every hand: 300 hands checked (0 aborted, skipped)
+  hands where two or more seats acted: 300
+  seats that acted: 1198; last decision terminal with the seat's bb_delta: 1198
+  seat-hands breaking the rule: 0; terminal rewards stored without a state (never trained): 0

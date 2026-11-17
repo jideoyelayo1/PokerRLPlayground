@@ -55,15 +55,16 @@ This allows explicit mathematical expressions to be discovered that approximate 
 - **State (`s`)**: `encode_observation(obs, big_blind)` produces a fixed-length feature vector (151 floats for 4 seats) from the current player’s observation: the player’s private hole cards, the board, pot and amounts to call, street, each seat’s stack and contributions listed relative to the player, and the button’s position relative to the player. Every element and its scaling is specified in [`docs/state_encoding.md`](docs/state_encoding.md). Until the encoding was made relative to the player, the seats were listed by absolute seat number with no indication of which one was the player’s own, so an agent trained in one seat saw a different layout in any other (and the evaluation puts it in every seat).
 - **Action (`a`)**: a discrete action index chosen from:
   - Fold, Check, Call, Raise(BB), Raise(Half Pot), Raise(Pot), All-In (exact mapping via `ACTION_NAME` / `A_*` constants).
-- **Reward (`r`)**: sparse, terminal-only. When the hand ends (`done=True`), the acting player receives:
-  - `reward = (stack_end[player] - stack_start[player]) / big_blind`
+- **Reward (`r`)**: sparse, terminal-only. When the hand ends (`done=True`), every player who acted in it receives, on its last decision:
+  - `reward = (stack_end[player] - stack_start[player]) / big_blind × reward_scale` (`reward_scale` 1.0 by default; 0.01 for the demo agents)
   - i.e. profit/loss in **big blinds** for that hand.
 - **Episode termination**: one poker **hand** is treated as an episode. A hand ends when `g.hand_terminal()` becomes true.
 
 **Self-play (multi-agent)**
-- Training is **multi-agent self-play** with `n_players = len(models)`. Each seat is controlled by its own `DQNAgent(model_i)`.
-- Opponents are the other agents in the same hand (no external bots).
+- Training is **multi-agent self-play**: one `DQNAgent` per model. With as many models as seats (as in `main.ipynb`) each seat has its own agent; with fewer, seat `i` is played by agent `i % len(models)`, so a single model plays every seat and learns from all of them (the demo agents are trained this way).
+- Opponents are the other agents in the same hand, or the same agent in the other seats (no external bots).
 - The opponent pool is effectively **latest-only** (each agent always plays the current versions of the others). There is no snapshot/league system in this implementation.
+- By default the stacks carry over between hands (a tournament, reset when fewer than two players have chips); `reset_stacks=True` resets every stack before each hand, as the demo is played.
 
 **Exploration + legality**
 - Action selection uses **epsilon-greedy** inside `agents[acting].select_action(s, mask)`: with probability epsilon a uniformly random legal action. Epsilon falls linearly from `eps_start` (1.0) to `eps_end` (0.05) over the first `eps_decay_hands` (10,000) hands, then stays there (`DQNAgent` arguments). It used to be `max(0, 80 − hands)/201`: at most 40% random actions, and none after the first 80 hands.
@@ -110,8 +111,8 @@ For every completed hand, a row is logged **per player** with:
 - `DQNAgent` keeps a target network for the bootstrap targets, copied from the online network every `target_update_freq` (200) hands.
 
 **Optimisation**
-- Standard DQN training: predicted Q(s,a) vs target computed from reward + discounted max Q(s’,·).
-- (Loss function, optimiser, learning rate, and any gradient clipping are implemented in `DQNAgent`.)
+- DQN: predicted Q(s,a) against the target reward + gamma × max over the **legal** actions at s’ of the target network's Q(s’,·), where s’ is the player's next decision in the hand. With `double=True` (Double DQN) the online network picks the action at s’ and the target network values it.
+- Mean squared error, Adam (`lr`), no gradient clipping (`QTrainer`).
 
 **Update cadence**
 - **Per-hand updates**: after the hand ends, every agent runs `train_long_memory()` once.
@@ -185,7 +186,7 @@ All models in this project are intentionally **simple, lightweight implementatio
 ---
 
 ### LSTMModel (recurrent Q-network)
-**What it is:** An LSTM that processes a **sequence of state or state-history features**, producing Q-values from the last timestep.
+**What it is:** An LSTM that processes a **sequence of state or state-history features**, producing Q-values from the last timestep. With `DQNAgent(..., sequence=True)` the sequence is the player's own encoded states at each of its decisions in the hand so far, the current one last ([`docs/state_encoding.md`](docs/state_encoding.md)); otherwise, as in `main.ipynb`, it is given one state, a sequence of length 1, and has no memory to use.
 
 **Why it exists:**
 - Poker is **partially observable**; memory of past actions/bets can matter.
@@ -205,7 +206,7 @@ All models in this project are intentionally **simple, lightweight implementatio
 ---
 
 ### GRUModel (recurrent Q-network, lighter than LSTM)
-**What it is:** A GRU-based sequence model similar to the LSTM approach, generally with fewer gates and slightly cheaper compute.
+**What it is:** A GRU-based sequence model similar to the LSTM approach, generally with fewer gates and slightly cheaper compute. It is given the same sequences as the LSTM (the hand so far with `sequence=True`, one state otherwise). The demo's `gru` candidate is one GRU layer of 128 over the hand so far.
 
 **Why it exists:**
 - Same motivation as LSTM (history matters), but with a simpler recurrent cell.
