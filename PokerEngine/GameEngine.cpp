@@ -153,6 +153,7 @@ void GameEngine::reset_tournament(int startingMoney) {
     // everyone alive again
     activate_player_ids_.clear();
     for (int i = 0; i < numPlayers_; ++i) activate_player_ids_.push_back(i);
+    current_betting_player_ = activate_player_ids_.begin();  // clear() freed the node it pointed to
 
     // reset positions
     big_blind_position_ = activate_player_ids_.begin();
@@ -266,6 +267,7 @@ void GameEngine::eliminateBustedPlayers() {
     } else if (big_blind_position_ == activate_player_ids_.end()) {
         big_blind_position_ = activate_player_ids_.begin();
     }
+    current_betting_player_ = activate_player_ids_.begin();  // the erased node may have been the current one
 }
 
 // Use only alive players when dealing
@@ -749,6 +751,7 @@ GameEngine::GameEngine(int numPlayers, int startingMoney, int big_blind, int sma
     }
     // Set big blind position
     big_blind_position_ = activate_player_ids_.begin();
+    current_betting_player_ = activate_player_ids_.begin();
     pending_.assign(numPlayers, 0);
     big_blind_ = big_blind;
     small_blind_ = small_blind;
