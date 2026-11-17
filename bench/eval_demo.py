@@ -114,6 +114,16 @@ def main():
             m, h = statistics.mean(v), T95[len(v) - 1] * statistics.stdev(v) / len(v) ** 0.5
             cols.append(f"{m:,.0f} [{m - h:,.0f}, {m + h:,.0f}]")
         lines.append(f"| {c} | {len(rs)} | " + " | ".join(cols) + " |")
+    lines += ["", "Training (bench/train_demo.py; wall time with the other runs in parallel; decisions per hand of "
+              "self-play over the last tenth of the run).", "",
+              "| run | hands | wall | CPU | hands/s | decisions/hand | kept checkpoint | its validation score |",
+              "|---|---:|---:|---:|---:|---:|---:|---:|"]
+    for r in runs:
+        m = metas[r]
+        last = json.loads((RUNS / r / "log.jsonl").read_text().splitlines()[-1])
+        lines.append(f"| {r} | {m['hands']:,} | {m['wall_s'] / 60:.0f} min | {m['cpu_s'] / 3600:.2f} h | "
+                     f"{m['hands'] / m['wall_s']:.0f} | {last.get('decisions_per_hand', float('nan')):.1f} | "
+                     f"{m['kept_checkpoint_hands']:,} | {m['kept_val_score']:,.0f} |")
     lines += ["", "Seats: " + (f"{seats[0]} in all three (clearly best)" if clearly else ", ".join(seats)) + ".",
               "Beats each baseline (lower end of the 95% interval above 0): "
               + "; ".join(f"{r}: " + ", ".join(f"{b} {'yes' if res[(r, b)]['ci95_lo'] > 0 else 'no'}" for b in BOTS)
