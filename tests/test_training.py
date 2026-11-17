@@ -25,5 +25,15 @@ class ReplayBuffer(unittest.TestCase):
         self.assertEqual(sorted(t[2] for t in ag.memory), [7.0, 8.0, 9.0, 10.0, 11.0])
 
 
+class Exploration(unittest.TestCase):
+    def test_epsilon_falls_linearly_then_holds(self):
+        ag = DQNAgent(0, MLPModel(F, A, hidden=(8,)), F, eps_start=1.0, eps_end=0.1, eps_decay_hands=100)
+        mask = np.zeros(A, np.float32)
+        for n, want in [(0, 1.0), (50, 0.55), (100, 0.1), (10_000, 0.1)]:
+            ag.n_hands = n
+            ag.select_action(np.zeros(F, np.float32), mask)
+            self.assertAlmostEqual(ag.epsilon, want)
+
+
 if __name__ == "__main__":
     unittest.main()

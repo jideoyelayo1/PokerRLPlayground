@@ -10,16 +10,19 @@ from ReinforcementLearningEnvironment.TrainingEnvironmentVariables import MAX_ME
 
 
 class DQNAgent:
-    def __init__(self, player_id: int, model: nn.Module, state_dim: int, gamma=0.9, random_range=80, device="cpu",
-                 memory_size=MAX_MEMORY, batch_size=BATCH_SIZE, lr=LEARNING_RATE):
+    def __init__(self, player_id: int, model: nn.Module, state_dim: int, gamma=0.9, device="cpu",
+                 memory_size=MAX_MEMORY, batch_size=BATCH_SIZE, lr=LEARNING_RATE,
+                 eps_start=1.0, eps_end=0.05, eps_decay_hands=10_000):
         self.player_id = player_id
         self.model = model.to(device)
         self.gamma = gamma
         self.device = device
 
         self.n_hands = 0
-        self.random_range = random_range
-        self.epsilon = 0
+        # Epsilon-greedy: the chance of a uniformly random legal action falls linearly from
+        # eps_start to eps_end over the first eps_decay_hands hands, then stays at eps_end.
+        self.eps_start, self.eps_end, self.eps_decay_hands = eps_start, eps_end, eps_decay_hands
+        self.epsilon = eps_start
 
         # Replay buffer: a list used as a ring once full. random.sample on a deque indexes it in
         # O(n) per item (about 50 ms per 1,024-sample at a million transitions); a list is O(1).
@@ -55,9 +58,10 @@ class DQNAgent:
 
 
     def select_action(self, state_vec: np.ndarray, legal_mask: np.ndarray) -> int:
-        self.epsilon = max(0, self.random_range - self.n_hands)
+        frac = min(1.0, self.n_hands / self.eps_decay_hands) if self.eps_decay_hands > 0 else 1.0
+        self.epsilon = self.eps_start + (self.eps_end - self.eps_start) * frac
 
-        if random.randint(0, 200) < self.epsilon:
+        if random.random() < self.epsilon:
             legal_actions = np.where(legal_mask == 0.0)[0].tolist()
             return random.choice(legal_actions)
 

@@ -164,7 +164,7 @@ def main():
                  "abort_reasons": [r for _, r in history["aborted"]]}
         print(json.dumps(train), flush=True)
         for ag in agents:
-            ag.random_range = 0  # epsilon 0
+            ag.eps_start = ag.eps_end = 0.0  # greedy
             ag.model.eval()
         results = []
         players = [(ARCH[i], agent_policy(ag)) for i, ag in enumerate(agents)] + [("random-bot", bot_random)]
