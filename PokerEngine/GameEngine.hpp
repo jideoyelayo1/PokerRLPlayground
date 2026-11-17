@@ -13,8 +13,7 @@ class GameEngine{
         int numPlayers_;
         std::list<int> activate_player_ids_, currently_betting_player_ids_;
         std::list<int>::iterator current_betting_player_;
-        std::list<int>::iterator big_blind_position_;
-        std::list<int>::iterator button_position_;
+        int button_ = -1;  // seat with the dealer button; -1 until the first hand after a reset
         bool reshuffleAlways_ = true;
         // Deck RNG: clock-seeded by default (as before); call seed() for repeatable deals.
         std::mt19937_64 rng_{static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count())};
@@ -96,6 +95,9 @@ class GameEngine{
         void startNewStreet();
 
         void startNewRound();
+
+        // Move the button, post the blinds and set the first player to act preflop.
+        void postBlinds();
 
 
 
