@@ -164,21 +164,29 @@ def card_one_hot(card):
     return vec
 
 def encode_observation(obs, big_blind=2):
-    """encodes the observation"""
+    """State vector for the player viewing obs (obs.viewer_id), 127 + 6 * seats floats (151 for 4).
+
+    docs/state_encoding.md specifies every element. Seats are listed relative to the viewer
+    (viewer first, then the seats after it in table order), so the same network can play any seat,
+    and chip amounts are in units of 100 big blinds.
+    """
     n_players = len(obs.stack)
+    v = obs.viewer_id
+    chips = 1.0 / (100.0 * big_blind)
     parts = []
 
-    # 7 cards -> 7 * 17 = 119
+    # 7 cards -> 7 * 17 = 119 (hole, then board; cards not dealt yet are all zeros)
     for c in obs.hole:
         parts.append(card_one_hot(c))
     for c in obs.board:
         parts.append(card_one_hot(c))
 
-    # scalars -> 3
+    # scalars -> 4
     parts.append(np.array([
-        obs.pot_total / big_blind,
-        obs.to_call / big_blind,
-        obs.min_raise / big_blind,
+        obs.pot_total * chips,
+        obs.to_call * chips,
+        obs.min_raise * chips,
+        obs.viewer_to_call * chips,
     ], dtype=np.float32))
 
     # street one-hot -> 4
@@ -187,17 +195,24 @@ def encode_observation(obs, big_blind=2):
         street_oh[obs.street] = 1.0
     parts.append(street_oh)
 
-    # per-player info: 5 each -> 5*n_players
+    # per-seat info, viewer first: 5 each -> 5*n_players
     per = []
-    for i in range(n_players):
+    for k in range(n_players):
+        i = (v + k) % n_players
         per.extend([
-            obs.stack[i] / big_blind,
+            obs.stack[i] * chips,
             float(obs.folded[i]),
             float(obs.all_in[i]),
-            obs.street_contrib[i] / big_blind,
-            obs.total_contrib[i] / big_blind,
+            obs.street_contrib[i] * chips,
+            obs.total_contrib[i] * chips,
         ])
     parts.append(np.array(per, dtype=np.float32))
+
+    # button, relative to the viewer: one-hot over n_players (0 = the viewer has the button)
+    button_oh = np.zeros(n_players, dtype=np.float32)
+    if obs.button >= 0:
+        button_oh[(obs.button - v) % n_players] = 1.0
+    parts.append(button_oh)
 
     return np.concatenate(parts, axis=0)
 

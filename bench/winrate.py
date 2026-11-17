@@ -49,7 +49,7 @@ ARCH = ["MLP", "LSTM", "GRU", "Transformer"]
 
 
 def readme_models():
-    f = 146  # encode_observation length for 4 seats
+    f = 151  # encode_observation length for 4 seats
     return [MLPModel(input_features=f, output_features=N_ACTIONS, hidden=(512, 1024, 2048, 1024, 512)),
             LSTMModel(input_dim=f, output_dim=N_ACTIONS),
             GRUModel(input_dim=f, output_dim=N_ACTIONS),

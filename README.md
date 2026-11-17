@@ -52,7 +52,7 @@ This allows explicit mathematical expressions to be discovered that approximate 
 ### Learning setup
 
 **RL formulation**
-- **State (`s`)**: `encode_observation(obs, big_blind)` produces a fixed-length feature vector from the current player’s observation. The observation contains the player’s private hole cards plus public game information (street, pot/to-call, stacks, etc.).
+- **State (`s`)**: `encode_observation(obs, big_blind)` produces a fixed-length feature vector (151 floats for 4 seats) from the current player’s observation: the player’s private hole cards, the board, pot and amounts to call, street, each seat’s stack and contributions listed relative to the player, and the button’s position relative to the player. Every element and its scaling is specified in [`docs/state_encoding.md`](docs/state_encoding.md). Until the encoding was made relative to the player, the seats were listed by absolute seat number with no indication of which one was the player’s own, so an agent trained in one seat saw a different layout in any other (and the evaluation puts it in every seat).
 - **Action (`a`)**: a discrete action index chosen from:
   - Fold, Check, Call, Raise(BB), Raise(Half Pot), Raise(Pot), All-In (exact mapping via `ACTION_NAME` / `A_*` constants).
 - **Reward (`r`)**: sparse, terminal-only. When the hand ends (`done=True`), the acting player receives:
