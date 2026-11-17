@@ -50,6 +50,19 @@ class Target(unittest.TestCase):
         # MSE over 3 outputs: grad of Q(s,0) is -2/3 * target; target = max(0, 1) = 1, not 5
         self.assertAlmostEqual(net.weight[0, 0].item(), 0.5 * 2 / 3 * 1.0, places=6)
 
+    def test_double_dqn_values_the_online_networks_choice(self):
+        from ReinforcementLearningEnvironment.QTrainer import QTrainer
+        net, tgt = torch.nn.Linear(2, 3, bias=False), torch.nn.Linear(2, 3, bias=False)
+        with torch.no_grad():
+            net.weight.copy_(torch.tensor([[0.0, 0.0], [0.0, 1.0], [0.0, 2.0]]))  # online at s': [0, 1, 2]
+            tgt.weight.copy_(torch.tensor([[0.0, 0.0], [0.0, 7.0], [0.0, 3.0]]))  # target at s': [0, 7, 3]
+        tr = QTrainer(net, tgt, lr=1.0, gamma=1.0, double=True)
+        tr.optimizer = torch.optim.SGD(net.parameters(), lr=0.5)
+        s, s2 = np.array([1.0, 0.0], np.float32), np.array([0.0, 1.0], np.float32)
+        tr.train_step([s], [0], [0.0], [s2], [False], [np.zeros(3, np.float32)])
+        # online picks action 2 at s', target values it at 3 (plain max would use 7)
+        self.assertAlmostEqual(net.weight[0, 0].item(), 0.5 * 2 / 3 * 3.0, places=6)
+
 
 class SharedSeats(unittest.TestCase):
     def test_one_model_plays_every_seat(self):

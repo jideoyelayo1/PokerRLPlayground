@@ -5,8 +5,10 @@ import torch.optim as optim
 import numpy as np
 
 class QTrainer:
-    def __init__(self, model: nn.Module, target_model: nn.Module, lr: float, gamma: float, device="cpu"):
+    def __init__(self, model: nn.Module, target_model: nn.Module, lr: float, gamma: float, device="cpu", double=False):
         self.gamma = gamma
+        # Double DQN: the online network picks the next action, the target network values it
+        self.double = double
         self.model = model
         self.target_model = target_model
         self.device = device
@@ -71,9 +73,12 @@ class QTrainer:
 
         with torch.no_grad():
             next_q = self._q(self.target_model, next_states, next_lengths)  # (B, N_ACTIONS)
-            if next_masks is not None:                    # max over the legal actions at s' only
-                next_q = next_q + torch.tensor(np.array(next_masks), dtype=torch.float32, device=self.device)
-            max_next_q = next_q.max(dim=1).values         # (B,)
+            m = 0.0 if next_masks is None else torch.tensor(np.array(next_masks), dtype=torch.float32, device=self.device)
+            if self.double:
+                pick = (self._q(self.model, next_states, next_lengths) + m).argmax(dim=1, keepdim=True)
+                max_next_q = next_q.gather(1, pick).squeeze(1)  # (B,)
+            else:
+                max_next_q = (next_q + m).max(dim=1).values  # (B,); max over the legal actions at s' only
             target_q = rewards + (~dones).float() * self.gamma * max_next_q
 
         target = pred.clone().detach()
