@@ -1,0 +1,203 @@
+# PokerEngine/tests/test_betting.cpp from commit 2a3e3df (the seat-order tests) compiled against the engine before the seat-order fix.
+# c++ -std=c++20 -O3 -DNDEBUG (Apple clang 21.0.0), PokerEngine/{GameEngine,Player}.cpp taken from the commit named below.
+#
+# (1) Engine at 212c4da: main plus the iterator fix only (old seat order). Full output:
+FAIL PokerEngine/tests/test_betting.cpp:89: 2 seats, hand 0: blinds posted [2 1], expected [1 2] (button 0)
+FAIL PokerEngine/tests/test_betting.cpp:99: 2 seats, hand 0: street 1 order [0 1], expected [1 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 2 seats, hand 0: street 2 order [0 1], expected [1 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 2 seats, hand 0: street 3 order [0 1], expected [1 0]
+FAIL PokerEngine/tests/test_betting.cpp:89: 2 seats, hand 1: blinds posted [1 2], expected [2 1] (button 1)
+FAIL PokerEngine/tests/test_betting.cpp:99: 2 seats, hand 1: street 1 order [1 0], expected [0 1]
+FAIL PokerEngine/tests/test_betting.cpp:99: 2 seats, hand 1: street 2 order [1 0], expected [0 1]
+FAIL PokerEngine/tests/test_betting.cpp:99: 2 seats, hand 1: street 3 order [1 0], expected [0 1]
+FAIL PokerEngine/tests/test_betting.cpp:89: 2 seats, hand 2: blinds posted [2 1], expected [1 2] (button 0)
+FAIL PokerEngine/tests/test_betting.cpp:99: 2 seats, hand 2: street 1 order [0 1], expected [1 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 2 seats, hand 2: street 2 order [0 1], expected [1 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 2 seats, hand 2: street 3 order [0 1], expected [1 0]
+FAIL PokerEngine/tests/test_betting.cpp:89: 3 seats, hand 0: blinds posted [2 1 0], expected [0 1 2] (button 0)
+FAIL PokerEngine/tests/test_betting.cpp:96: 3 seats, hand 0: preflop order [2 0 1], expected [0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 0: street 1 order [2 0 1], expected [1 2 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 0: street 2 order [2 0 1], expected [1 2 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 0: street 3 order [2 0 1], expected [1 2 0]
+FAIL PokerEngine/tests/test_betting.cpp:89: 3 seats, hand 1: blinds posted [0 2 1], expected [2 0 1] (button 1)
+FAIL PokerEngine/tests/test_betting.cpp:96: 3 seats, hand 1: preflop order [0 1 2], expected [1 2 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 1: street 1 order [0 1 2], expected [2 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 1: street 2 order [0 1 2], expected [2 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 1: street 3 order [0 1 2], expected [2 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:89: 3 seats, hand 2: blinds posted [1 0 2], expected [1 2 0] (button 2)
+FAIL PokerEngine/tests/test_betting.cpp:96: 3 seats, hand 2: preflop order [1 2 0], expected [2 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 2: street 1 order [1 2 0], expected [0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 2: street 2 order [1 2 0], expected [0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 2: street 3 order [1 2 0], expected [0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:89: 3 seats, hand 3: blinds posted [2 1 0], expected [0 1 2] (button 0)
+FAIL PokerEngine/tests/test_betting.cpp:96: 3 seats, hand 3: preflop order [2 0 1], expected [0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 3: street 1 order [2 0 1], expected [1 2 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 3: street 2 order [2 0 1], expected [1 2 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 3: street 3 order [2 0 1], expected [1 2 0]
+FAIL PokerEngine/tests/test_betting.cpp:89: 4 seats, hand 0: blinds posted [2 1 0 0], expected [0 1 2 0] (button 0)
+FAIL PokerEngine/tests/test_betting.cpp:96: 4 seats, hand 0: preflop order [2 3 0 1], expected [3 0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 0: street 1 order [2 3 0 1], expected [1 2 3 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 0: street 2 order [2 3 0 1], expected [1 2 3 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 0: street 3 order [2 3 0 1], expected [1 2 3 0]
+FAIL PokerEngine/tests/test_betting.cpp:89: 4 seats, hand 1: blinds posted [0 2 1 0], expected [0 0 1 2] (button 1)
+FAIL PokerEngine/tests/test_betting.cpp:96: 4 seats, hand 1: preflop order [3 0 1 2], expected [0 1 2 3]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 1: street 1 order [3 0 1 2], expected [2 3 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 1: street 2 order [3 0 1 2], expected [2 3 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 1: street 3 order [3 0 1 2], expected [2 3 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:89: 4 seats, hand 2: blinds posted [0 0 2 1], expected [2 0 0 1] (button 2)
+FAIL PokerEngine/tests/test_betting.cpp:96: 4 seats, hand 2: preflop order [0 1 2 3], expected [1 2 3 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 2: street 1 order [0 1 2 3], expected [3 0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 2: street 2 order [0 1 2 3], expected [3 0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 2: street 3 order [0 1 2 3], expected [3 0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:89: 4 seats, hand 3: blinds posted [1 0 0 2], expected [1 2 0 0] (button 3)
+FAIL PokerEngine/tests/test_betting.cpp:96: 4 seats, hand 3: preflop order [1 2 3 0], expected [2 3 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 3: street 1 order [1 2 3 0], expected [0 1 2 3]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 3: street 2 order [1 2 3 0], expected [0 1 2 3]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 3: street 3 order [1 2 3 0], expected [0 1 2 3]
+FAIL PokerEngine/tests/test_betting.cpp:89: 4 seats, hand 4: blinds posted [2 1 0 0], expected [0 1 2 0] (button 0)
+FAIL PokerEngine/tests/test_betting.cpp:96: 4 seats, hand 4: preflop order [2 3 0 1], expected [3 0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 4: street 1 order [2 3 0 1], expected [1 2 3 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 4: street 2 order [2 3 0 1], expected [1 2 3 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 4: street 3 order [2 3 0 1], expected [1 2 3 0]
+FAIL PokerEngine/tests/test_betting.cpp:89: 6 seats, hand 0: blinds posted [2 1 0 0 0 0], expected [0 1 2 0 0 0] (button 0)
+FAIL PokerEngine/tests/test_betting.cpp:96: 6 seats, hand 0: preflop order [2 3 4 5 0 1], expected [3 4 5 0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 0: street 1 order [2 3 4 5 0 1], expected [1 2 3 4 5 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 0: street 2 order [2 3 4 5 0 1], expected [1 2 3 4 5 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 0: street 3 order [2 3 4 5 0 1], expected [1 2 3 4 5 0]
+FAIL PokerEngine/tests/test_betting.cpp:89: 6 seats, hand 1: blinds posted [0 2 1 0 0 0], expected [0 0 1 2 0 0] (button 1)
+FAIL PokerEngine/tests/test_betting.cpp:96: 6 seats, hand 1: preflop order [3 4 5 0 1 2], expected [4 5 0 1 2 3]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 1: street 1 order [3 4 5 0 1 2], expected [2 3 4 5 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 1: street 2 order [3 4 5 0 1 2], expected [2 3 4 5 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 1: street 3 order [3 4 5 0 1 2], expected [2 3 4 5 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:89: 6 seats, hand 2: blinds posted [0 0 2 1 0 0], expected [0 0 0 1 2 0] (button 2)
+FAIL PokerEngine/tests/test_betting.cpp:96: 6 seats, hand 2: preflop order [4 5 0 1 2 3], expected [5 0 1 2 3 4]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 2: street 1 order [4 5 0 1 2 3], expected [3 4 5 0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 2: street 2 order [4 5 0 1 2 3], expected [3 4 5 0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 2: street 3 order [4 5 0 1 2 3], expected [3 4 5 0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:89: 6 seats, hand 3: blinds posted [0 0 0 2 1 0], expected [0 0 0 0 1 2] (button 3)
+FAIL PokerEngine/tests/test_betting.cpp:96: 6 seats, hand 3: preflop order [5 0 1 2 3 4], expected [0 1 2 3 4 5]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 3: street 1 order [5 0 1 2 3 4], expected [4 5 0 1 2 3]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 3: street 2 order [5 0 1 2 3 4], expected [4 5 0 1 2 3]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 3: street 3 order [5 0 1 2 3 4], expected [4 5 0 1 2 3]
+FAIL PokerEngine/tests/test_betting.cpp:89: 6 seats, hand 4: blinds posted [0 0 0 0 2 1], expected [2 0 0 0 0 1] (button 4)
+FAIL PokerEngine/tests/test_betting.cpp:96: 6 seats, hand 4: preflop order [0 1 2 3 4 5], expected [1 2 3 4 5 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 4: street 1 order [0 1 2 3 4 5], expected [5 0 1 2 3 4]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 4: street 2 order [0 1 2 3 4 5], expected [5 0 1 2 3 4]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 4: street 3 order [0 1 2 3 4 5], expected [5 0 1 2 3 4]
+FAIL PokerEngine/tests/test_betting.cpp:89: 6 seats, hand 5: blinds posted [1 0 0 0 0 2], expected [1 2 0 0 0 0] (button 5)
+FAIL PokerEngine/tests/test_betting.cpp:96: 6 seats, hand 5: preflop order [1 2 3 4 5 0], expected [2 3 4 5 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 5: street 1 order [1 2 3 4 5 0], expected [0 1 2 3 4 5]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 5: street 2 order [1 2 3 4 5 0], expected [0 1 2 3 4 5]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 5: street 3 order [1 2 3 4 5 0], expected [0 1 2 3 4 5]
+FAIL PokerEngine/tests/test_betting.cpp:89: 6 seats, hand 6: blinds posted [2 1 0 0 0 0], expected [0 1 2 0 0 0] (button 0)
+FAIL PokerEngine/tests/test_betting.cpp:96: 6 seats, hand 6: preflop order [2 3 4 5 0 1], expected [3 4 5 0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 6: street 1 order [2 3 4 5 0 1], expected [1 2 3 4 5 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 6: street 2 order [2 3 4 5 0 1], expected [1 2 3 4 5 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 6: street 3 order [2 3 4 5 0 1], expected [1 2 3 4 5 0]
+FAIL PokerEngine/tests/test_betting.cpp:117: 2 seats: big blind may check or raise
+FAIL PokerEngine/tests/test_betting.cpp:115: 3 seats: after 2 calls the big blind (seat 2) should act preflop, got seat 1 on street 0
+FAIL PokerEngine/tests/test_betting.cpp:115: 4 seats: after 3 calls the big blind (seat 2) should act preflop, got seat 1 on street 0
+FAIL PokerEngine/tests/test_betting.cpp:115: 6 seats: after 5 calls the big blind (seat 2) should act preflop, got seat 1 on street 0
+FAIL PokerEngine/tests/test_betting.cpp:192: rotation, 4 seats: 5000 of 5000 hands had the blinds on the wrong seats
+FAIL PokerEngine/tests/test_betting.cpp:193: rotation, 4 seats: 1704 of 5000 hands started preflop with the wrong player
+FAIL PokerEngine/tests/test_betting.cpp:194: rotation, 4 seats: 1417 of 1445 flop/turn/river rounds started with the wrong player
+rotation, 4 seats: button busted 271, small blind busted 541, big blind busted 276, went heads-up 775, first seat after the button folded 25 / all-in 3 times
+FAIL PokerEngine/tests/test_betting.cpp:192: rotation, 6 seats: 5000 of 5000 hands had the blinds on the wrong seats
+FAIL PokerEngine/tests/test_betting.cpp:193: rotation, 6 seats: 345 of 5000 hands started preflop with the wrong player
+FAIL PokerEngine/tests/test_betting.cpp:194: rotation, 6 seats: 2783 of 2842 flop/turn/river rounds started with the wrong player
+rotation, 6 seats: button busted 51, small blind busted 65, big blind busted 87, went heads-up 75, first seat after the button folded 56 / all-in 3 times
+test_betting: 233 checks, 102 failures
+exit status 1
+#
+# (2) Engine at main (2658c62). The order checks fail the same way; then the rotation test segfaults (exit status 139),
+#     because getObservation() on a new engine dereferences an iterator that was never set (fixed in 212c4da). Full output:
+FAIL PokerEngine/tests/test_betting.cpp:89: 2 seats, hand 0: blinds posted [2 1], expected [1 2] (button 0)
+FAIL PokerEngine/tests/test_betting.cpp:99: 2 seats, hand 0: street 1 order [0 1], expected [1 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 2 seats, hand 0: street 2 order [0 1], expected [1 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 2 seats, hand 0: street 3 order [0 1], expected [1 0]
+FAIL PokerEngine/tests/test_betting.cpp:89: 2 seats, hand 1: blinds posted [1 2], expected [2 1] (button 1)
+FAIL PokerEngine/tests/test_betting.cpp:99: 2 seats, hand 1: street 1 order [1 0], expected [0 1]
+FAIL PokerEngine/tests/test_betting.cpp:99: 2 seats, hand 1: street 2 order [1 0], expected [0 1]
+FAIL PokerEngine/tests/test_betting.cpp:99: 2 seats, hand 1: street 3 order [1 0], expected [0 1]
+FAIL PokerEngine/tests/test_betting.cpp:89: 2 seats, hand 2: blinds posted [2 1], expected [1 2] (button 0)
+FAIL PokerEngine/tests/test_betting.cpp:99: 2 seats, hand 2: street 1 order [0 1], expected [1 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 2 seats, hand 2: street 2 order [0 1], expected [1 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 2 seats, hand 2: street 3 order [0 1], expected [1 0]
+FAIL PokerEngine/tests/test_betting.cpp:89: 3 seats, hand 0: blinds posted [2 1 0], expected [0 1 2] (button 0)
+FAIL PokerEngine/tests/test_betting.cpp:96: 3 seats, hand 0: preflop order [2 0 1], expected [0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 0: street 1 order [2 0 1], expected [1 2 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 0: street 2 order [2 0 1], expected [1 2 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 0: street 3 order [2 0 1], expected [1 2 0]
+FAIL PokerEngine/tests/test_betting.cpp:89: 3 seats, hand 1: blinds posted [0 2 1], expected [2 0 1] (button 1)
+FAIL PokerEngine/tests/test_betting.cpp:96: 3 seats, hand 1: preflop order [0 1 2], expected [1 2 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 1: street 1 order [0 1 2], expected [2 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 1: street 2 order [0 1 2], expected [2 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 1: street 3 order [0 1 2], expected [2 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:89: 3 seats, hand 2: blinds posted [1 0 2], expected [1 2 0] (button 2)
+FAIL PokerEngine/tests/test_betting.cpp:96: 3 seats, hand 2: preflop order [1 2 0], expected [2 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 2: street 1 order [1 2 0], expected [0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 2: street 2 order [1 2 0], expected [0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 2: street 3 order [1 2 0], expected [0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:89: 3 seats, hand 3: blinds posted [2 1 0], expected [0 1 2] (button 0)
+FAIL PokerEngine/tests/test_betting.cpp:96: 3 seats, hand 3: preflop order [2 0 1], expected [0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 3: street 1 order [2 0 1], expected [1 2 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 3: street 2 order [2 0 1], expected [1 2 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 3 seats, hand 3: street 3 order [2 0 1], expected [1 2 0]
+FAIL PokerEngine/tests/test_betting.cpp:89: 4 seats, hand 0: blinds posted [2 1 0 0], expected [0 1 2 0] (button 0)
+FAIL PokerEngine/tests/test_betting.cpp:96: 4 seats, hand 0: preflop order [2 3 0 1], expected [3 0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 0: street 1 order [2 3 0 1], expected [1 2 3 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 0: street 2 order [2 3 0 1], expected [1 2 3 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 0: street 3 order [2 3 0 1], expected [1 2 3 0]
+FAIL PokerEngine/tests/test_betting.cpp:89: 4 seats, hand 1: blinds posted [0 2 1 0], expected [0 0 1 2] (button 1)
+FAIL PokerEngine/tests/test_betting.cpp:96: 4 seats, hand 1: preflop order [3 0 1 2], expected [0 1 2 3]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 1: street 1 order [3 0 1 2], expected [2 3 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 1: street 2 order [3 0 1 2], expected [2 3 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 1: street 3 order [3 0 1 2], expected [2 3 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:89: 4 seats, hand 2: blinds posted [0 0 2 1], expected [2 0 0 1] (button 2)
+FAIL PokerEngine/tests/test_betting.cpp:96: 4 seats, hand 2: preflop order [0 1 2 3], expected [1 2 3 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 2: street 1 order [0 1 2 3], expected [3 0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 2: street 2 order [0 1 2 3], expected [3 0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 2: street 3 order [0 1 2 3], expected [3 0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:89: 4 seats, hand 3: blinds posted [1 0 0 2], expected [1 2 0 0] (button 3)
+FAIL PokerEngine/tests/test_betting.cpp:96: 4 seats, hand 3: preflop order [1 2 3 0], expected [2 3 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 3: street 1 order [1 2 3 0], expected [0 1 2 3]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 3: street 2 order [1 2 3 0], expected [0 1 2 3]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 3: street 3 order [1 2 3 0], expected [0 1 2 3]
+FAIL PokerEngine/tests/test_betting.cpp:89: 4 seats, hand 4: blinds posted [2 1 0 0], expected [0 1 2 0] (button 0)
+FAIL PokerEngine/tests/test_betting.cpp:96: 4 seats, hand 4: preflop order [2 3 0 1], expected [3 0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 4: street 1 order [2 3 0 1], expected [1 2 3 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 4: street 2 order [2 3 0 1], expected [1 2 3 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 4 seats, hand 4: street 3 order [2 3 0 1], expected [1 2 3 0]
+FAIL PokerEngine/tests/test_betting.cpp:89: 6 seats, hand 0: blinds posted [2 1 0 0 0 0], expected [0 1 2 0 0 0] (button 0)
+FAIL PokerEngine/tests/test_betting.cpp:96: 6 seats, hand 0: preflop order [2 3 4 5 0 1], expected [3 4 5 0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 0: street 1 order [2 3 4 5 0 1], expected [1 2 3 4 5 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 0: street 2 order [2 3 4 5 0 1], expected [1 2 3 4 5 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 0: street 3 order [2 3 4 5 0 1], expected [1 2 3 4 5 0]
+FAIL PokerEngine/tests/test_betting.cpp:89: 6 seats, hand 1: blinds posted [0 2 1 0 0 0], expected [0 0 1 2 0 0] (button 1)
+FAIL PokerEngine/tests/test_betting.cpp:96: 6 seats, hand 1: preflop order [3 4 5 0 1 2], expected [4 5 0 1 2 3]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 1: street 1 order [3 4 5 0 1 2], expected [2 3 4 5 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 1: street 2 order [3 4 5 0 1 2], expected [2 3 4 5 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 1: street 3 order [3 4 5 0 1 2], expected [2 3 4 5 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:89: 6 seats, hand 2: blinds posted [0 0 2 1 0 0], expected [0 0 0 1 2 0] (button 2)
+FAIL PokerEngine/tests/test_betting.cpp:96: 6 seats, hand 2: preflop order [4 5 0 1 2 3], expected [5 0 1 2 3 4]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 2: street 1 order [4 5 0 1 2 3], expected [3 4 5 0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 2: street 2 order [4 5 0 1 2 3], expected [3 4 5 0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 2: street 3 order [4 5 0 1 2 3], expected [3 4 5 0 1 2]
+FAIL PokerEngine/tests/test_betting.cpp:89: 6 seats, hand 3: blinds posted [0 0 0 2 1 0], expected [0 0 0 0 1 2] (button 3)
+FAIL PokerEngine/tests/test_betting.cpp:96: 6 seats, hand 3: preflop order [5 0 1 2 3 4], expected [0 1 2 3 4 5]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 3: street 1 order [5 0 1 2 3 4], expected [4 5 0 1 2 3]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 3: street 2 order [5 0 1 2 3 4], expected [4 5 0 1 2 3]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 3: street 3 order [5 0 1 2 3 4], expected [4 5 0 1 2 3]
+FAIL PokerEngine/tests/test_betting.cpp:89: 6 seats, hand 4: blinds posted [0 0 0 0 2 1], expected [2 0 0 0 0 1] (button 4)
+FAIL PokerEngine/tests/test_betting.cpp:96: 6 seats, hand 4: preflop order [0 1 2 3 4 5], expected [1 2 3 4 5 0]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 4: street 1 order [0 1 2 3 4 5], expected [5 0 1 2 3 4]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 4: street 2 order [0 1 2 3 4 5], expected [5 0 1 2 3 4]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 4: street 3 order [0 1 2 3 4 5], expected [5 0 1 2 3 4]
+FAIL PokerEngine/tests/test_betting.cpp:89: 6 seats, hand 5: blinds posted [1 0 0 0 0 2], expected [1 2 0 0 0 0] (button 5)
+FAIL PokerEngine/tests/test_betting.cpp:96: 6 seats, hand 5: preflop order [1 2 3 4 5 0], expected [2 3 4 5 0 1]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 5: street 1 order [1 2 3 4 5 0], expected [0 1 2 3 4 5]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 5: street 2 order [1 2 3 4 5 0], expected [0 1 2 3 4 5]
+FAIL PokerEngine/tests/test_betting.cpp:99: 6 seats, hand 5: street 3 order [1 2 3 4 5 0], expected [0 1 2 3 4 5]
+FAIL PokerEngine/tests/test_betting.cpp:89: 6 seats, hand 6: blinds posted [2 1 0 0 0 0], expected [0 1 2 0 0 0] (button 0)
+FAIL PokerEngine/tests/test_betting.cpp:96: 6 seats, hand 6: preflop order [2 3 4 5 0 1], expected [3 4 5 0 1 2]
+FAIL PokerEngine/tests/test_betting.cpexit status 139

@@ -503,7 +503,7 @@ This project intentionally uses a **simplified poker environment**, which introd
 - Training relies on frequent data transfer between C++ (simulation) and Python (learning) via pybind11.
 - This introduces significant overhead; for example, ~30,000 hands required several hundred CPU hours.
 - The current setup prioritises correctness and flexibility over raw throughput.
-- *Measured since* (`bench/RESULTS.md`, Apple M1 Pro, CPU): the engine runs about 42,000 hands/s in C++ and 13,000 hands/s through the binding with fixed policies. The training loop's engine, binding and encoding work costs about 0.55 ms per hand. Training the four README models costs about 0.3 s and 0.6–0.8 CPU-seconds per hand. So the networks' updates, not the C++↔Python crossing, dominate, and 30,000 hands come to roughly 5–7 CPU-hours here, an extrapolation from 2,000-hand runs. The "several hundred CPU hours" figure was not reproduced. Hands that hung on the old engine until the training loop's 2-second timeout may account for part of it.
+- *Measured since* (`bench/RESULTS.md`, Apple M1 Pro, CPU): the engine runs about 44,000 hands/s in C++ and 13,500 hands/s through the binding with fixed policies. The training loop's engine, binding and encoding work costs about 0.54 ms per hand. Training the four README models costs about 0.36 s and 0.8–1.2 CPU-seconds per hand. So the networks' updates, not the C++↔Python crossing, dominate, and 30,000 hands come to roughly 7–10 CPU-hours here, an extrapolation from 2,000-hand runs. The "several hundred CPU hours" figure was not reproduced. Hands that hung on the old engine until the training loop's 2-second timeout may account for part of it.
 
 ---
 

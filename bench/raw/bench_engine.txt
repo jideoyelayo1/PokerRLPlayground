@@ -1,15 +1,15 @@
 # Apple M1 Pro, Darwin 27.0.0, Apple clang version 21.0.0 (clang-2100.3.34.2)
-# load average before: { 105.83 47.74 25.65 }
+# load average before: { 15.35 7.23 4.37 }
 # ./build/bench_engine 200000 7, CMake Release (-O3 -DNDEBUG), single thread
 hands per run 200000, runs 7, seats 4, stack 10000, blinds 1/2, seeds 1..7
-run 1: playOneHand 56778  step/call 42650  step/random 69109 hands/s
-run 2: playOneHand 50211  step/call 40554  step/random 68195 hands/s
-run 3: playOneHand 56058  step/call 42582  step/random 68508 hands/s
-run 4: playOneHand 56057  step/call 42477  step/random 69159 hands/s
-run 5: playOneHand 55810  step/call 42374  step/random 68905 hands/s
-run 6: playOneHand 56237  step/call 42018  step/random 67944 hands/s
-run 7: playOneHand 55695  step/call 42109  step/random 68782 hands/s
-playOneHand  median      56057 hands/s  min      50211  max      56778  (n=7 runs, 16.00 decisions/hand)
-step/call    median      42374 hands/s  min      40554  max      42650  (n=7 runs, 16.00 decisions/hand)
-step/random  median      68782 hands/s  min      67944  max      69159  (n=7 runs, 5.63 decisions/hand)
-# load average after: { 43.47 42.70 25.78 }
+run 1: playOneHand 57037  step/call 43392  step/random 70492 hands/s
+run 2: playOneHand 57346  step/call 43950  step/random 71548 hands/s
+run 3: playOneHand 58091  step/call 43267  step/random 70920 hands/s
+run 4: playOneHand 56702  step/call 42982  step/random 71674 hands/s
+run 5: playOneHand 57580  step/call 44172  step/random 71294 hands/s
+run 6: playOneHand 57910  step/call 43914  step/random 71401 hands/s
+run 7: playOneHand 57804  step/call 43757  step/random 71500 hands/s
+playOneHand  median      57580 hands/s  min      56702  max      58091  (n=7 runs, 16.00 decisions/hand)
+step/call    median      43757 hands/s  min      42982  max      44172  (n=7 runs, 16.00 decisions/hand)
+step/random  median      71401 hands/s  min      70492  max      71674  (n=7 runs, 5.63 decisions/hand)
+# load average after: { 6.59 6.33 4.27 }

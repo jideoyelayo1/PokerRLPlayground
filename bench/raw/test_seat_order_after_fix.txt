@@ -1,0 +1,13 @@
+# ctest --test-dir build --output-on-failure -E eval_exhaustive, then ./build/test_betting; commit 2a3e3df, CMake Release (-O3 -DNDEBUG), Apple clang 21.0.0
+Test project ./build
+    Start 1: test_hand_eval
+1/2 Test #1: test_hand_eval ...................   Passed    0.00 sec
+    Start 2: test_betting
+2/2 Test #2: test_betting .....................   Passed    0.81 sec
+
+100% tests passed out of 2
+
+Total Test time (real) =   0.82 sec
+rotation, 4 seats: button busted 237, small blind busted 567, big blind busted 305, went heads-up 783, first seat after the button folded 26 / all-in 10 times
+rotation, 6 seats: button busted 23, small blind busted 47, big blind busted 40, went heads-up 41, first seat after the button folded 141 / all-in 6 times
+test_betting: 239 checks, 0 failures
