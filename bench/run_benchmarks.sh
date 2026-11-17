@@ -7,14 +7,17 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release >/dev/null
 cmake --build build >/dev/null
 (cd PokerEngine && python setup.py build_ext --inplace >/dev/null 2>&1)
 
+# Commit measured, and "dirty" if tracked files outside bench/raw differ from it.
+rev() { echo "# commit $(git rev-parse --short HEAD)$(git status --porcelain --untracked-files=no -- . ':(exclude)bench/raw' | grep -q . && echo ' (dirty)')"; }
 machine() {
+  rev
   echo "# $(sysctl -n machdep.cpu.brand_string 2>/dev/null || uname -m), $(uname -sr), $(c++ --version | head -1)"
   echo "# load average before: $(sysctl -n vm.loadavg 2>/dev/null || cat /proc/loadavg)"
 }
 after() { echo "# load average after: $(sysctl -n vm.loadavg 2>/dev/null || cat /proc/loadavg)"; }
 
 ctest --test-dir build --output-on-failure -E eval_exhaustive
-./build/eval_exhaustive > bench/raw/eval_exhaustive.txt
+{ rev; ./build/eval_exhaustive; } > bench/raw/eval_exhaustive.txt
 { machine; echo "# ./build/bench_engine 200000 7, CMake Release (-O3 -DNDEBUG), single thread"; ./build/bench_engine 200000 7; after; } > bench/raw/bench_engine.txt
 { machine; echo "# python bench/bench_binding.py --hands 20000 --runs 7 (extension built by setup.py: -O3)"; python bench/bench_binding.py --hands 20000 --runs 7; after; } > bench/raw/bench_binding.txt
 
