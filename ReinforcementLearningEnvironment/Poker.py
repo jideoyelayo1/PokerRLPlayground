@@ -27,7 +27,11 @@ def train_poker_dqn(
     device="cpu",
     ma_window: int = 200,
     seed=None,
+    reset_stacks: bool = False,
 ):
+    """Self-play DQN training. reset_stacks=True resets every stack to starting_stack before each
+    hand (a cash game, as the demo is played; the button then always starts on seat 0); otherwise the
+    stacks carry over and the tournament is reset when fewer than two players have chips."""
 
     g = pe.GameEngine(n_players, starting_stack, big_blind, small_blind)
     if seed is not None:
@@ -60,7 +64,9 @@ def train_poker_dqn(
     while hands_played < max_hands:
 
         # Reset tournament if needed
-        if g.alivePlayers() < 2:
+        if reset_stacks:
+            g.reset_tournament(starting_stack)
+        elif g.alivePlayers() < 2:
             history["resets"].append(hands_played)
             g.reset_tournament(starting_stack)
 
