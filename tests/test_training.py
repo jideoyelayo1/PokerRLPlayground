@@ -35,5 +35,21 @@ class Exploration(unittest.TestCase):
             self.assertAlmostEqual(ag.epsilon, want)
 
 
+class Target(unittest.TestCase):
+    def test_bootstrap_maxes_over_legal_actions_only(self):
+        from ReinforcementLearningEnvironment.QTrainer import QTrainer
+        net = torch.nn.Linear(2, 3, bias=False)
+        tgt = torch.nn.Linear(2, 3, bias=False)
+        with torch.no_grad():
+            net.weight.zero_()
+            tgt.weight.copy_(torch.tensor([[0.0, 0.0], [5.0, 0.0], [1.0, 0.0]]))  # Q(s') = [0, 5, 1]
+        tr = QTrainer(net, tgt, lr=1.0, gamma=1.0)
+        tr.optimizer = torch.optim.SGD(net.parameters(), lr=0.5)  # one exact step: w0 += target * x
+        s, s2 = np.array([1.0, 0.0], np.float32), np.array([1.0, 0.0], np.float32)
+        tr.train_step([s], [0], [0.0], [s2], [False], [np.array([0, -1e9, 0], np.float32)])
+        # MSE over 3 outputs: grad of Q(s,0) is -2/3 * target; target = max(0, 1) = 1, not 5
+        self.assertAlmostEqual(net.weight[0, 0].item(), 0.5 * 2 / 3 * 1.0, places=6)
+
+
 if __name__ == "__main__":
     unittest.main()

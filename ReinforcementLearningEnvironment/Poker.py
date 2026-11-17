@@ -103,9 +103,9 @@ def train_poker_dqn(
         # its result, not only the one whose action ends the hand.
         pending = {}
 
-        def store(i, s_next, r, d):
+        def store(i, s_next, r, d, mask_next=None):
             s_prev, a_prev = pending.pop(i)
-            agents[i].remember(s_prev, a_prev, r, s_next, d)
+            agents[i].remember(s_prev, a_prev, r, s_next, d, mask_next)
 
         while not g.hand_terminal():
             steps += 1
@@ -121,15 +121,15 @@ def train_poker_dqn(
 
             obs = g.getObservation(acting)
             s = encode_observation(obs, big_blind=big_blind)
-            if acting in pending:
-                store(acting, s, 0.0, False)
-
             mask = legal_mask_from_obs(obs)
+            if acting in pending:
+                store(acting, s, 0.0, False, mask)
+
             legal_idxs = np.where(mask == 0.0)[0]
             if len(legal_idxs) == 0:
                 hand_aborted = "no legal action"
                 break
-            
+
             a_idx = agents[acting].select_action(s, mask)
             if mask[a_idx] != 0.0:
                 a_idx = int(random.choice(legal_idxs))

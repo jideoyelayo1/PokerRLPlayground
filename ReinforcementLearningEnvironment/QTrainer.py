@@ -45,7 +45,7 @@ class QTrainer:
 
         return y  # (B, N_ACTIONS)
 
-    def train_step(self, states, actions, rewards, next_states, dones):
+    def train_step(self, states, actions, rewards, next_states, dones, next_masks=None):
         states = torch.tensor(np.array(states), dtype=torch.float32, device=self.device)
         next_states = torch.tensor(np.array(next_states), dtype=torch.float32, device=self.device)
         actions = torch.tensor(np.array(actions), dtype=torch.int64, device=self.device)
@@ -63,6 +63,8 @@ class QTrainer:
 
         with torch.no_grad():
             next_q = self.target_model(next_states)       # (B, N_ACTIONS)
+            if next_masks is not None:                    # max over the legal actions at s' only
+                next_q = next_q + torch.tensor(np.array(next_masks), dtype=torch.float32, device=self.device)
             max_next_q = next_q.max(dim=1).values         # (B,)
             target_q = rewards + (~dones).float() * self.gamma * max_next_q
 

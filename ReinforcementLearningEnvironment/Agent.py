@@ -6,7 +6,7 @@ import numpy as np
 
 
 from ReinforcementLearningEnvironment.QTrainer import QTrainer
-from ReinforcementLearningEnvironment.TrainingEnvironmentVariables import MAX_MEMORY, BATCH_SIZE, LEARNING_RATE
+from ReinforcementLearningEnvironment.TrainingEnvironmentVariables import MAX_MEMORY, BATCH_SIZE, LEARNING_RATE, N_ACTIONS
 
 
 class DQNAgent:
@@ -37,11 +37,13 @@ class DQNAgent:
         self.target_update_freq = 200
 
 
-    def remember(self, s, a, r, s2, done):
+    def remember(self, s, a, r, s2, done, mask2=None):
+        """mask2: legal mask at s2 (0 legal, -1e9 not), so the target maxes over legal actions only."""
+        t = (s, a, r, s2, done, np.zeros(N_ACTIONS, np.float32) if mask2 is None else mask2)
         if len(self.memory) < self.memory_size:
-            self.memory.append((s, a, r, s2, done))
+            self.memory.append(t)
         else:
-            self.memory[self.memory_pos] = (s, a, r, s2, done)
+            self.memory[self.memory_pos] = t
             self.memory_pos = (self.memory_pos + 1) % self.memory_size
 
     def train_long_memory(self):
@@ -51,8 +53,8 @@ class DQNAgent:
             batch = random.sample(self.memory, self.batch_size)
         else:
             batch = self.memory
-        states, actions, rewards, next_states, dones = zip(*batch)
-        self.trainer.train_step(states, actions, rewards, next_states, dones)
+        states, actions, rewards, next_states, dones, next_masks = zip(*batch)
+        self.trainer.train_step(states, actions, rewards, next_states, dones, next_masks)
         if self.n_hands % self.target_update_freq == 0:
             self.target_model.load_state_dict(self.model.state_dict())
 
