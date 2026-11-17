@@ -128,11 +128,9 @@ For every completed hand, a row is logged **per player** with:
 - Rewards are **sparse** (terminal only). During the hand, `reward=0.0`; when `done=True`, reward becomes that player’s **end-of-hand BB profit/loss**.
 
 **Multi-player credit assignment**
-- The acting player receives its terminal reward when it takes the final action that ends the hand.
-- For the other players, terminal rewards are added as a final “terminal transition”:
-  - `agents[i].remember(None, 0, r_i, None, True)`
-  - where `r_i` is each non-acting player’s BB profit/loss for the hand.
-- These terminal transitions have no `(state, action)` pair, and `train_long_memory` drops any transition whose state is `None` (`Agent.py`, line 45), so they never train. Only the player whose action ends the hand (a fold, or the last call or check) receives a non-zero reward. The others see only rewards of 0 and the bootstrapped value of their next state, so, for example, a bettor never learns directly that a bet won when the opponent folded. Not changed here: the agents measured in `bench/RESULTS.md` were trained with this loop as it is.
+- Each seat's decision is stored once its outcome is known: at the seat's next decision in the same hand (reward 0, next state = the state at that decision), or when the hand ends (reward = the seat's BB profit/loss for the hand, `done=True`).
+- So every seat that acted in a hand receives its result on its last decision, whoever's action ended the hand. `python bench/check_terminal_rewards.py` checks this on every hand of a short run ([raw](bench/raw/check_terminal_rewards.txt)).
+- Before this fix, only the player whose action ended the hand received a non-zero reward. The others' results were stored as `remember(None, 0, r_i, None, True)`, and `train_long_memory` dropped any transition without a state, so, for example, a bettor never learned directly that a bet won when the opponent folded. The agents in the 2,000-hand table of `bench/RESULTS.md` (section 5) were trained that way.
 
 ---
 

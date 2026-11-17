@@ -39,16 +39,7 @@ class DQNAgent:
             batch = random.sample(self.memory, BATCH_SIZE)
         else:
             batch = list(self.memory)
-        filtered = [
-            (s, a, r, s2, d)
-            for (s, a, r, s2, d) in batch
-            if s is not None and s2 is not None
-        ]
-
-        if not filtered:
-            return
-
-        states, actions, rewards, next_states, dones = zip(*filtered)
+        states, actions, rewards, next_states, dones = zip(*batch)
         self.trainer.train_step(states, actions, rewards, next_states, dones)
         if self.n_hands % self.target_update_freq == 0:
             self.target_model.load_state_dict(self.model.state_dict())

@@ -100,6 +100,16 @@ def train_poker_dqn(
         t0 = time.time()
         steps = 0
         hand_aborted = False
+        # Each seat's last decision (state, action), stored once its outcome is known: at the
+        # seat's next decision (reward 0, next state = that decision's state) or at the end of the
+        # hand (reward = the seat's result for the hand, done). So every seat that acted learns
+        # its result, not only the one whose action ends the hand.
+        pending = {}
+
+        def store(i, s_next, r, d):
+            s_prev, a_prev = pending.pop(i)
+            agents[i].train_short_memory(s_prev, a_prev, r, s_next, d)
+            agents[i].remember(s_prev, a_prev, r, s_next, d)
 
         while not g.hand_terminal():
             steps += 1
@@ -115,6 +125,8 @@ def train_poker_dqn(
 
             obs = g.getObservation(acting)
             s = encode_observation(obs, big_blind=big_blind)
+            if acting in pending:
+                store(acting, s, 0.0, False)
 
             mask = legal_mask_from_obs(obs)
             legal_idxs = np.where(mask == 0.0)[0]
@@ -127,7 +139,7 @@ def train_poker_dqn(
                 a_idx = int(random.choice(legal_idxs))
 
             try:
-                a_idx, done = step_with_fallback(g, acting, a_idx, obs)
+                a_idx, _ = step_with_fallback(g, acting, a_idx, obs)
             except Exception as e:
                 hand_aborted = f"error: {e}"
                 break
@@ -136,15 +148,7 @@ def train_poker_dqn(
             if a_idx == A_FOLD and hand_actions[acting]["exit_street"] is None:
                 hand_actions[acting]["exit_street"] = int(obs.street)
 
-            obs2 = g.getObservation(acting)
-            s2 = encode_observation(obs2, big_blind=big_blind)
-
-            reward = 0.0
-            if done:
-                reward = float(obs2.stack[acting] - stacks_start[acting]) / bb
-
-            agents[acting].train_short_memory(s, a_idx, reward, s2, done)
-            agents[acting].remember(s, a_idx, reward, s2, done)
+            pending[acting] = (s, a_idx)
 
             if hand_actions[acting]["first_action"] is None:
                 hand_actions[acting]["first_action"] = a_idx
@@ -159,12 +163,6 @@ def train_poker_dqn(
 
             if a_idx == A_FOLD:
                 hand_actions[acting]["folded"] = True
-
-            if done:
-                for i in range(n_players):
-                    if i != acting:
-                        r_i = float(obs2.stack[i] - stacks_start[i]) / bb
-                        agents[i].remember(None, 0, r_i, None, True)
 
         if hand_aborted:
             history["aborted"].append((hands_played, hand_aborted))
@@ -183,6 +181,10 @@ def train_poker_dqn(
 
         stacks_end = list(obs_end.stack[:n_players])
         assert sum(stacks_end) == sum(stacks_start), "chips not conserved"
+
+        # Terminal transition for every seat that acted; the next state is unused when done.
+        for i in list(pending):
+            store(i, pending[i][0], float(stacks_end[i] - stacks_start[i]) / bb, True)
 
         rows = []
         for i in range(n_players):
