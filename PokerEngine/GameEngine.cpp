@@ -792,6 +792,7 @@ Observation GameEngine::getObservation(int viewerId) const {
     o.viewer_id = viewerId;
 
     o.street = static_cast<int>(street_);
+    o.button = button_;
     o.pot_total = pot_;
     o.to_call = to_call_;
     o.min_raise = min_raise_;

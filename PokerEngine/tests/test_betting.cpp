@@ -87,6 +87,7 @@ static void standardOrder(int n) {
         std::vector<int> want(n, 0);
         want[sb] = 1; want[bb] = 2;
         CHECK(posted == want, "%d seats, hand %d: blinds posted %s, expected %s (button %d)", n, hand, str(posted).c_str(), str(want).c_str(), button);
+        CHECK(o.button == button, "%d seats, hand %d: Observation.button %d, expected %d", n, hand, o.button, button);
         std::vector<std::vector<int>> acts(4);
         for (int steps = 0; !g.hand_terminal() && steps < kCap; ++steps) {
             acts[g.streetInt()].push_back(g.currentPlayerSafe());
@@ -164,7 +165,7 @@ static void rotationAndSkips(std::vector<Policy> seats, const char* name) {
         bool ok = true;
         for (int s : live)
             ok = ok && o.total_contrib[s] == (s == sb ? std::min(1, before[s]) : s == bb ? std::min(2, before[s]) : 0);
-        badBlinds += !ok;
+        badBlinds += !ok || o.button != button;  // Observation.button must name the button too
 
         auto firstLive = [&](const std::vector<int>& from, const Observation& ob) {
             for (int s : from) if (!ob.folded[s] && !ob.all_in[s]) return s;
@@ -189,7 +190,7 @@ static void rotationAndSkips(std::vector<Policy> seats, const char* name) {
             g.step(choose(seats[p], ob, rng), p);
         }
     }
-    CHECK(badBlinds == 0, "%s: %d of %d hands had the blinds on the wrong seats", name, badBlinds, hands);
+    CHECK(badBlinds == 0, "%s: %d of %d hands had the blinds or Observation.button on the wrong seats", name, badBlinds, hands);
     CHECK(badPreflop == 0, "%s: %d of %d hands started preflop with the wrong player", name, badPreflop, hands);
     CHECK(badLater == 0, "%s: %d of %d flop/turn/river rounds started with the wrong player", name, badLater, streets);
     CHECK(buttonBust > 0 && sbBust > 0 && bbBust > 0 && headsUp > 0 && skipFold > 0 && skipAllIn > 0,

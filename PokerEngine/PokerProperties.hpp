@@ -69,6 +69,7 @@ struct Observation {
 
     int street = 0;
     int current_player_id = -1;
+    int button = -1;                // seat with the dealer button; -1 before the first hand after a reset
 
     // Hand / episode flags
     bool hand_in_progress = false;

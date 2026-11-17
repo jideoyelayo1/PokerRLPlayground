@@ -108,6 +108,7 @@ PYBIND11_MODULE(poker_engine, m) {
         .def_readwrite("viewer_id", &Observation::viewer_id)
         .def_readwrite("street", &Observation::street)
         .def_readwrite("current_player_id", &Observation::current_player_id)
+        .def_readwrite("button", &Observation::button)
         .def_readwrite("hand_in_progress", &Observation::hand_in_progress)
         .def_readwrite("terminal", &Observation::terminal)
         .def_readwrite("winner_id", &Observation::winner_id)
