@@ -1,0 +1,15 @@
+# Apple M1 Pro, Darwin 27.0.0, Apple clang version 21.0.0 (clang-2100.3.34.2)
+# load average before: { 43.47 42.70 25.78 }
+# python bench/bench_binding.py --hands 20000 --runs 7 (extension built by setup.py: -O3)
+hands per run 20000 (loop/random: 5000), runs 7, seats 4, stack 10000, blinds 1/2, seeds 1..7, Python 3.14.6
+run 1: step/call 12886  step/random 12496  loop/random 1862 hands/s
+run 2: step/call 12910  step/random 12525  loop/random 1821 hands/s
+run 3: step/call 12883  step/random 12623  loop/random 1839 hands/s
+run 4: step/call 13194  step/random 12745  loop/random 1821 hands/s
+run 5: step/call 12957  step/random 12661  loop/random 1792 hands/s
+run 6: step/call 12950  step/random 12730  loop/random 1818 hands/s
+run 7: step/call 13106  step/random 12778  loop/random 1828 hands/s
+step/call    median      12950 hands/s  min      12883  max      13194  (n=7 runs, 16.00 decisions/hand)
+step/random  median      12661 hands/s  min      12496  max      12778  (n=7 runs, 5.65 decisions/hand)
+loop/random  median       1821 hands/s  min       1792  max       1862  (n=7 runs, 7.33 decisions/hand)
+# load average after: { 25.14 38.07 24.86 }

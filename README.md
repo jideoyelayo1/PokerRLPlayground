@@ -22,6 +22,13 @@ To reduce action complexity and stabilise learning, raises are restricted to thr
 Blind positions rotate by one seat after each hand.
 This action abstraction keeps the state–action space manageable while still allowing meaningful strategic decisions.
 
+As implemented in `PokerEngine/GameEngine.cpp` (the points the list above leaves open):
+- **Seats.** The big blind is posted first and the small blind by the *next* seat, so the small blind sits after the big blind. The seat after the small blind acts first on every street and the small blind acts last (heads-up: the big blind acts first on every street). In standard hold'em the small blind sits before the big blind.
+- **Raise sizes** are "raise to": the current bet plus one big blind, half the pot or the whole pot (the pot including bets already in front of players). A size below the minimum raise (the last full raise increment) or above the player's stack is rejected; the training loop then tries the other sizes, then check, call, all-in, fold.
+- **Betting rounds.** Every player who can still act acts at least once per street, and again after any bet or raise; the street closes when nobody is left to act. When at most one player can act and the bet is matched, the board is run out to showdown.
+- **Pots.** Side pots are built from each player's total contribution; ties split the pot, with any odd chip to the winner in the lowest-numbered seat. A hand won by folds pays the whole pot to the last player in.
+- **Deck.** Reshuffled every hand. `GameEngine.seed(n)` makes the deals repeatable; otherwise the seed comes from the clock. The shuffle is `std::shuffle`, so the same seed gives the same deals only with the same C++ standard library.
+
 The agents are trained using Deep Q-Learning (DQN) in a self-play setting. Multiple agents compete against one another over hundreds of thousands of hands, continuously updating their policies based on observed rewards. The reward signal is derived from chip (big blind) profit and loss, encouraging agents to learn strategies that maximise expected value over time rather than short-term wins.
 
 To improve interpretability and validate learned behaviour, symbolic regression is applied after training. Using the agent’s simulated data:
@@ -85,6 +92,8 @@ For every completed hand, a row is logged **per player** with:
   - `raises_made`, `raises_faced`
   - `aggressive` (made at least one raise)
 
+**Logging fixes.** Every player dealt into a hand now gets a row, whether they folded or not, using the hole cards read straight after the deal. `bb_delta` counts the blinds, because stacks are now read before the blinds are posted, so the deltas of a hand sum to zero (the loop asserts this). Busted players are no longer logged. Before these fixes, folded players were never logged (their observation hides their cards by the end of the hand), every hand's deltas summed to +1.5 BB, and busted players reappeared with their last cards and a delta of 0. Mean EV per starting hand was therefore measured only over hands that were not folded. The figures under *Convergence Insight* and *Results* come from the earlier code and have not been regenerated.
+
 **Hands trained (order of magnitude)**
 - Training runs for `max_hands` hands (episodes). In the example call, `max_hands=10`, but typical training is intended to scale to **thousands to hundreds of thousands** of hands depending on compute and stability.
 - In this codebase, a “hand” means **one full poker hand** across all players, and the dataset logs **one row per player per hand**.
@@ -122,13 +131,14 @@ For every completed hand, a row is logged **per player** with:
 - For the other players, terminal rewards are added as a final “terminal transition”:
   - `agents[i].remember(None, 0, r_i, None, True)`
   - where `r_i` is each non-acting player’s BB profit/loss for the hand.
-- This ensures every player receives a learning signal per hand, but it also means some terminal updates do not have an associated `(state, action)` pair (tracked as a limitation in the project write-up).
+- These terminal transitions have no `(state, action)` pair, and `train_long_memory` drops any transition whose state is `None` (`Agent.py`, line 45), so they never train. Only the player whose action ends the hand (a fold, or the last call or check) receives a non-zero reward. The others see only rewards of 0 and the bootstrapped value of their next state, so, for example, a bettor never learns directly that a bet won when the opponent folded. Not changed here: the agents measured in `bench/RESULTS.md` were trained with this loop as it is.
 
 ---
 
 ### Stability / safety controls (implementation detail)
 - Hands are aborted if they exceed `MAX_STEPS_PER_HAND` or `HAND_TIMEOUT_SEC`, or if no legal action exists.
-- If a hand is aborted, the tournament is reset and the hand is not logged.
+- If a hand is aborted, the tournament is reset and the hand is not logged. `history["aborted"]` lists them.
+- Before the betting-round fix (see `bench/RESULTS.md`), these guards fired often: a street whose closing seat had folded or was all-in never closed. With some policy mixes 25–50% of hands never finished, so they were aborted and the tournament reset. `HAND_TIMEOUT_SEC` is wall-clock time, so on a slow or busy machine a long but legal hand can still be aborted. Since the fix, every aborted hand seen has been a timeout, and because each decision has already updated the network, a seeded run repeats only until its first timeout (`bench/RESULTS.md`, section 4).
 
 
 
@@ -447,14 +457,14 @@ Metrics are analysed both **globally** and **per pocket hand**.
 This validation demonstrates that:
 - Agents learn **stable, poker-consistent hand valuations**
 - Learned strategies converge to internally coherent policies
-- Results are reproducible across architectures and training runs
+- Results are reproducible across architectures and training runs. *(Not supported by the repository: the runs behind the figures were not recorded, and the deck was seeded from the clock. Runs can now be repeated with a seed; see `bench/winrate.py`.)*
 
 However, it does **not** guarantee:
 - Nash equilibrium strategies
 - Minimal exploitability
 - Robustness against unseen opponent populations
 
-Stronger validation methods such as cross-play leagues, fixed baseline bots, and exploitability-style testing are left as future work.
+Win rate against fixed baseline bots (random, calling, tight), in big blinds per 100 hands with confidence intervals over seeds, is now measured for a short training budget in [`bench/RESULTS.md`](bench/RESULTS.md). Cross-play leagues and exploitability-style testing are still future work.
 
 
 ## Limitations & Future Work
@@ -492,6 +502,7 @@ This project intentionally uses a **simplified poker environment**, which introd
 - Training relies on frequent data transfer between C++ (simulation) and Python (learning) via pybind11.
 - This introduces significant overhead; for example, ~30,000 hands required several hundred CPU hours.
 - The current setup prioritises correctness and flexibility over raw throughput.
+- *Measured since* (`bench/RESULTS.md`, Apple M1 Pro, CPU): the engine runs about 42,000 hands/s in C++ and 13,000 hands/s through the binding with fixed policies. The training loop's engine, binding and encoding work costs about 0.55 ms per hand. Training the four README models costs about 0.3 s and 0.6–0.8 CPU-seconds per hand. So the networks' updates, not the C++↔Python crossing, dominate, and 30,000 hands come to roughly 5–7 CPU-hours here, an extrapolation from 2,000-hand runs. The "several hundred CPU hours" figure was not reproduced. Hands that hung on the old engine until the training loop's 2-second timeout may account for part of it.
 
 ---
 
@@ -540,7 +551,21 @@ g++ -std=c++20 poker.cpp Player.cpp GameEngine.cpp -O2 -o poker_engine && ./poke
 python setup.py build_ext --inplace
 ```
 
-### 4) Run training / experiments (Jupyter)
+### 4) Tests and measurements
+
+Engine tests (C++, no extra dependencies), from the repository root:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build && ctest --test-dir build --output-on-failure
+```
+
+- `test_hand_eval`: known answers for every hand category and the main tie-breaks.
+- `test_betting`: betting rounds through the `step()` API: every seat acts, every street closes, chips are conserved.
+- `eval_exhaustive`: every 5-card and 7-card hand (133,784,560) against an independent reference evaluator and the published category counts (about a minute on 10 threads).
+
+`sh bench/run_benchmarks.sh` re-runs the tests and the throughput benchmarks with the venv active. `sh bench/run_benchmarks.sh winrate` also trains and evaluates the agents (about an hour). Results, method and raw output: [`bench/RESULTS.md`](bench/RESULTS.md).
+
+### 5) Run training / experiments (Jupyter)
 
 Open `main.ipynb` and edit the model list / hyperparameters:
 

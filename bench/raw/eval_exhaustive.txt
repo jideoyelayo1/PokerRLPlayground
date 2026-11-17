@@ -1,0 +1,29 @@
+
+Five-card hands (evaluate5): 2598960 hands, 0 disagreements with the reference evaluator
+  category                count     expected  distinct  expected
+  Straight flush             40           40        10        10 ok
+  Four of a kind            624          624       156       156 ok
+  Full house               3744         3744       156       156 ok
+  Flush                    5108         5108      1277      1277 ok
+  Straight                10200        10200        10        10 ok
+  Three of a kind         54912        54912       858       858 ok
+  Two pair               123552       123552       858       858 ok
+  One pair              1098240      1098240      2860      2860 ok
+  High card             1302540      1302540      1277      1277 ok
+  distinct hand values: 7462
+
+Seven-card hands (GameEngine::bestHandOf7): 133784560 hands, 0 disagreements with the reference evaluator
+  category                count     expected  distinct  expected
+  Straight flush          41584        41584        10        10 ok
+  Four of a kind         224848       224848       156       156 ok
+  Full house            3473184      3473184       156       156 ok
+  Flush                 4047644      4047644      1277      1277 ok
+  Straight              6180020      6180020        10        10 ok
+  Three of a kind       6461620      6461620       575       575 ok
+  Two pair             31433400     31433400       763       763 ok
+  One pair             58627800     58627800      1470      1470 ok
+  High card            23294460     23294460       407       407 ok
+  distinct hand values: 4824
+
+threads 10, wall time 62.7 s
+PASS

@@ -27,9 +27,12 @@ def train_poker_dqn(
     max_hands: int = 2000,
     device="cpu",
     ma_window: int = 200,
+    seed=None,
 ):
 
     g = pe.GameEngine(n_players, starting_stack, big_blind, small_blind)
+    if seed is not None:
+        g.seed(seed)  # deals only; seed random/numpy/torch in the caller for exploration and weights
     bb = float(big_blind)
 
     # ---- Infer state_dim (probe hand), then reset so training starts clean ----
@@ -47,6 +50,7 @@ def train_poker_dqn(
         "delta_bb": {i: [] for i in range(n_players)},
         "ma_bb":    {i: [] for i in range(n_players)},
         "resets":   [],
+        "aborted":  [],
     }
 
     hands_played = 0
@@ -62,7 +66,16 @@ def train_poker_dqn(
             history["resets"].append(hands_played)
             g.reset_tournament(starting_stack)
 
+        # Stacks before the blinds, so the reward and bb_delta include them
+        stacks_start = list(g.getObservation(0).stack[:n_players])
+        # Dealt in = has chips (start_hand may also finish the hand and drop whoever busts in it)
+        dealt_in = [st > 0 for st in stacks_start]
+
         g.start_hand()
+
+        # Pocket cards now: a folded player's observation hides them by the end of the hand,
+        # and a busted player still holds stale cards from the hand they busted in
+        pockets = [pocket_key(*g.getObservation(i).hole) if dealt_in[i] else None for i in range(n_players)]
 
         # Determine BB player for this hand (heuristic)
         bb_player = None
@@ -84,9 +97,6 @@ def train_poker_dqn(
             for i in range(n_players)
         }
 
-        obs0 = g.getObservation(0)
-        stacks_start = list(obs0.stack[:n_players])
-
         t0 = time.time()
         steps = 0
         hand_aborted = False
@@ -95,12 +105,12 @@ def train_poker_dqn(
             steps += 1
 
             if steps > MAX_STEPS_PER_HAND or (time.time() - t0) > HAND_TIMEOUT_SEC:
-                hand_aborted = True
+                hand_aborted = "steps" if steps > MAX_STEPS_PER_HAND else "timeout"
                 break
 
             acting = g.currentPlayerSafe()
             if acting < 0:
-                hand_aborted = True
+                hand_aborted = "no current player"
                 break
 
             obs = g.getObservation(acting)
@@ -109,7 +119,7 @@ def train_poker_dqn(
             mask = legal_mask_from_obs(obs)
             legal_idxs = np.where(mask == 0.0)[0]
             if len(legal_idxs) == 0:
-                hand_aborted = True
+                hand_aborted = "no legal action"
                 break
             
             a_idx = agents[acting].select_action(s, mask)
@@ -118,8 +128,8 @@ def train_poker_dqn(
 
             try:
                 a_idx, done = step_with_fallback(g, acting, a_idx, obs)
-            except Exception:
-                hand_aborted = True
+            except Exception as e:
+                hand_aborted = f"error: {e}"
                 break
 
             # Record fold street using the *executed* action (after fallback)
@@ -157,6 +167,7 @@ def train_poker_dqn(
                         agents[i].remember(None, 0, r_i, None, True)
 
         if hand_aborted:
+            history["aborted"].append((hands_played, hand_aborted))
             history["resets"].append(hands_played)
             g.reset_tournament(starting_stack)
             pbar.set_postfix_str("hand_aborted")
@@ -171,12 +182,11 @@ def train_poker_dqn(
                 hand_actions[i]["exit_street"] = int(obs_end.street)
 
         stacks_end = list(obs_end.stack[:n_players])
+        assert sum(stacks_end) == sum(stacks_start), "chips not conserved"
 
         rows = []
         for i in range(n_players):
-            obs_i = g.getObservation(i)
-            c1, c2 = obs_i.hole
-            pkey = pocket_key(c1, c2)
+            pkey = pockets[i]
             if pkey is None:
                 continue
 

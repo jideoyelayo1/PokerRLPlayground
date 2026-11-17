@@ -217,6 +217,7 @@ PYBIND11_MODULE(poker_engine, m) {
         .def("step", &GameEngine::step, py::arg("action"), py::arg("viewer_id"))
         .def("hand_terminal", &GameEngine::hand_terminal)
         .def("winner_id", &GameEngine::winner_id)
+        .def("seed", &GameEngine::seed, py::arg("seed"))
         .def("bigBlind", &GameEngine::bigBlind)
         .def("smallBlind", &GameEngine::smallBlind)
 

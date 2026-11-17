@@ -1,0 +1,15 @@
+# Apple M1 Pro, Darwin 27.0.0, Apple clang version 21.0.0 (clang-2100.3.34.2)
+# load average before: { 105.83 47.74 25.65 }
+# ./build/bench_engine 200000 7, CMake Release (-O3 -DNDEBUG), single thread
+hands per run 200000, runs 7, seats 4, stack 10000, blinds 1/2, seeds 1..7
+run 1: playOneHand 56778  step/call 42650  step/random 69109 hands/s
+run 2: playOneHand 50211  step/call 40554  step/random 68195 hands/s
+run 3: playOneHand 56058  step/call 42582  step/random 68508 hands/s
+run 4: playOneHand 56057  step/call 42477  step/random 69159 hands/s
+run 5: playOneHand 55810  step/call 42374  step/random 68905 hands/s
+run 6: playOneHand 56237  step/call 42018  step/random 67944 hands/s
+run 7: playOneHand 55695  step/call 42109  step/random 68782 hands/s
+playOneHand  median      56057 hands/s  min      50211  max      56778  (n=7 runs, 16.00 decisions/hand)
+step/call    median      42374 hands/s  min      40554  max      42650  (n=7 runs, 16.00 decisions/hand)
+step/random  median      68782 hands/s  min      67944  max      69159  (n=7 runs, 5.63 decisions/hand)
+# load average after: { 43.47 42.70 25.78 }
