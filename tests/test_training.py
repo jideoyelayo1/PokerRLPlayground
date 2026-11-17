@@ -51,5 +51,21 @@ class Target(unittest.TestCase):
         self.assertAlmostEqual(net.weight[0, 0].item(), 0.5 * 2 / 3 * 1.0, places=6)
 
 
+class SharedSeats(unittest.TestCase):
+    def test_one_model_plays_every_seat(self):
+        import tempfile
+        import ReinforcementLearningEnvironment.helper as helper
+        from ReinforcementLearningEnvironment.Poker import train_poker_dqn
+        helper.CSV_PATH = str(Path(tempfile.mkdtemp()) / "log.csv")
+        torch.manual_seed(0)
+        agents, hist = train_poker_dqn([MLPModel(F, A, hidden=(8,))], 4, 200, 2, 1, max_hands=20, seed=1,
+                                       reset_stacks=True, agent_kwargs={"memory_size": 10_000})
+        self.assertEqual(len(agents), 1)
+        self.assertEqual(agents[0].n_hands, 20)
+        # every hand stores one terminal transition per seat that acted, all four seats included
+        self.assertGreaterEqual(sum(t[4] for t in agents[0].memory), 20 * 2)
+        self.assertEqual(len(hist["delta_bb"]), 4)
+
+
 if __name__ == "__main__":
     unittest.main()

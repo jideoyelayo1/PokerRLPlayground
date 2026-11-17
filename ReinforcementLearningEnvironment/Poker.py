@@ -28,10 +28,14 @@ def train_poker_dqn(
     ma_window: int = 200,
     seed=None,
     reset_stacks: bool = False,
+    agent_kwargs=None,
 ):
     """Self-play DQN training. reset_stacks=True resets every stack to starting_stack before each
     hand (a cash game, as the demo is played; the button then always starts on seat 0); otherwise the
-    stacks carry over and the tournament is reset when fewer than two players have chips."""
+    stacks carry over and the tournament is reset when fewer than two players have chips.
+
+    One DQNAgent per model (agent_kwargs are passed to each). With fewer models than seats, seat i
+    is played by agent i % len(models): one model plays every seat, learning from all of them."""
 
     g = pe.GameEngine(n_players, starting_stack, big_blind, small_blind)
     if seed is not None:
@@ -45,8 +49,9 @@ def train_poker_dqn(
     state_dim = encode_observation(tmp_obs, big_blind=big_blind).shape[0]
     g.reset_tournament(starting_stack)  # discard probe hand
 
-    agents = [DQNAgent(i, models[i], state_dim=state_dim, device=device)
-              for i in range(n_players)]
+    agents = [DQNAgent(i, m, state_dim=state_dim, device=device, **(agent_kwargs or {}))
+              for i, m in enumerate(models)]
+    seat_agent = [agents[i % len(agents)] for i in range(n_players)]
 
     history = {
         "hand": [],
@@ -111,7 +116,7 @@ def train_poker_dqn(
 
         def store(i, s_next, r, d, mask_next=None):
             s_prev, a_prev = pending.pop(i)
-            agents[i].remember(s_prev, a_prev, r, s_next, d, mask_next)
+            seat_agent[i].remember(s_prev, a_prev, r, s_next, d, mask_next)
 
         while not g.hand_terminal():
             steps += 1
@@ -136,7 +141,7 @@ def train_poker_dqn(
                 hand_aborted = "no legal action"
                 break
 
-            a_idx = agents[acting].select_action(s, mask)
+            a_idx = seat_agent[acting].select_action(s, mask)
             if mask[a_idx] != 0.0:
                 a_idx = int(random.choice(legal_idxs))
 
