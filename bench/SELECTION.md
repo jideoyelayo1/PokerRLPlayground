@@ -1,0 +1,94 @@
+# Demo agents: candidates, budget, evaluation and selection rule
+
+Written and committed before any training run whose result can be selected. The code that
+implements it is `bench/train_demo.py` (training, validation, checkpoints) and
+`bench/eval_demo.py` (evaluation and the rule), committed with this file.
+
+## Format
+
+The format the demo is played in: 4 seats (one visitor, three agents), blinds 1/2, stacks 200
+(100 big blinds) reset before every hand, the engine's rules after the standard seat order (PR #2)
+and the exact per-size legal mask. Training and evaluation both use it.
+
+## Candidates
+
+One network plays all four seats in self-play (`train_poker_dqn` with a single model, stacks
+reset every hand). State: `encode_observation`, 151 floats (`docs/state_encoding.md`). Output: 7
+Q-values. Only the layers the repository's models already use (Linear, ReLU, GRU).
+
+| candidate | network | parameters | float32 size |
+|---|---|---:|---:|
+| `mlp-s` | `MLPModel`, 151 → 128 → 128 → 7, ReLU, no dropout | 36,871 | 0.14 MB |
+| `mlp-l` | `MLPModel`, 151 → 512 → 512 → 256 → 7, ReLU, no dropout | 473,607 | 1.81 MB |
+| `gru` | `GRUModel`, one GRU layer of 128 over the hand so far, then Linear 128 → 7 | 108,807 | 0.42 MB |
+
+The `gru` sees the sequence of its own encoded states at each of its decisions in the current
+hand, the current one last, starting empty every hand (`docs/state_encoding.md`, last section).
+All three are far under the 8 MB limit.
+
+## Training
+
+- Seeds 1, 2 and 3 for every candidate: 9 runs. A seed fixes Python's `random`, NumPy, torch
+  (weights and sampling) and the engine's deals (`GameEngine.seed(seed)` once, then the deals
+  follow from it). One torch thread per run.
+- Budget: **400,000 hands per run for `mlp-s` and `mlp-l`, 150,000 for `gru`.** In the pilots a
+  GRU hand cost about 15 times an MLP hand on this CPU (17 against about 250 hands per second, one
+  thread; the profiled GRU's self-play hands averaged 55 decisions, many of them one-big-blind
+  raises), so
+  400,000 GRU hands would take over 6 hours per run. The comparison between families is therefore
+  at unequal hands, and is reported as such.
+- DQN as in `ReinforcementLearningEnvironment` after this branch's fixes: every seat that acted
+  gets its result; replay buffer of 100,000 transitions; one update per hand on a batch of 256;
+  Adam, learning rate 1e-4; gamma 1.0 (a hand is the episode); Double DQN targets over legal
+  actions only; target network copied every 200 hands; reward = the hand's result in big blinds
+  × 0.01; epsilon-greedy from 1.0 to 0.05 over the first fifth of the run's hands (80,000 for the
+  MLPs, 30,000 for the GRU), then 0.05.
+- Opponents during training: only the network itself. No baseline bot is used in training.
+
+## Checkpoints (validation deals)
+
+Every tenth of the run (10 checkpoints: every 40,000 hands for the MLPs, 15,000 for the GRU) the
+network plays greedily (no exploration, `eval()` mode) against each of the three baselines on
+**validation deals**: 1,000 duplicate deals from seed 5000.
+A checkpoint's validation score is the rule's score (below) on these deals. Each run keeps the
+checkpoint with the best validation score (the earliest on a tie); that is the run's candidate
+network. The evaluation deals are not used for this.
+
+## Evaluation (evaluation deals)
+
+`bench/winrate.py`'s method, unchanged: a deal is played 4 times with the same cards, the agent
+taking each seat once and three copies of one baseline in the other seats; the deal's score is the
+agent's mean result over the 4. Baselines `random`, `call` and `tight`, unchanged; the random bot
+in the agent's seat is the control.
+
+- **40,000 duplicate deals** (160,000 hands) per candidate and baseline, from seed 7000 (deck seed
+  7000 × 1,000,003 + deal number, the random bot's choices from `random.Random(7000)`).
+- These deals are used only here: not in training (whose deals follow from seeds 1–3), not for
+  validation (seed 5000), not for choosing checkpoints.
+- bb/100 = 100 × the mean deal score; 95% interval = mean ± 1.96 × sd / √40,000 over deals.
+
+## Rule
+
+1. Each of the 9 networks gets a **score**: the lowest, over the three baselines, of the lower end
+   of its 95% interval on bb/100 on the evaluation deals.
+2. Rank by score, highest first; ties by the mean bb/100 over the three baselines, then by fewer
+   parameters.
+3. **Seats:** the three top-ranked networks, one per agent seat, in rank order. Exception: if the
+   top network is clearly best, meaning its score is higher than every other network's lowest
+   point estimate of bb/100 over the three baselines, it plays all three seats.
+4. Whether or not the selected agents beat the baselines, the results are reported as measured, and
+   the rule, the candidates, the budget and the evaluation are not changed after the evaluation.
+
+## Budget
+
+At most about 6 hours of training wall-clock on the shared machine, counting elapsed time (runs in
+parallel overlap), the pilot runs included; total CPU time is reported as well. If the agents are
+still weak when the budget is spent, that is the result.
+
+Pilot runs used seeds other than 1–3 (101–104) and the validation deals, to check the pipeline
+and measure speed; their results cannot be selected and are not used. One exception, disclosed:
+while testing `bench/eval_demo.py` and `bench/export_weights.py` end to end, three pilot networks
+(`mlp-s` and `mlp-l` seed 101, `gru` seed 103; not candidates) were played on the first 200–300
+evaluation deals. The candidates, the evaluation and the rule were fixed before that. The GRU's
+hand budget was cut afterwards, from 400,000 to 150,000, for speed alone (a profile of a pilot GRU
+on its own training hands: 17 hands per second, 55 decisions per hand), not on those results.
