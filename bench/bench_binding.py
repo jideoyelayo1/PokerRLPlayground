@@ -3,7 +3,7 @@
   step/call    every seat calls (or checks); one getObservation + step per decision
   step/random  every seat picks a uniformly random legal action type
   loop/random  the per-decision engine work of train_poker_dqn without the networks:
-               getObservation, encode_observation, legal_mask_from_obs, step_with_fallback,
+               getObservation, encode_observation, legal_mask_from_obs, step,
                getObservation + encode_observation again; random legal action index
 
 4 seats, stacks reset to 10,000 every hand, blinds 1/2. Seeds 1..runs (engine and policy).
@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import numpy as np
 
 import PokerEngine.poker_engine as pe
-from ReinforcementLearningEnvironment.helper import encode_observation, legal_mask_from_obs, step_with_fallback
+from ReinforcementLearningEnvironment.helper import action_index_to_engine_action, encode_observation, legal_mask_from_obs
 
 SEATS, STACK = 4, 10000
 SIZES = [pe.RaiseSize.BB, pe.RaiseSize.HalfPot, pe.RaiseSize.Pot]
@@ -57,7 +57,7 @@ def run_step(hands, seed, policy):
             if policy == "call":
                 act = pe.Action(pe.ActionType.Call if pe.GameEngine.isAllowed(obs.legal, pe.ActionType.Call) else pe.ActionType.Check)
             else:
-                act = pe.Action(rng.choice([s.type for s in obs.legal if s.allowed]), rng.choice(SIZES))
+                act = pe.Action(rng.choice(list(dict.fromkeys(s.type for s in obs.legal if s.allowed))), rng.choice(SIZES))
             fallback_step(g, p, obs, act)
             decisions += 1
     return hands / (time.perf_counter() - t0), decisions / hands
@@ -78,7 +78,7 @@ def run_loop(hands, seed):
             encode_observation(obs, big_blind=2)
             mask = legal_mask_from_obs(obs)
             a_idx = int(rng.choice(np.where(mask == 0.0)[0]))
-            step_with_fallback(g, p, a_idx, obs)
+            g.step(action_index_to_engine_action(a_idx), p)
             encode_observation(g.getObservation(p), big_blind=2)
             decisions += 1
     return hands / (time.perf_counter() - t0), decisions / hands

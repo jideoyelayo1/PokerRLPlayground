@@ -52,12 +52,16 @@ class Card{
         Card(Suits s, Ranks r) : suit(s), rank(r) {}
 };
 
+// legalActions lists Fold, Check, Call, AllIn, then one Raise per RaiseSize (BB, HalfPot, Pot).
+// `allowed` is exactly whether step() accepts that action, raise size included.
 struct ActionSpec {
     ActionType type{};
     int call_amount = 0;      // chips needed to call (0 => check)
     int min_raise_to = 0;     // for Raise: minimum "raise-to" street contribution
     int max_raise_to = 0;     // for Raise: maximum "raise-to" (all-in)
     bool allowed = false;
+    RaiseSize raise_size{RaiseSize::BB};  // for Raise: the size this entry is for
+    int raise_to = 0;         // for Raise: the street contribution this size raises to
 };
 
 struct Observation {

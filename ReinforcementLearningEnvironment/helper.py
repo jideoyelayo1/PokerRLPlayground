@@ -112,49 +112,24 @@ def legal_mask_from_obs(obs) -> np.ndarray:
     Returns mask of shape (N_ACTIONS,), with 0 for legal and -1e9 for illegal.
     """
     mask = np.full((N_ACTIONS,), -1e9, dtype=np.float32)
-
-    # obs.legal is list of ActionSpec
-    allowed = {spec.type: spec.allowed for spec in obs.legal}
-
-    def is_allowed(t):
-        return bool(allowed.get(t, False))
-
-    if is_allowed(pe.ActionType.Fold):  mask[A_FOLD] = 0.0
-    if is_allowed(pe.ActionType.Check): mask[A_CHECK] = 0.0
-    if is_allowed(pe.ActionType.Call):  mask[A_CALL] = 0.0
-
-    # Raise depends on raiseSize, but your legality already encodes "Raise allowed"
-    # We treat RaiseBB/Half/Pot as legal only if Raise is legal.
-    if is_allowed(pe.ActionType.Raise):
-        mask[A_RAISE_BB] = 0.0
-        mask[A_RAISE_HALF] = 0.0
-        mask[A_RAISE_POT] = 0.0
-
-    if is_allowed(pe.ActionType.AllIn): mask[A_ALLIN] = 0.0
-
+    # obs.legal has one ActionSpec per action, one per raise size, each marked exactly as step() judges it
+    for spec in obs.legal:
+        if spec.allowed:
+            mask[spec_index(spec)] = 0.0
     return mask
+
+
+def spec_index(spec) -> int:
+    """Action index of an engine ActionSpec (the inverse of action_index_to_engine_action)."""
+    if spec.type == pe.ActionType.Raise:
+        return {pe.RaiseSize.BB: A_RAISE_BB, pe.RaiseSize.HalfPot: A_RAISE_HALF, pe.RaiseSize.Pot: A_RAISE_POT}[spec.raise_size]
+    return {pe.ActionType.Fold: A_FOLD, pe.ActionType.Check: A_CHECK, pe.ActionType.Call: A_CALL,
+            pe.ActionType.AllIn: A_ALLIN}[spec.type]
 
 def encode_card(card) -> np.ndarray:
     """encodes the cards and outputs a numpy array"""
     # rank in [0..14], suit in [0..4]
     return np.array([int(card.rank), int(card.suit)], dtype=np.float32)
-
-
-def pick_fallback_action_from_obs(obs) -> int:
-    """
-    Return an action index that should be legal given obs.legal.
-    Preference: Check > Call > AllIn > Fold
-    """
-    allowed = {spec.type: bool(spec.allowed) for spec in obs.legal}
-
-    if allowed.get(pe.ActionType.Check, False):
-        return A_CHECK
-    if allowed.get(pe.ActionType.Call, False):
-        return A_CALL
-    if allowed.get(pe.ActionType.AllIn, False):
-        return A_ALLIN
-    return A_FOLD
-
 
 
 def parse_pocket(p):
@@ -172,35 +147,6 @@ def pocket_169_key(p):
     hi, lo = (r1, r2) if RANK_TO_I[r1] > RANK_TO_I[r2] else (r2, r1)
     return f"{hi}{lo}{'s' if suited else 'o'}"
 
-
-def step_with_fallback(g, acting: int, a_idx: int, obs):
-    """
-    Try the chosen action.
-    If it's a raise and fails, try other raise sizes.
-    Finally fall back to safe actions.
-    """
-    def try_action(idx):
-        g.step(action_index_to_engine_action(idx), acting)
-        return idx, bool(g.hand_terminal())
-
-    try:
-        return try_action(a_idx)
-    except RuntimeError:
-        pass
-
-    # If raise failed, try other raise sizes
-    if a_idx in (A_RAISE_BB, A_RAISE_HALF, A_RAISE_POT):
-        for alt in (A_RAISE_BB, A_RAISE_HALF, A_RAISE_POT):
-            if alt == a_idx:
-                continue
-            try:
-                return try_action(alt)
-            except RuntimeError:
-                continue
-
-    # Final fallback
-    fb = pick_fallback_action_from_obs(obs)
-    return try_action(fb)
 
 def card_one_hot(card):
     """

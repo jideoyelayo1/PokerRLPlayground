@@ -186,7 +186,7 @@ static void rotationAndSkips(std::vector<Policy> seats, const char* name) {
                 skipFold += ob.folded[after[0]];
                 skipAllIn += ob.all_in[after[0]];
             }
-            stepWithFallback(g, p, ob, choose(seats[p], ob, rng));
+            g.step(choose(seats[p], ob, rng), p);
         }
     }
     CHECK(badBlinds == 0, "%s: %d of %d hands had the blinds on the wrong seats", name, badBlinds, hands);
@@ -219,7 +219,7 @@ static void stress(std::vector<Policy> seats, bool tournament, const char* name)
             bool any = false;
             for (auto& s : o.legal) any = any || s.allowed;
             if (!any) { ++noLegal; g.reset_tournament(stack); break; }
-            stepWithFallback(g, p, o, choose(seats[p], o, rng));
+            g.step(choose(seats[p], o, rng), p);
         }
         if (sumStacks(g) != n * stack) { ++leaks; g.reset_tournament(stack); }
     }
@@ -228,12 +228,69 @@ static void stress(std::vector<Policy> seats, bool tournament, const char* name)
     CHECK(leaks == 0, "%s%s: %d hands did not conserve chips", name, tournament ? " (tournament)" : "", leaks);
 }
 
+// Every action legalActions lists is accepted by step() exactly when it is marked allowed, each
+// raise size separately, and an allowed raise raises to the listed raise_to. Random play, 4 seats,
+// stacks reset every hand; at each decision every action marked not allowed is tried (it must be
+// rejected and change nothing), then one allowed action is played.
+static void legalActionsAreExact(int stack) {
+    GameEngine g(4, stack, 2, 1);
+    g.seed(5);
+    std::mt19937_64 rng(6);
+    int decisions = 0, wrongAccept = 0, wrongReject = 0, changed = 0, wrongSize = 0, oldMaskWrong = 0;
+    int sizeLegal[3] = {0, 0, 0}, sizeIllegal[3] = {0, 0, 0};
+    for (int h = 0; h < 3000; ++h) {
+        g.reset_tournament(stack);
+        g.start_hand();
+        bool broken = false;
+        for (int steps = 0; !g.hand_terminal() && !broken && steps < kCap; ++steps) {
+            int p = g.currentPlayerSafe();
+            auto o = g.getObservation(p);
+            ++decisions;
+            std::vector<const ActionSpec*> ok;
+            bool someSizeIllegal = false, oldMaskRaise = false;
+            for (auto& s : o.legal) {
+                if (s.type == ActionType::Raise) {
+                    (s.allowed ? sizeLegal : sizeIllegal)[static_cast<int>(s.raise_size)]++;
+                    someSizeIllegal = someSizeIllegal || !s.allowed;
+                    // the mask before this change: any raise "allowed" when this held
+                    oldMaskRaise = o.stack[p] > 0 && s.max_raise_to > o.to_call && s.max_raise_to >= s.min_raise_to;
+                }
+                if (s.allowed) { ok.push_back(&s); continue; }
+                bool threw = false;
+                try { g.step({s.type, s.raise_size}, p); } catch (const std::runtime_error&) { threw = true; }
+                if (!threw) { ++wrongAccept; broken = true; break; }
+                auto o2 = g.getObservation(p);
+                changed += o2.pot_total != o.pot_total || o2.stack != o.stack || o2.current_player_id != p;
+            }
+            if (broken) break;
+            oldMaskWrong += oldMaskRaise && someSizeIllegal;
+            if (ok.empty()) { ++wrongReject; break; }
+            const ActionSpec* s = ok[rng() % ok.size()];
+            try { g.step({s->type, s->raise_size}, p); } catch (const std::runtime_error&) { ++wrongReject; break; }
+            if (s->type == ActionType::Raise && !g.hand_terminal())
+                wrongSize += g.getObservation(p).street_contrib[p] != s->raise_to;
+        }
+    }
+    std::printf("legal actions, stacks %d: %d decisions; raise sizes allowed/not (BB, half pot, pot): "
+                "%d/%d, %d/%d, %d/%d; decisions where the old mask marked a rejected size legal: %d\n",
+                stack, decisions, sizeLegal[0], sizeIllegal[0], sizeLegal[1], sizeIllegal[1], sizeLegal[2],
+                sizeIllegal[2], oldMaskWrong);
+    CHECK(wrongAccept == 0, "stacks %d: %d actions marked not allowed were accepted", stack, wrongAccept);
+    CHECK(changed == 0, "stacks %d: %d rejected actions changed the state", stack, changed);
+    CHECK(wrongReject == 0, "stacks %d: %d actions marked allowed were rejected", stack, wrongReject);
+    CHECK(wrongSize == 0, "stacks %d: %d allowed raises did not raise to raise_to", stack, wrongSize);
+    for (int i = 0; i < 3; ++i)
+        CHECK(sizeLegal[i] > 0 && sizeIllegal[i] > 0, "stacks %d: raise size %d not seen both allowed and not", stack, i);
+    CHECK(oldMaskWrong > 0, "stacks %d: no decision exercised a rejected size", stack);
+}
+
 int main() {
     closingSeatFolds();
     everySeatActsOncePerStreet(4);
     everySeatActsOncePerStreet(2);
     for (int n : {2, 3, 4, 6}) standardOrder(n);
     for (int n : {2, 3, 4, 6}) bigBlindOption(n);
+    for (int stack : {200, 40}) legalActionsAreExact(stack);
     using P = Policy;
     rotationAndSkips({P::Random, P::AllIn, P::Random, P::Call}, "rotation, 4 seats");
     rotationAndSkips({P::Random, P::AllIn, P::Call, P::CheckFold, P::Random, P::Call}, "rotation, 6 seats");

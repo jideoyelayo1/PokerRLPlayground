@@ -1,7 +1,7 @@
 import PokerEngine.poker_engine as pe
 from ReinforcementLearningEnvironment.Agent import DQNAgent
 from ReinforcementLearningEnvironment.helper import (
-    legal_mask_from_obs, step_with_fallback, moving_average,
+    legal_mask_from_obs, action_index_to_engine_action, moving_average,
     encode_observation, pocket_key, append_hand_rows
     )
 from ReinforcementLearningEnvironment.TrainingEnvironmentVariables import (
@@ -136,12 +136,11 @@ def train_poker_dqn(
                 a_idx = int(random.choice(legal_idxs))
 
             try:
-                a_idx, _ = step_with_fallback(g, acting, a_idx, obs)
+                g.step(action_index_to_engine_action(a_idx), acting)  # the mask is exact: no fallback
             except Exception as e:
                 hand_aborted = f"error: {e}"
                 break
 
-            # Record fold street using the *executed* action (after fallback)
             if a_idx == A_FOLD and hand_actions[acting]["exit_street"] is None:
                 hand_actions[acting]["exit_street"] = int(obs.street)
 

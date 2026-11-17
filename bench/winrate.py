@@ -39,7 +39,7 @@ from Models.GRUModel import GRUModel
 from Models.LSTMModel import LSTMModel
 from Models.MLPModel import MLPModel
 from Models.TransformerQModel import TransformerQModel
-from ReinforcementLearningEnvironment.helper import encode_observation, legal_mask_from_obs, step_with_fallback
+from ReinforcementLearningEnvironment.helper import action_index_to_engine_action, encode_observation, legal_mask_from_obs
 from ReinforcementLearningEnvironment.Poker import train_poker_dqn
 from ReinforcementLearningEnvironment.TrainingEnvironmentVariables import (
     A_CALL, A_CHECK, A_FOLD, A_RAISE_POT, N_ACTIONS)
@@ -115,7 +115,7 @@ def play_hand(g, policies, rng):
         p = g.currentPlayerSafe()
         obs = g.getObservation(p)
         mask = legal_mask_from_obs(obs)
-        step_with_fallback(g, p, policies[p](obs, mask, rng), obs)
+        g.step(action_index_to_engine_action(policies[p](obs, mask, rng)), p)
     return [(s - STACK) / BB for s in g.getObservation(0).stack]
 
 

@@ -769,30 +769,20 @@ std::vector<ActionSpec> GameEngine::legalActions(int playerId) const {
     // If can't act, nothing is legal
     if (!canActNow(playerId)) return out;
 
-    const auto& p = players_[playerId];
     int need = playerToCall(playerId);
     int max_to = maxRaiseTo(playerId);
+    int min_to = to_call_ + min_raise_;  // NLH minimum "raise-to"
 
-    // Fold always allowed if you can act
-    out.push_back(ActionSpec{ActionType::Fold, need, 0, 0, true});
+    // Legality comes from isActionLegal, the check applyAction makes, so a listed action is
+    // accepted exactly when it is marked allowed. Call when need > stack is a call all-in.
+    for (ActionType t : {ActionType::Fold, ActionType::Check, ActionType::Call, ActionType::AllIn})
+        out.push_back(ActionSpec{t, need, 0, 0, isActionLegal(playerId, Action{t})});
 
-    // Check only if need==0
-    out.push_back(ActionSpec{ActionType::Check, need, 0, 0, (need == 0)});
-
-    // Call allowed if need>0 and you have >0 chips (if you have 0 you'd be all-in already)
-    // We still allow "call" when need>0; amount is min(need, stack) at execution, but legality is "you can call all-in".
-    bool can_call = (need > 0) && (p.getMoney() > 0);
-    out.push_back(ActionSpec{ActionType::Call, need, 0, 0, can_call});
-
-    // All-in allowed if you have >0 chips
-    bool can_allin = (p.getMoney() > 0);
-    out.push_back(ActionSpec{ActionType::AllIn, need, 0, 0, can_allin});
-
-    // Raise: only if you have chips and your max_to > to_call_ (i.e., can increase price)
-    // Minimum "raise-to" is to_call_ + min_raise_ (NLH)
-    int min_to = to_call_ + min_raise_;
-    bool can_raise = (p.getMoney() > 0) && (max_to > to_call_) && (max_to >= min_to);
-    out.push_back(ActionSpec{ActionType::Raise, need, min_to, max_to, can_raise});
+    // One entry per raise size: a size is legal only if its raise-to is within [min_to, max_to].
+    for (RaiseSize sz : {RaiseSize::BB, RaiseSize::HalfPot, RaiseSize::Pot})
+        out.push_back(ActionSpec{ActionType::Raise, need, min_to, max_to,
+                                 isActionLegal(playerId, Action{ActionType::Raise, sz}), sz,
+                                 computeRaiseTo(playerId, sz)});
 
     return out;
 }
@@ -848,8 +838,9 @@ Observation GameEngine::getObservation(int viewerId) const {
     return o;
 }
 
+// True if any entry of type t is allowed (for Raise: any of the three sizes).
 bool GameEngine::isAllowed(const std::vector<ActionSpec>& legal, ActionType t) {
-    for (const auto& a : legal) if (a.type == t) return a.allowed;
+    for (const auto& a : legal) if (a.type == t && a.allowed) return true;
     return false;
 }
 
