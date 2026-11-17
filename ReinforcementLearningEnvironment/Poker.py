@@ -12,7 +12,6 @@ from ReinforcementLearningEnvironment.TrainingEnvironmentVariables import (
     )
 
 from tqdm.auto import tqdm
-import time
 import random
 import numpy as np
 
@@ -56,8 +55,7 @@ def train_poker_dqn(
     hands_played = 0
     pbar = tqdm(total=max_hands)
 
-    HAND_TIMEOUT_SEC = 2.0
-    MAX_STEPS_PER_HAND = 2000
+    MAX_STEPS_PER_HAND = 2000  # no wall-clock limit: it made seeded runs depend on machine load
 
     while hands_played < max_hands:
 
@@ -97,7 +95,6 @@ def train_poker_dqn(
             for i in range(n_players)
         }
 
-        t0 = time.time()
         steps = 0
         hand_aborted = False
         # Each seat's last decision (state, action), stored once its outcome is known: at the
@@ -114,8 +111,8 @@ def train_poker_dqn(
         while not g.hand_terminal():
             steps += 1
 
-            if steps > MAX_STEPS_PER_HAND or (time.time() - t0) > HAND_TIMEOUT_SEC:
-                hand_aborted = "steps" if steps > MAX_STEPS_PER_HAND else "timeout"
+            if steps > MAX_STEPS_PER_HAND:
+                hand_aborted = "steps"
                 break
 
             acting = g.currentPlayerSafe()

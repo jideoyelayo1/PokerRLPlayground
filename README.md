@@ -135,9 +135,10 @@ For every completed hand, a row is logged **per player** with:
 ---
 
 ### Stability / safety controls (implementation detail)
-- Hands are aborted if they exceed `MAX_STEPS_PER_HAND` or `HAND_TIMEOUT_SEC`, or if no legal action exists.
+- Hands are aborted if they exceed `MAX_STEPS_PER_HAND` (2,000 decisions), or if no legal action exists.
 - If a hand is aborted, the tournament is reset and the hand is not logged. `history["aborted"]` lists them.
-- Before the betting-round fix (see `bench/RESULTS.md`), these guards fired often: a street whose closing seat had folded or was all-in never closed. With some policy mixes 25–50% of hands never finished, so they were aborted and the tournament reset. `HAND_TIMEOUT_SEC` is wall-clock time, so on a slow or busy machine a long but legal hand can still be aborted. Since the fix, every aborted hand seen has been a timeout, and because each decision has already updated the network, a seeded run repeats only until its first timeout (`bench/RESULTS.md`, section 4).
+- Before the betting-round fix (see `bench/RESULTS.md`), these guards fired often: a street whose closing seat had folded or was all-in never closed. With some policy mixes 25–50% of hands never finished, so they were aborted and the tournament reset.
+- There used to be a 2-second wall-clock limit per hand as well (`HAND_TIMEOUT_SEC`). After the betting fix it was the only guard that fired, on long but legal hands on a busy machine, and because each decision had already updated the network, a seeded run repeated only until its first timeout (`bench/RESULTS.md`, section 4). It is gone, so a seeded run repeats: `bench/rerun_training.py` trains one seed twice, in two processes, and compares the logs row by row.
 
 
 
