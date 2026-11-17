@@ -29,13 +29,16 @@ def train_poker_dqn(
     seed=None,
     reset_stacks: bool = False,
     agent_kwargs=None,
+    reward_scale: float = 1.0,
 ):
     """Self-play DQN training. reset_stacks=True resets every stack to starting_stack before each
     hand (a cash game, as the demo is played; the button then always starts on seat 0); otherwise the
     stacks carry over and the tournament is reset when fewer than two players have chips.
 
     One DQNAgent per model (agent_kwargs are passed to each). With fewer models than seats, seat i
-    is played by agent i % len(models): one model plays every seat, learning from all of them."""
+    is played by agent i % len(models): one model plays every seat, learning from all of them.
+
+    The terminal reward is the seat's result in big blinds times reward_scale."""
 
     g = pe.GameEngine(n_players, starting_stack, big_blind, small_blind)
     if seed is not None:
@@ -190,7 +193,7 @@ def train_poker_dqn(
 
         # Terminal transition for every seat that acted; the next state is unused when done.
         for i in list(pending):
-            store(i, pending[i][0], float(stacks_end[i] - stacks_start[i]) / bb, True)
+            store(i, pending[i][0], float(stacks_end[i] - stacks_start[i]) / bb * reward_scale, True)
 
         rows = []
         for i in range(n_players):
