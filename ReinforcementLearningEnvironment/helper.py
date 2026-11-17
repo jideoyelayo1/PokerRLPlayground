@@ -214,7 +214,7 @@ def encode_observation(obs, big_blind=2):
         button_oh[(obs.button - v) % n_players] = 1.0
     parts.append(button_oh)
 
-    return np.concatenate(parts, axis=0)
+    return np.concatenate(parts, axis=0, dtype=np.float32)  # the card lists would otherwise make it float64
 
 
 def pocket_features(pocket: str) -> dict: 
