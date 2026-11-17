@@ -30,8 +30,12 @@ class LSTMModel(nn.Module):
         elif x.dim() != 3:
             raise ValueError(f"LSTMModel expected 1D/2D/3D input, got {tuple(x.shape)}")
 
-        out, _ = self.lstm(x)          # out: (B, T, H)
-        out = out[:, -1, :] if lengths is None else out[torch.arange(out.size(0)), lengths - 1]  # (B, H)
+        if lengths is not None:  # packed, as in GRUModel: final hidden state of the last layer
+            packed = nn.utils.rnn.pack_padded_sequence(x, lengths.cpu(), batch_first=True, enforce_sorted=False)
+            out = self.lstm(packed)[1][0][-1]  # (B, H)
+        else:
+            out, _ = self.lstm(x)          # out: (B, T, H)
+            out = out[:, -1, :]            # last timestep: (B, H)
         out = self.fc(out)             # (B, output_dim)
         return out
     

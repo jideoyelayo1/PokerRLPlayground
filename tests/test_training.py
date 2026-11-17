@@ -88,10 +88,12 @@ class Sequences(unittest.TestCase):
         net = GRUModel(F, A, hidden_dim=16, layer_dim=1, dropout=0.0)
         seqs = [np.random.rand(t, F).astype(np.float32) for t in (1, 4, 2)]
         x, lengths = QTrainer(net, net, 1e-3, 1.0)._batch(seqs)
-        with torch.no_grad():
-            batched = net(x, lengths)
-            for i, q in enumerate(seqs):
-                torch.testing.assert_close(batched[i], net(torch.tensor(q)[None])[0], rtol=0, atol=1e-6)
+        from Models.LSTMModel import LSTMModel
+        for net in (net, LSTMModel(F, A, hidden_dim=16, layer_dim=2, dropout=0.0).eval()):
+            with torch.no_grad():
+                batched = net(x, lengths)
+                for i, q in enumerate(seqs):
+                    torch.testing.assert_close(batched[i], net(torch.tensor(q)[None])[0], rtol=0, atol=1e-6)
 
     def test_loop_stores_the_hand_so_far(self):
         import tempfile

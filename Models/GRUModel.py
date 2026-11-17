@@ -35,7 +35,7 @@ class GRUModel(nn.Module):
 
     def forward(self, x:torch.Tensor, lengths=None):
         # lengths: for a right-padded batch (B, T, F), each sequence's length; the output is taken
-        # at its last real step (the GRU is causal, so padding after it changes nothing before it)
+        # at its last real step, as if each sequence were run alone
         if x.dim() == 1:
             x = x.unsqueeze(0).unsqueeze(1)
         elif x.dim() == 2:
@@ -43,8 +43,14 @@ class GRUModel(nn.Module):
         elif x.dim() != 3:
             raise ValueError(f"GRUModel expected 1D/2D/3D input, got {tuple(x.shape)}")
 
-        out, _ = self.gru(x)       # (B, T, H)
-        out = out[:, -1, :] if lengths is None else out[torch.arange(out.size(0)), lengths - 1]  # (B, H)
+        if lengths is not None:
+            # packed: each sequence runs only its own steps; the last layer's final hidden state is
+            # its output at its last real step
+            packed = nn.utils.rnn.pack_padded_sequence(x, lengths.cpu(), batch_first=True, enforce_sorted=False)
+            out = self.gru(packed)[1][-1]  # (B, H)
+        else:
+            out, _ = self.gru(x)       # (B, T, H)
+            out = out[:, -1, :]        # (B, H)
         out = self.fc(out)         # (B, output_dim)
         return out
     
