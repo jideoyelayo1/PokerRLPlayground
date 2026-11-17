@@ -97,14 +97,17 @@ def bot_tight(obs, mask, rng):
 BOTS = {"random": bot_random, "call": bot_call, "tight": bot_tight}
 
 
-def greedy_policy(model, sequence=False):
+def greedy_policy(model, sequence=False, record=None):
     """A trained network's play: argmax of its Q-values plus the legal mask. A sequence model sees
     the player's encoded states at each of its decisions in this hand so far, the current one last
-    (docs/state_encoding.md). act.counts tallies the actions chosen."""
-    hist = {}
+    (docs/state_encoding.md). act.counts tallies the actions chosen. If record is a list, each
+    decision is appended to it: the observations this hand (the current one last), the network
+    input, the mask, the Q-values and the action."""
+    hist, seen = {}, {}
 
     def act(obs, mask, rng):
         s = encode_observation(obs, big_blind=BB)
+        seen.setdefault(obs.viewer_id, []).append(obs)
         if sequence:
             hist.setdefault(obs.viewer_id, []).append(s)
             s = np.stack(hist[obs.viewer_id])
@@ -112,9 +115,17 @@ def greedy_policy(model, sequence=False):
             q = model(torch.from_numpy(s)[None])[0]
         a = int(torch.argmax(q + torch.from_numpy(mask)))
         act.counts[a] += 1
+        if record is not None:
+            record.append({"observations": list(seen[obs.viewer_id]), "input": s, "mask": mask, "q": q.numpy().copy(),
+                           "action": a, "hand": act.hands})
         return a
-    act.new_hand = hist.clear
+
+    def new_hand():
+        hist.clear(); seen.clear()
+        act.hands += 1
+    act.new_hand = new_hand
     act.counts = [0] * N_ACTIONS
+    act.hands = 0
     return act
 
 

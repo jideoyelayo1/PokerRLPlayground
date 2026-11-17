@@ -33,6 +33,7 @@ class DQNAgent:
         self.memory = []
         self.memory_size = memory_size
         self.memory_pos = 0
+        self.transitions = 0  # stored so far (one per decision), for progress logs
         
         self.target_model = copy.deepcopy(self.model).to(device)
         self.target_model.eval()
@@ -45,6 +46,7 @@ class DQNAgent:
     def remember(self, s, a, r, s2, done, mask2=None):
         """mask2: legal mask at s2 (0 legal, -1e9 not), so the target maxes over legal actions only."""
         t = (s, a, r, s2, done, np.zeros(N_ACTIONS, np.float32) if mask2 is None else mask2)
+        self.transitions += 1
         if len(self.memory) < self.memory_size:
             self.memory.append(t)
         else:

@@ -143,3 +143,7 @@ test.py
 test2.py
 test.cpp
 outputs
+
+# Trained agents are committed on purpose (weights/README.md)
+!weights/runs/
+!weights/**/*.pt
