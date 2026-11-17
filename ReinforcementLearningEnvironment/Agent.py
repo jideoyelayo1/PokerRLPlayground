@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-from collections import deque
 import copy
 import random
 import numpy as np
@@ -11,7 +10,8 @@ from ReinforcementLearningEnvironment.TrainingEnvironmentVariables import MAX_ME
 
 
 class DQNAgent:
-    def __init__(self, player_id: int, model: nn.Module, state_dim: int, gamma=0.9, random_range=80, device="cpu"):
+    def __init__(self, player_id: int, model: nn.Module, state_dim: int, gamma=0.9, random_range=80, device="cpu",
+                 memory_size=MAX_MEMORY):
         self.player_id = player_id
         self.model = model.to(device)
         self.gamma = gamma
@@ -21,7 +21,11 @@ class DQNAgent:
         self.random_range = random_range
         self.epsilon = 0
 
-        self.memory = deque(maxlen=MAX_MEMORY)
+        # Replay buffer: a list used as a ring once full. random.sample on a deque indexes it in
+        # O(n) per item (about 50 ms per 1,024-sample at a million transitions); a list is O(1).
+        self.memory = []
+        self.memory_size = memory_size
+        self.memory_pos = 0
         
         self.target_model = copy.deepcopy(self.model).to(device)
         self.target_model.eval()
@@ -30,7 +34,11 @@ class DQNAgent:
 
 
     def remember(self, s, a, r, s2, done):
-        self.memory.append((s, a, r, s2, done))
+        if len(self.memory) < self.memory_size:
+            self.memory.append((s, a, r, s2, done))
+        else:
+            self.memory[self.memory_pos] = (s, a, r, s2, done)
+            self.memory_pos = (self.memory_pos + 1) % self.memory_size
 
     def train_long_memory(self):
         if len(self.memory) == 0:
@@ -38,7 +46,7 @@ class DQNAgent:
         if len(self.memory) > BATCH_SIZE:
             batch = random.sample(self.memory, BATCH_SIZE)
         else:
-            batch = list(self.memory)
+            batch = self.memory
         states, actions, rewards, next_states, dones = zip(*batch)
         self.trainer.train_step(states, actions, rewards, next_states, dones)
         if self.n_hands % self.target_update_freq == 0:
