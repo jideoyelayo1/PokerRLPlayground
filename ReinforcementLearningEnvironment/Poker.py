@@ -12,6 +12,7 @@ from ReinforcementLearningEnvironment.TrainingEnvironmentVariables import (
     )
 
 from tqdm.auto import tqdm
+from array import array
 import random
 import numpy as np
 
@@ -30,6 +31,8 @@ def train_poker_dqn(
     reset_stacks: bool = False,
     agent_kwargs=None,
     reward_scale: float = 1.0,
+    log_csv: bool = True,
+    on_hand_end=None,
 ):
     """Self-play DQN training. reset_stacks=True resets every stack to starting_stack before each
     hand (a cash game, as the demo is played; the button then always starts on seat 0); otherwise the
@@ -38,7 +41,11 @@ def train_poker_dqn(
     One DQNAgent per model (agent_kwargs are passed to each). With fewer models than seats, seat i
     is played by agent i % len(models): one model plays every seat, learning from all of them.
 
-    The terminal reward is the seat's result in big blinds times reward_scale."""
+    The terminal reward is the seat's result in big blinds times reward_scale.
+
+    log_csv=False skips the per-player-per-hand CSV (CSV_PATH), which grows by about 300 bytes a
+    hand. on_hand_end(hands_played, agents), if given, is called after each hand's updates (for
+    checkpoints and progress logs in long runs)."""
 
     g = pe.GameEngine(n_players, starting_stack, big_blind, small_blind)
     if seed is not None:
@@ -57,8 +64,8 @@ def train_poker_dqn(
     seat_agent = [agents[i % len(agents)] for i in range(n_players)]
 
     history = {
-        "hand": [],
-        "delta_bb": {i: [] for i in range(n_players)},
+        "hand": array("l"),  # compact: a long run logs millions of values
+        "delta_bb": {i: array("f") for i in range(n_players)},
         "ma_bb":    {i: [] for i in range(n_players)},
         "resets":   [],
         "aborted":  [],
@@ -196,7 +203,7 @@ def train_poker_dqn(
             store(i, pending[i][0], float(stacks_end[i] - stacks_start[i]) / bb * reward_scale, True)
 
         rows = []
-        for i in range(n_players):
+        for i in range(n_players if log_csv else 0):
             pkey = pockets[i]
             if pkey is None:
                 continue
@@ -233,7 +240,8 @@ def train_poker_dqn(
                 "aggressive": int(hand_actions[i]["raises_made"] > 0),
             })
 
-        append_hand_rows(rows)
+        if log_csv:
+            append_hand_rows(rows)
 
         history["hand"].append(hands_played)
         for i in range(n_players):
@@ -246,6 +254,8 @@ def train_poker_dqn(
 
         hands_played += 1
         pbar.update(1)
+        if on_hand_end is not None:
+            on_hand_end(hands_played, agents)
 
     pbar.close()
 
