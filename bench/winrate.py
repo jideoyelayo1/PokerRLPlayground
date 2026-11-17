@@ -97,16 +97,38 @@ def bot_tight(obs, mask, rng):
 BOTS = {"random": bot_random, "call": bot_call, "tight": bot_tight}
 
 
-def agent_policy(agent):
+def greedy_policy(model, sequence=False):
+    """A trained network's play: argmax of its Q-values plus the legal mask. A sequence model sees
+    the player's encoded states at each of its decisions in this hand so far, the current one last
+    (docs/state_encoding.md). act.counts tallies the actions chosen."""
+    hist = {}
+
     def act(obs, mask, rng):
-        a = agent.select_action(encode_observation(obs, big_blind=BB), mask)
-        return int(rng.choice(legal_idxs(mask))) if mask[a] != 0.0 else a  # same guard as training
+        s = encode_observation(obs, big_blind=BB)
+        if sequence:
+            hist.setdefault(obs.viewer_id, []).append(s)
+            s = np.stack(hist[obs.viewer_id])
+        with torch.no_grad():
+            q = model(torch.from_numpy(s)[None])[0]
+        a = int(torch.argmax(q + torch.from_numpy(mask)))
+        act.counts[a] += 1
+        return a
+    act.new_hand = hist.clear
+    act.counts = [0] * N_ACTIONS
     return act
 
 
-def play_hand(g, policies, rng):
-    g.reset_tournament(STACK)
+def agent_policy(agent):
+    agent.model.eval()
+    return greedy_policy(agent.model, agent.sequence)
+
+
+def play_hand(g, policies, rng, stack=STACK):
+    g.reset_tournament(stack)
     g.start_hand()
+    for pol in policies:
+        if hasattr(pol, "new_hand"):
+            pol.new_hand()
     steps = 0
     while not g.hand_terminal():
         steps += 1
@@ -116,12 +138,12 @@ def play_hand(g, policies, rng):
         obs = g.getObservation(p)
         mask = legal_mask_from_obs(obs)
         g.step(action_index_to_engine_action(policies[p](obs, mask, rng)), p)
-    return [(s - STACK) / BB for s in g.getObservation(0).stack]
+    return [(s - stack) / BB for s in g.getObservation(0).stack]
 
 
-def evaluate(policy, bot, deals, seed):
+def evaluate(policy, bot, deals, seed, stack=STACK):
     """Agent result in BB per hand for each deal, averaged over the 4 seat rotations."""
-    g = pe.GameEngine(SEATS, STACK, BB, SB)
+    g = pe.GameEngine(SEATS, stack, BB, SB)
     rng = random.Random(seed)
     scores = []
     for d in range(deals):
@@ -129,7 +151,7 @@ def evaluate(policy, bot, deals, seed):
         for seat in range(SEATS):
             g.seed(seed * 1_000_003 + d)  # same deck for all 4 rotations of this deal
             pols = [policy if i == seat else bot for i in range(SEATS)]
-            total += play_hand(g, pols, rng)[seat]
+            total += play_hand(g, pols, rng, stack)[seat]
         scores.append(total / SEATS)
     s = np.array(scores)
     mean, half = s.mean(), 1.96 * s.std(ddof=1) / np.sqrt(len(s))
@@ -163,9 +185,6 @@ def main():
                  "tournament_resets": len(history["resets"]), "aborted_hands": len(history["aborted"]),
                  "abort_reasons": [r for _, r in history["aborted"]]}
         print(json.dumps(train), flush=True)
-        for ag in agents:
-            ag.eps_start = ag.eps_end = 0.0  # greedy
-            ag.model.eval()
         results = []
         players = [(ARCH[i], agent_policy(ag)) for i, ag in enumerate(agents)] + [("random-bot", bot_random)]
         t1 = time.time()
