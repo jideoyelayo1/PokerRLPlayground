@@ -2,6 +2,8 @@
 # Re-run every measurement in bench/RESULTS.md. From the repository root, with the venv active:
 #   sh bench/run_benchmarks.sh            # tests + throughput (about 5 minutes)
 #   sh bench/run_benchmarks.sh winrate    # also train and evaluate the agents (about an hour)
+#   sh bench/run_benchmarks.sh demo       # the demo agents (bench/SELECTION.md): train, evaluate,
+#                                         # select and export (about 3 hours with JOBS=6 runs at once)
 set -e
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release >/dev/null
 cmake --build build >/dev/null
@@ -15,6 +17,15 @@ machine() {
   echo "# load average before: $(sysctl -n vm.loadavg 2>/dev/null || cat /proc/loadavg)"
 }
 after() { echo "# load average after: $(sysctl -n vm.loadavg 2>/dev/null || cat /proc/loadavg)"; }
+
+if [ "$1" = demo ]; then
+  ctest --test-dir build --output-on-failure -E eval_exhaustive
+  python bench/train_demo.py --all --jobs "${JOBS:-6}"  # skips runs already in weights/runs
+  { machine; python bench/eval_demo.py --jobs "${JOBS:-6}"; after; } > bench/raw/demo_eval.log
+  python bench/export_weights.py
+  python -m unittest discover -s tests
+  exit 0
+fi
 
 ctest --test-dir build --output-on-failure -E eval_exhaustive
 { rev; ./build/eval_exhaustive; } > bench/raw/eval_exhaustive.txt
