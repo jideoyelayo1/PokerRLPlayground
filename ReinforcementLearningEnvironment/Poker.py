@@ -105,7 +105,6 @@ def train_poker_dqn(
 
         def store(i, s_next, r, d):
             s_prev, a_prev = pending.pop(i)
-            agents[i].train_short_memory(s_prev, a_prev, r, s_next, d)
             agents[i].remember(s_prev, a_prev, r, s_next, d)
 
         while not g.hand_terminal():

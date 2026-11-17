@@ -102,20 +102,18 @@ For every completed hand, a row is logged **per player** with:
 ### Training loop details
 
 **Replay buffer**
-- Each agent stores transitions via `agents[acting].remember(s, a, r, s2, done)`.
-- A short-term update happens immediately with `train_short_memory(...)`.
-- A long-term update happens once per hand with `train_long_memory()` (typically sampling from replay).
-- (Buffer size, warmup, batch size, and sampling strategy are defined inside `DQNAgent`.)
+- Each agent stores transitions via `agents[i].remember(s, a, r, s2, done)` (see *Multi-player credit assignment* for when).
+- One update per agent per hand with `train_long_memory()`, on a batch sampled uniformly from the agent's replay buffer (a ring of `memory_size` transitions; `batch_size` and `lr` are `DQNAgent` arguments).
+- There used to be a single-sample update at every decision as well (`train_short_memory`). It was the bulk of the training cost and is gone.
 
 **Target network**
-- If your `DQNAgent` includes a target network, it is used inside `train_short_memory` / `train_long_memory` (update frequency defined there). The loop is compatible with standard DQN + target network updates.
+- `DQNAgent` keeps a target network for the bootstrap targets, copied from the online network every `target_update_freq` (200) hands.
 
 **Optimisation**
 - Standard DQN training: predicted Q(s,a) vs target computed from reward + discounted max Q(s’,·).
 - (Loss function, optimiser, learning rate, and any gradient clipping are implemented in `DQNAgent`.)
 
 **Update cadence**
-- **Per-step updates**: the currently acting player performs `train_short_memory(...)` every decision.
 - **Per-hand updates**: after the hand ends, every agent runs `train_long_memory()` once.
 
 ---

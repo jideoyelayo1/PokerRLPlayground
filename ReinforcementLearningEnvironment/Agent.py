@@ -11,7 +11,7 @@ from ReinforcementLearningEnvironment.TrainingEnvironmentVariables import MAX_ME
 
 class DQNAgent:
     def __init__(self, player_id: int, model: nn.Module, state_dim: int, gamma=0.9, random_range=80, device="cpu",
-                 memory_size=MAX_MEMORY):
+                 memory_size=MAX_MEMORY, batch_size=BATCH_SIZE, lr=LEARNING_RATE):
         self.player_id = player_id
         self.model = model.to(device)
         self.gamma = gamma
@@ -29,7 +29,8 @@ class DQNAgent:
         
         self.target_model = copy.deepcopy(self.model).to(device)
         self.target_model.eval()
-        self.trainer = QTrainer(self.model, self.target_model, lr=LEARNING_RATE, gamma=self.gamma, device=device)
+        self.batch_size = batch_size
+        self.trainer = QTrainer(self.model, self.target_model, lr=lr, gamma=self.gamma, device=device)
         self.target_update_freq = 200
 
 
@@ -43,8 +44,8 @@ class DQNAgent:
     def train_long_memory(self):
         if len(self.memory) == 0:
             return
-        if len(self.memory) > BATCH_SIZE:
-            batch = random.sample(self.memory, BATCH_SIZE)
+        if len(self.memory) > self.batch_size:
+            batch = random.sample(self.memory, self.batch_size)
         else:
             batch = self.memory
         states, actions, rewards, next_states, dones = zip(*batch)
@@ -52,9 +53,6 @@ class DQNAgent:
         if self.n_hands % self.target_update_freq == 0:
             self.target_model.load_state_dict(self.model.state_dict())
 
-
-    def train_short_memory(self, s, a, r, s2, done):
-        self.trainer.train_step([s], [a], [r], [s2], [done])
 
     def select_action(self, state_vec: np.ndarray, legal_mask: np.ndarray) -> int:
         self.epsilon = max(0, self.random_range - self.n_hands)
