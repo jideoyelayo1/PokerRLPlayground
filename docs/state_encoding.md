@@ -57,3 +57,14 @@ AllIn, then one Raise per `RaiseSize` with `raise_size` and `raise_to` set. Each
 exactly whether `step()` accepts that action. The mask is a float32 vector of 7: 0 where the
 action's spec is allowed, −1e9 where it is not. A network's choice is
 `argmax(q + mask)`, ties going to the lowest index (PyTorch's `argmax` returns the first maximum).
+
+## Recurrent agents: the sequence they see
+
+An agent trained with `sequence=True` (`DQNAgent`, used for the GRU candidates) sees, at its k-th
+decision in a hand (k = 1, 2, …), the k × F array `[x_1, …, x_k]`: the vectors above for its own
+decisions in this hand so far, oldest first, the current decision's last. The sequence starts
+empty at every hand. Other players' decisions do not add steps; their effect shows in the next
+vector (pot, contributions, folds). The recurrent layers run over the sequence from a zero
+initial state, and the Q-values are the output layer applied to the last step's output.
+Equivalently: reset the hidden state at the start of each hand, and at each of the agent's own
+decisions feed one vector and read the Q-values.

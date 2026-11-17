@@ -12,13 +12,16 @@ from ReinforcementLearningEnvironment.TrainingEnvironmentVariables import MAX_ME
 class DQNAgent:
     def __init__(self, player_id: int, model: nn.Module, state_dim: int, gamma=0.9, device="cpu",
                  memory_size=MAX_MEMORY, batch_size=BATCH_SIZE, lr=LEARNING_RATE,
-                 eps_start=1.0, eps_end=0.05, eps_decay_hands=10_000):
+                 eps_start=1.0, eps_end=0.05, eps_decay_hands=10_000, sequence=False):
         self.player_id = player_id
         self.model = model.to(device)
         self.gamma = gamma
         self.device = device
 
         self.n_hands = 0
+        # sequence=True: the state at a decision is the (T, F) array of this player's encoded states
+        # at each of its decisions so far in the hand, the current one last (for recurrent models)
+        self.sequence = sequence
         # Epsilon-greedy: the chance of a uniformly random legal action falls linearly from
         # eps_start to eps_end over the first eps_decay_hands hands, then stays at eps_end.
         self.eps_start, self.eps_end, self.eps_decay_hands = eps_start, eps_end, eps_decay_hands
@@ -54,9 +57,10 @@ class DQNAgent:
         else:
             batch = self.memory
         states, actions, rewards, next_states, dones, next_masks = zip(*batch)
-        self.trainer.train_step(states, actions, rewards, next_states, dones, next_masks)
+        loss = self.trainer.train_step(states, actions, rewards, next_states, dones, next_masks)
         if self.n_hands % self.target_update_freq == 0:
             self.target_model.load_state_dict(self.model.state_dict())
+        return loss
 
 
     def select_action(self, state_vec: np.ndarray, legal_mask: np.ndarray) -> int:
@@ -68,8 +72,8 @@ class DQNAgent:
             return random.choice(legal_actions)
 
         st = torch.tensor(state_vec, dtype=torch.float32, device=self.device)
-        if st.dim() == 1:
-            st = st.unsqueeze(0)  # (1, F)
+        if st.dim() == 1 or self.sequence:
+            st = st.unsqueeze(0)  # (1, F), or (1, T, F) for a sequence
 
         with torch.no_grad():
             q = self.model(st)     # (1, N_ACTIONS) for all models if standardized

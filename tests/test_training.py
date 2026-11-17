@@ -67,5 +67,36 @@ class SharedSeats(unittest.TestCase):
         self.assertEqual(len(hist["delta_bb"]), 4)
 
 
+class Sequences(unittest.TestCase):
+    def test_padded_batch_gives_each_sequences_own_output(self):
+        from Models.GRUModel import GRUModel
+        from ReinforcementLearningEnvironment.QTrainer import QTrainer
+        torch.manual_seed(0)
+        net = GRUModel(F, A, hidden_dim=16, layer_dim=1, dropout=0.0)
+        seqs = [np.random.rand(t, F).astype(np.float32) for t in (1, 4, 2)]
+        x, lengths = QTrainer(net, net, 1e-3, 1.0)._batch(seqs)
+        with torch.no_grad():
+            batched = net(x, lengths)
+            for i, q in enumerate(seqs):
+                torch.testing.assert_close(batched[i], net(torch.tensor(q)[None])[0], rtol=0, atol=1e-6)
+
+    def test_loop_stores_the_hand_so_far(self):
+        import tempfile
+        import ReinforcementLearningEnvironment.helper as helper
+        from Models.GRUModel import GRUModel
+        from ReinforcementLearningEnvironment.Poker import train_poker_dqn
+        helper.CSV_PATH = str(Path(tempfile.mkdtemp()) / "log.csv")
+        torch.manual_seed(0)
+        agents, _ = train_poker_dqn([GRUModel(F, A, hidden_dim=8, layer_dim=1)], 4, 200, 2, 1, max_hands=30,
+                                    seed=1, reset_stacks=True, agent_kwargs={"sequence": True, "memory_size": 10_000})
+        mem = agents[0].memory
+        self.assertTrue(all(t[0].ndim == 2 and t[0].shape[1] == F for t in mem))
+        for st, _, _, s2, done, _ in mem:
+            if not done:  # the next state is this hand's sequence one decision later
+                self.assertEqual(len(s2), len(st) + 1)
+                np.testing.assert_array_equal(s2[:-1], st)
+        self.assertGreater(max(len(t[0]) for t in mem), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

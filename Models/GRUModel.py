@@ -33,7 +33,9 @@ class GRUModel(nn.Module):
         )
         self.fc = nn.Linear(hidden_dim, output_dim)
 
-    def forward(self, x:torch.Tensor):
+    def forward(self, x:torch.Tensor, lengths=None):
+        # lengths: for a right-padded batch (B, T, F), each sequence's length; the output is taken
+        # at its last real step (the GRU is causal, so padding after it changes nothing before it)
         if x.dim() == 1:
             x = x.unsqueeze(0).unsqueeze(1)
         elif x.dim() == 2:
@@ -42,7 +44,7 @@ class GRUModel(nn.Module):
             raise ValueError(f"GRUModel expected 1D/2D/3D input, got {tuple(x.shape)}")
 
         out, _ = self.gru(x)       # (B, T, H)
-        out = out[:, -1, :]        # (B, H)
+        out = out[:, -1, :] if lengths is None else out[torch.arange(out.size(0)), lengths - 1]  # (B, H)
         out = self.fc(out)         # (B, output_dim)
         return out
     

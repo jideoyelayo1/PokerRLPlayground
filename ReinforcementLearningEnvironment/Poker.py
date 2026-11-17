@@ -123,6 +123,7 @@ def train_poker_dqn(
         # hand (reward = the seat's result for the hand, done). So every seat that acted learns
         # its result, not only the one whose action ends the hand.
         pending = {}
+        seq = {}  # sequence agents: each seat's encoded states at its decisions in this hand
 
         def store(i, s_next, r, d, mask_next=None):
             s_prev, a_prev = pending.pop(i)
@@ -142,6 +143,9 @@ def train_poker_dqn(
 
             obs = g.getObservation(acting)
             s = encode_observation(obs, big_blind=big_blind)
+            if seat_agent[acting].sequence:
+                seq.setdefault(acting, []).append(s)
+                s = np.stack(seq[acting])  # (decisions so far, F), this one last
             mask = legal_mask_from_obs(obs)
             if acting in pending:
                 store(acting, s, 0.0, False, mask)
