@@ -1,9 +1,9 @@
 # Measurements
 
 Every number here comes from a command in this repository. Raw output is in `bench/raw/`.
-Re-run: `sh bench/run_benchmarks.sh` (tests and throughput) and `sh bench/run_benchmarks.sh winrate` (training and win rate).
+Re-run: `sh bench/run_benchmarks.sh` (tests and throughput), `sh bench/run_benchmarks.sh winrate` (the 2,000-hand training and win rate of section 5) and `sh bench/run_benchmarks.sh demo` (the demo agents, section 6).
 
-**Code measured.** Sections 1, 3, 4 and 5 were measured on commit 2a3e3df, which gives the engine the standard hold'em seat order (section 2a), with one run of `sh bench/run_benchmarks.sh winrate`. The numbers in earlier versions of this file (in the git history, up to commit 2c79230) were measured with the engine's old, non-standard seat order, and are not comparable cell for cell. Sections 2 and 2b describe faults found and fixed on older code (2b's check was run again on 2a3e3df); the seed-2 rerun in section 4 was not repeated.
+**Code measured.** Section 6 (the demo agents) and the checks in section 2c were measured on this branch (`train/demo-agents`), after the training-loop fixes listed in 2c; each raw file names its commit. Sections 1, 3, 4 and 5 were measured on commit 2a3e3df, which gives the engine the standard hold'em seat order (section 2a), with one run of `sh bench/run_benchmarks.sh winrate`; section 5 is superseded by section 6 (it describes the training loop before those fixes, at 5,000-big-blind stacks). The numbers in earlier versions of this file (in the git history, up to commit 2c79230) were measured with the engine's old, non-standard seat order, and are not comparable cell for cell. Sections 2 and 2b describe faults found and fixed on older code (2b's check was run again on 2a3e3df); the seed-2 rerun in section 4 was not repeated.
 
 **Machine.** Apple M1 Pro (8 performance + 2 efficiency cores, 16 GB), macOS 27.0.1 (Darwin 27.0.0).
 Apple clang 21.0.0 (clang-2100.3.34.2), CMake 4.4.0, Release build (`-O3 -DNDEBUG`, C++20).
@@ -79,6 +79,13 @@ The causes:
 In the three 2,000-hand training logs below, 9.3–32.6% of rows are folds ([winrate_table.md](raw/winrate_table.md)), and the old logging dropped every one of them.
 The EV-per-starting-hand figures in the README were therefore averaged only over hands that were not folded. They have not been regenerated.
 
+## 2c. Training-loop and legality faults (found and fixed on `train/demo-agents`)
+
+- **Reward for players who did not act last.** `python bench/check_terminal_rewards.py` trains four small networks for 300 hands and records every transition stored ([raw](raw/check_terminal_rewards.txt)). On PR #2's loop (876dd82), 299 of 656 seat-hands in which the seat acted ended with a terminal transition carrying the seat's result, one per hand (the player whose action ended it); 897 results were stored without a state and never trained. On this branch, 707 of 707 (tournament) and 1,198 of 1,198 (stacks reset every hand) do, and none is lost.
+- **Exact legal actions.** `legalActions` now lists each raise size separately, marked legal exactly when `step()` accepts it. `test_betting`'s `legalActionsAreExact` plays random legal actions at 100 and 20 big blinds and, at every decision, tries every action marked illegal (each is rejected and changes nothing) and plays one marked legal (accepted; a raise raises to its listed `raise_to`) ([raw](raw/test_legal_actions.txt)). At 100 big blinds, in 9,412 of 19,697 decisions the old mask marked a raise size legal that the engine rejects, and the training loop then played another size or action instead.
+- **Repeatability.** With the 2-second wall-clock limit gone, `sh bench/check_repeatable.sh` trains with one seed twice, in separate processes, and compares ([raw](raw/check_repeatable.txt)). The README set-up (four networks, tournament at 10,000 chips, seed 2, 2,000 hands) gave the same 5,129-row training log, apart from the per-process `run_id`, and the same weights hash both times, although the machine was heavily loaded and the two runs took 3,895 s and 3,444 s; with the timeout, a rerun of seed 2 (old seat order) left its first run's log at hand 114 (section 4). Short demo runs (`mlp-s` for 20,000 hands and `gru` for 4,000, seed 11) gave identical checkpoint logs, apart from timings, and identical kept weights. Not checked: repeatability on another machine or with another number of torch threads.
+- **Other changes to the loop**, each its own commit with its reason: the state is encoded relative to the acting player, with its amount to call and the button's position (`docs/state_encoding.md`; `Observation.button` is new); one network can play every seat; stacks can be reset every hand; exploration decays over a set number of hands instead of stopping after 80; the bootstrap target maxes over legal actions only, optionally with Double DQN; the per-decision single-sample update is gone; the replay buffer is a list ring instead of a deque (51 ms against 0.35 ms to draw 1,024 transitions from a million); recurrent models can be given the hand so far. `python -m unittest discover -s tests` checks the pieces.
+
 ## 3. Engine throughput
 
 4 seats, stacks reset to 10,000 every hand, blinds 1/2, fixed policies, single thread, 7 runs (seeds 1–7), standard seat order (commit 2a3e3df). Median, with the min–max over the runs in brackets.
@@ -115,9 +122,11 @@ With the old seat order the same budget took 9.5–11.7 minutes and 0.62–0.82 
 With the old seat order (before 2a3e3df), seed 2 was trained again from scratch with abort reasons recorded: `python bench/rerun_training.py --seed 2` ([raw](raw/rerun_seed2.txt), log [rerun_train_seed2.csv](raw/rerun_train_seed2.csv)). It aborted 7 hands (the original run aborted 8), all `timeout`.
 Its training log matches that of the original old-order run (the `train_seed2.csv` in commit 2c79230) row for row, apart from the per-process `run_id`, up to row 285, hand 114, and differs from there on.
 A timeout cuts a hand after however many decisions the machine managed in 2 seconds, and each decision has already applied a single-step update to the network. So the weights, and everything after, depend on machine load.
-Seeded training therefore repeats only until the first timeout. Removing the wall-clock timeout (the 2,000-step cap remains) would make runs repeat. It was left in so that the code here is the code that produced these results. The rerun was not repeated with the standard seat order.
+Seeded training therefore repeated only until the first timeout. The timeout is now removed (the 2,000-step cap remains) and seeded runs repeat exactly (section 2c). The rerun above was not repeated with the standard seat order on the old loop.
 
-## 5. Win rate against fixed baselines
+## 5. Win rate against fixed baselines (superseded: 2,000 hands, the training loop before section 2c)
+
+Superseded by section 6. This table describes the training loop as it was before the fixes in section 2c, the README's four networks trained together for 2,000 hands at 5,000-big-blind stacks; it is kept as a record of that code.
 
 `python bench/winrate.py --seeds 1 2 3 --train-hands 2000 --eval-deals 1000`, then `python bench/summarise_winrate.py` ([table](raw/winrate_table.md), [per-seed JSON](raw/), [training logs](raw/)).
 
@@ -152,8 +161,70 @@ Per-seed values with their own CIs are in [winrate_table.md](raw/winrate_table.m
 
 **Provenance.** The three training runs used commit 2a3e3df, the code described here. The per-seed JSON records each aborted hand's reason.
 
-## 6. Not measured here
+## 6. Demo agents: training, selection and win rate at 100 big blinds
+
+The agents for the browser demo, chosen under the rules in [`SELECTION.md`](SELECTION.md), committed at 23:53:04 GMT on 17 November (abdf6f8), before the first selectable run started (23:53:16). Re-run: `JOBS=6 sh bench/run_benchmarks.sh demo`; the weights are in [`weights/`](../weights/README.md).
+
+**Format.** 4 seats, blinds 1/2, stacks 200 (100 big blinds) reset before every hand, the engine after the standard seat order and the exact legal mask. One network plays all four seats in self-play; the training loop is the one in section 2c (every seat that acted gets its result, Double DQN over legal actions, decaying exploration, no wall-clock limit).
+
+**Candidates.** `mlp-s`: MLP 151-128-128-7 (36,871 parameters, 0.14 MB). `mlp-l`: MLP 151-512-512-256-7 (473,607, 1.81 MB). `gru`: one GRU layer of 128 over the seat's own decisions in the hand so far, then a linear layer (108,807, 0.42 MB). Seeds 1–3 each. Budget 400,000 hands for the MLPs and 150,000 for the GRU (in the pilots a GRU hand cost about 15 times an MLP hand; in these runs about 7 times an `mlp-s` hand). Each run kept the checkpoint (one every tenth of the run) that scored best on the validation deals (1,000 duplicate deals from seed 5000).
+
+**Evaluation.** Every kept network against three copies of each baseline, greedy, on 40,000 duplicate deals (160,000 hands) from seed 7000, which no training, validation or checkpoint choice used (`SELECTION.md` discloses a smoke test of the scripts on their first 300 deals with pilot networks). bb/100 [95% interval over deals]. Score: the lowest, over the three baselines, of the interval's lower end. Raw: [demo_table.md](raw/demo_table.md), [demo_eval.json](raw/demo_eval.json), one file per cell in [demo_cells/](raw/demo_cells/), log [demo_eval.log](raw/demo_eval.log).
+
+| run | parameters | kept checkpoint (hands) | vs random | vs call | vs tight | score (worst lower bound) | rank |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| mlp-s-seed3 | 36,871 | 320,000 | 359 [332, 386] | 341 [323, 359] | 16 [11, 21] | 11 | 1 |
+| gru-seed3 | 108,807 | 150,000 | 809 [778, 841] | 293 [272, 314] | 3 [-5, 11] | -5 | 2 |
+| mlp-s-seed2 | 36,871 | 280,000 | 338 [311, 365] | 203 [189, 218] | -2 [-9, 5] | -9 | 3 |
+| mlp-s-seed1 | 36,871 | 400,000 | 378 [352, 404] | 99 [87, 111] | -14 [-19, -9] | -19 | 4 |
+| gru-seed1 | 108,807 | 75,000 | 958 [924, 992] | 87 [70, 104] | -25 [-34, -17] | -34 | 5 |
+| mlp-l-seed3 | 473,607 | 120,000 | 654 [620, 688] | 125 [109, 140] | -39 [-48, -30] | -48 | 6 |
+| mlp-l-seed2 | 473,607 | 200,000 | 351 [325, 378] | -30 [-39, -21] | -42 [-50, -34] | -50 | 7 |
+| mlp-l-seed1 | 473,607 | 120,000 | 497 [469, 525] | 223 [202, 244] | -55 [-64, -46] | -64 | 8 |
+| gru-seed2 | 108,807 | 90,000 | 916 [880, 951] | 259 [236, 281] | -58 [-68, -48] | -68 | 9 |
+| random-bot (control) | | | -0 [-40, 40] | -128 [-167, -88] | -669 [-692, -646] | | |
+
+Across seeds, per architecture: mean of the per-seed bb/100 [95% t-interval over seeds].
+
+| candidate | seeds | vs random | vs call | vs tight |
+|---|---:|---:|---:|---:|
+| mlp-s | 3 | 358 [309, 408] | 214 [-88, 516] | 0 [-37, 37] |
+| mlp-l | 3 | 501 [125, 876] | 106 [-211, 422] | -45 [-66, -25] |
+| gru | 3 | 894 [704, 1,084] | 213 [-61, 487] | -27 [-103, 50] |
+
+Training (bench/train_demo.py; wall time with the other runs in parallel; decisions per hand of self-play over the last tenth of the run).
+
+| run | hands | wall | CPU | hands/s | decisions/hand | kept checkpoint | its validation score |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| gru-seed1 | 150,000 | 287 min | 2.56 h | 9 | 27.7 | 75,000 | -68 |
+| gru-seed2 | 150,000 | 262 min | 2.15 h | 10 | 16.1 | 90,000 | -77 |
+| gru-seed3 | 150,000 | 283 min | 2.50 h | 9 | 20.2 | 150,000 | -74 |
+| mlp-l-seed1 | 400,000 | 177 min | 1.31 h | 38 | 14.6 | 120,000 | -88 |
+| mlp-l-seed2 | 400,000 | 179 min | 1.33 h | 37 | 13.6 | 200,000 | -93 |
+| mlp-l-seed3 | 400,000 | 175 min | 1.31 h | 38 | 13.2 | 120,000 | -106 |
+| mlp-s-seed1 | 400,000 | 96 min | 0.58 h | 69 | 18.1 | 400,000 | -38 |
+| mlp-s-seed2 | 400,000 | 97 min | 0.59 h | 68 | 14.0 | 280,000 | -33 |
+| mlp-s-seed3 | 400,000 | 99 min | 0.60 h | 67 | 16.4 | 320,000 | 4 |
+
+Seats: mlp-s-seed3 in all three (clearly best).
+Beats each baseline (lower end of the 95% interval above 0): mlp-s-seed3: random yes, call yes, tight yes.
+
+**Reading it.**
+- **The selected agent beats all three baselines.** `mlp-s` seed 3 (the kept checkpoint at 320,000 hands) ranks first with a score of +11 bb/100 and is clearly best under the rule (+11 is above every other network's worst point estimate, the next being +3), so it plays **all three agent seats**. Against random +359 [332, 386], call +341 [323, 359], tight +16 [11, 21] bb/100. The random bot in its seat scores 0, −128 and −669.
+- **On fresh deals it holds.** Its results above are on the deals it was selected on, the best of nine noisy estimates. `python bench/confirm_demo.py` plays it again on 40,000 deals from seed 9000, which nothing else used: random +372 [345, 398], call +332 [314, 350], tight +18 [14, 23] ([raw](raw/demo_confirm.log)).
+- **The tight bot is the hard one.** Every network beats the random bot, by 338–958 bb/100, and eight of nine beat the calling bot. Against the tight bot, two other networks have intervals that include zero (`gru` seed 3, +3 [−5, 11]; `mlp-s` seed 2, −2 [−9, 5]) and the other six lose to it with intervals below zero. Across seeds, `mlp-s` is 0 [−37, 37] against the tight bot, so the win depends on the seed: one of three `mlp-s` runs gives an agent that beats it.
+- **Bigger was not better.** `mlp-l` (13 times the parameters) is worse than `mlp-s` against the tight bot in every seed, and its validation score peaked at 120,000–200,000 hands and then fell (`weights/runs/mlp-l-seed*/log.jsonl`); its kept checkpoints come from that peak. `gru` trained for 150,000 hands, not 400,000 (`SELECTION.md`), so the families are compared at unequal training. The GRU beats the random bot by the most (809–958) but does no better than `mlp-s` against the tight bot.
+- **What the selected agent does** (actions chosen in evaluation): against the tight bot it folds 12% of its decisions, checks 34%, calls 20%, raises by one big blind 33% and rarely raises half the pot (0.2%), the pot (1.6%) or goes all-in (0.3%); against the calling bot it checks 41% and raises by one big blind 24%; against the random bot it folds 39% and calls 37%. Raising by the minimum is its main bet. In self-play, hands average 13–28 decisions late in training (7–8 early), because the networks re-raise each other by one big blind many times; a visitor will see this.
+- **Seeds repeat.** `sh bench/check_repeatable.sh` (section 2c) trains the same seed twice and gets the same weights. No hand was aborted in any of the nine runs.
+
+**Machine and budget.** The nine runs started at 23:53 GMT on 17 November and ended at 04:40 on 18 November: 4.8 hours elapsed, 12.95 CPU-hours in all (`run.json` of each run), run in parallel (six at first, nine from 00:17). From about 00:10 to 04:15 another job on the machine (twelve training processes) kept the load average between about 100 and 450, and each run got about a third of a core; that is why the GRU runs took 4.4–4.8 hours. The pilots took 0.4 hours before that, so training used about 5.2 of the 6 hours; the 05:20 cut-off written into `SELECTION.md` at 00:45 was not needed. Evaluation and the confirmation took about 35 minutes more. Each run's `run.json` records as `commit` the head of the branch when the run ended (fixed afterwards in 1b0446f to the commit it starts from); the training code is the same in abdf6f8, where the runs started, and in every recorded commit.
+
+## 7. Not measured here
 
 - The repository's own figures (50,000 and 100,000 hands): neither their run settings nor their seeds were recorded, and they were logged with the faults fixed on this branch. They were not regenerated.
-- Training beyond 2,000 hands per seed, on MPS, or with other stack depths; win rates of the four architectures trained separately rather than together.
-- Throughput on other machines. Every number above comes from one shared laptop.
+- The demo agents against people, against each other, or against any opponent other than the three baselines; exploitability.
+- The demo agents at any other format (stack depth, number of seats, a moving button with stacks reset: evaluation and training put the button on seat 0 every hand, and the encoding is relative, but this was not measured).
+- The families at equal training: the GRU had 150,000 hands, the MLPs 400,000. More seeds per candidate, other hyperparameters, longer training.
+- Whether training repeats on another machine, another torch version or another number of threads.
+- The C++ forward pass against the parity records (next stage).
+- Throughput on other machines. Every number above comes from one shared laptop, and the training times in section 6 were measured while another job loaded it heavily.
