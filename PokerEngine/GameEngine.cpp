@@ -774,7 +774,8 @@ std::vector<ActionSpec> GameEngine::legalActions(int playerId) const {
     int min_to = to_call_ + min_raise_;  // NLH minimum "raise-to"
 
     // Legality comes from isActionLegal, the check applyAction makes, so a listed action is
-    // accepted exactly when it is marked allowed. Call when need > stack is a call all-in.
+    // accepted exactly when it is marked allowed (for the player to act; step() always acts for
+    // the current player). Call when need > stack is a call all-in.
     for (ActionType t : {ActionType::Fold, ActionType::Check, ActionType::Call, ActionType::AllIn})
         out.push_back(ActionSpec{t, need, 0, 0, isActionLegal(playerId, Action{t})});
 

@@ -53,8 +53,11 @@ cards (all zeros), but a folded player is never asked to act.
 ## Legal mask
 
 `obs.legal` (from `legalActions`) has one `ActionSpec` per action above: Fold, Check, Call,
-AllIn, then one Raise per `RaiseSize` with `raise_size` and `raise_to` set. Each `allowed` flag is
-exactly whether `step()` accepts that action. The mask is a float32 vector of 7: 0 where the
+AllIn, then one Raise per `RaiseSize` with `raise_size` and `raise_to` set. For the player to act
+(the engine's current player), each `allowed` flag is exactly whether `step()` accepts that action.
+Two caveats: `step(action, seat)` always acts for the current player, whatever `seat` is, and
+`getObservation(seat)` for a seat that is not to act still lists that seat's actions as if it
+were, judged against the current bets; so read the legal list only for the player to act. The mask is a float32 vector of 7: 0 where the
 action's spec is allowed, −1e9 where it is not. A network's choice is
 `argmax(q + mask)`, ties going to the lowest index (PyTorch's `argmax` returns the first maximum).
 

@@ -112,7 +112,8 @@ def legal_mask_from_obs(obs) -> np.ndarray:
     Returns mask of shape (N_ACTIONS,), with 0 for legal and -1e9 for illegal.
     """
     mask = np.full((N_ACTIONS,), -1e9, dtype=np.float32)
-    # obs.legal has one ActionSpec per action, one per raise size, each marked exactly as step() judges it
+    # obs.legal has one ActionSpec per action, one per raise size; for the player to act, each is
+    # marked exactly as step() judges it
     for spec in obs.legal:
         if spec.allowed:
             mask[spec_index(spec)] = 0.0

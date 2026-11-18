@@ -53,7 +53,9 @@ class Card{
 };
 
 // legalActions lists Fold, Check, Call, AllIn, then one Raise per RaiseSize (BB, HalfPot, Pot).
-// `allowed` is exactly whether step() accepts that action, raise size included.
+// For the player to act, `allowed` is exactly whether step() accepts that action, raise size
+// included. step(a, viewer) always acts for the current player, whatever viewer is, and the
+// legal list of a seat that is not to act is judged as if it were (against the current bets).
 struct ActionSpec {
     ActionType type{};
     int call_amount = 0;      // chips needed to call (0 => check)
