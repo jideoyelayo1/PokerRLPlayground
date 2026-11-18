@@ -4,6 +4,19 @@ Trained by `bench/train_demo.py` under the rules in [`bench/SELECTION.md`](../be
 evaluated by `bench/eval_demo.py` (results in [`bench/RESULTS.md`](../bench/RESULTS.md), section 6),
 exported by `bench/export_weights.py`.
 
+## Selected
+
+All three agent seats are played by one network, **`mlp-s-seed3`**: an MLP 151 → 128 → 128 → 7 with
+ReLU (36,871 parameters; `demo/mlp-s-seed3.bin` is 147,484 bytes, sha256
+`c6d70e3c0b18b79c72218d5a1f814a782562552effc6dca1b40c95504aafa8d4`), the checkpoint at 320,000
+of its 400,000 training hands. The selection rule put it in all three seats because it was clearly
+best (`bench/SELECTION.md`, `demo/seats.json`). It is an MLP, so it needs no history.
+
+Provenance: every run's `run.json` gives as `commit` the head of the branch when the run ended
+(other runs' weights and documentation were committed while it trained); the training code is the
+same in abdf6f8, where the runs started, and in every commit recorded. From 1b0446f on,
+`train_demo.py` records the commit a run starts from.
+
 ## Layout
 
 - `runs/<candidate>-seed<seed>/`, one folder per training run, selected or not:
