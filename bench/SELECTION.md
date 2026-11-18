@@ -113,3 +113,15 @@ them, for the same reason.
   script that watched for it) minus its `wall_s`. That gives 23:53:28–23:53:41 GMT for the six
   runs started by `--all` (their directories were created at 23:53:16) and 00:17:23–00:17:34 for
   the three `mlp-s` runs.
+- **Early look at results.** The evaluation was not run after all training ended. The six MLP
+  candidates and the random-bot control were evaluated on the evaluation deals from 02:53 to
+  03:14 GMT (`bench/raw/demo_eval_early_1.log`), and `gru` seed 2 from about 04:20 to 04:23
+  (`demo_eval_early_2.log`), while GRU runs were still training (`gru` seed 2 ended at 04:15,
+  seeds 3 and 1 at 04:36 and 04:40). Those partial tables, which already put `mlp-s` seed 3 first,
+  were seen before the last two GRU runs ended. Nothing was changed after them: the training code,
+  the budgets (the GRU runs ran their full 150,000 hands), the 05:20 cut-off (committed at
+  00:40:48, before any candidate was evaluated) and the rule are as committed earlier, and the
+  final evaluation reused those cells unchanged. The times come from the two logs and from the
+  cell files' modification times on this machine (`bench/raw/demo_cells_times.txt`); the cells
+  computed then have no `computed_utc` or `commit` field, since neither is recoverable from a
+  committed record. Cells computed from now on record both.

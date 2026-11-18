@@ -62,7 +62,9 @@ def cell(job):
     with torch.no_grad():
         r = evaluate(pol, BOTS[bname], deals, EVAL_SEED, stack=STACK)
     r.update({"agent": run, "baseline": bname, "seed": EVAL_SEED, "wall_s": round(time.time() - t0, 1),
-              "actions": getattr(pol, "counts", None), "model_sha256": sha})
+              "actions": getattr(pol, "counts", None), "model_sha256": sha,
+              "computed_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+              "commit": subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()})
     r = {k: float(v) if isinstance(v, np.floating) else v for k, v in r.items()}
     CELLS.mkdir(exist_ok=True)
     path.write_text(json.dumps(r, indent=1) + "\n")
