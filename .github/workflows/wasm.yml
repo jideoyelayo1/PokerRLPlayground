@@ -50,8 +50,7 @@ jobs:
 
       - name: Tests of the WebAssembly module
         run: |
-          source "$RUNNER_TEMP/emsdk/emsdk_env.sh" # emsdk's own Node
-          node --version
+          node --version # the runner's (emsdk_env.sh leaves a Node already on PATH first)
           node web/test.mjs build/replay_driver
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

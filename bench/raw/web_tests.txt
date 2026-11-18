@@ -1,4 +1,4 @@
-# commit c07c2a1, Apple M1 Pro, Darwin 27.0.0, Apple clang version 21.0.0 (clang-2100.3.34.2), cmake 4.4.0, node v26.5.0 (emsdk's)
+# commit c07c2a1, Apple M1 Pro, Darwin 27.0.0, Apple clang version 21.0.0 (clang-2100.3.34.2), cmake 4.4.0, node v26.5.0 (Homebrew's; emsdk_env.sh leaves it first on PATH)
 # load average before: { 7.35 8.73 12.91 }
 # cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build && ctest --test-dir build --output-on-failure
 1/6 Test #1: test_hand_eval ...................   Passed    0.00 sec
