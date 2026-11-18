@@ -317,7 +317,27 @@ if (calling.status === 0) {
       if (!(e instanceof TypeError)) fail(`${label} threw ${e?.name}, expected a TypeError`);
     }
   }
-  if ('_networkError' in M) fail('web/post.js did not run: _networkError is still on the module');
+  if ('_networkError' in M || '_constructionFailed' in M) fail('web/post.js did not run: its hooks are still on the module');
+  // documented: extra constructor arguments are ignored; a subclass gets embind's objects; every
+  // method of a deleted Table throws embind's BindingError
+  {
+    const deal = (t) => (t.startHand(), t.view().cards.join());
+    const [a, b] = [new M.Table(1, 2), new M.Table(1)];
+    if (deal(a) !== deal(b)) fail('new Table(1, 2) does not deal as new Table(1)');
+    class X extends M.Table {}
+    const x = new X(3);
+    if (x instanceof X || !(x instanceof M.Table)) fail('a subclass of Table: instances are not as documented');
+    for (const t of [a, b, x]) t.delete();
+    for (const [name, call] of [['view', () => a.view()], ['startHand', () => a.startHand()], ['act', () => a.act('fold')],
+                                ['advance', () => a.advance()], ['delete', () => a.delete()]]) {
+      try {
+        call();
+        fail(`${name}() on a deleted Table did not throw`);
+      } catch (e) {
+        if (e?.name !== 'BindingError') fail(`${name}() on a deleted Table threw ${e?.name}, expected BindingError`);
+      }
+    }
+  }
   const o = JSON.parse(readFileSync(`${ROOT}weights/demo/${RUN}.parity.jsonl`, 'utf8').split('\n')[0]).observation;
   const obs = JSON.stringify(o);
   for (const [label, got] of [
