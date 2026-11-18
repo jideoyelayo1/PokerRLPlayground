@@ -561,6 +561,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build && ctest -
 - `test_hand_eval`: known answers for every hand category and the main tie-breaks.
 - `test_betting`: betting rounds through the `step()` API: every seat acts, every street closes, chips are conserved; the seat order (button, blinds, who acts first and last on each street, the big blind's option) for 2, 3, 4 and 6 seats, and the button's moves as players bust; every action `legalActions` marks legal is accepted and every other one rejected, raise sizes included.
 - `test_hand_result`: what a table view reads from the engine: `reset_stacks` (stacks reset, the button keeps moving), the hand's action history, each pot's winners and shares, the seats that reached showdown.
+- `test_json`: the JSON reader the agent's manifest goes through (`PokerEngine/Json.hpp`): nesting limited to 64 levels, malformed input and out-of-range integers refused.
 - `test_agent`: the C++ agent (`PokerEngine/Agent.hpp`) against every PyTorch parity record in `weights/demo/`.
 - `test_table`: the browser table (`web/Table.hpp`); see *7) The table in WebAssembly*.
 - `eval_exhaustive`: every 5-card and 7-card hand (133,784,560) against an independent reference evaluator and the published category counts (about a minute on 10 threads).
