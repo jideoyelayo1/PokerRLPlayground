@@ -92,7 +92,7 @@ For every completed hand, a row is logged **per player** with:
   - `raises_made`, `raises_faced`
   - `aggressive` (made at least one raise)
 
-**Logging fixes.** Every player dealt into a hand now gets a row, whether they folded or not, using the hole cards read straight after the deal. `bb_delta` counts the blinds, because stacks are now read before the blinds are posted, so the deltas of a hand sum to zero (the loop asserts this). Busted players are no longer logged. Before these fixes, folded players were never logged (their observation hides their cards by the end of the hand), every hand's deltas summed to +1.5 BB, and busted players reappeared with their last cards and a delta of 0. Mean EV per starting hand was therefore measured only over hands that were not folded. Figs. 1 and 2 under *Convergence Insight* are regenerated from the current code; the first version's figures, which came from the earlier code and cannot be regenerated, are kept as history at the end of *Results*.
+**Logging fixes.** Every player dealt into a hand now gets a row, whether they folded or not, using the hole cards read straight after the deal. `bb_delta` counts the blinds, because stacks are now read before the blinds are posted, so the deltas of a hand sum to zero (the loop asserts this). Busted players are no longer logged. Before these fixes, folded players were never logged (their observation hides their cards by the end of the hand), every hand's deltas summed to +1.5 BB, and busted players reappeared with their last cards and a delta of 0. Mean EV per starting hand was therefore measured only over hands that were not folded. Figs. 1 and 2 under *Results by starting hand and over training* are regenerated from the current code; the first version's figures, which came from the earlier code and cannot be regenerated, are kept as history at the end of *Results*.
 
 **Hands trained (order of magnitude)**
 - Training runs for `max_hands` hands (episodes). In the example call, `max_hands=10`, but typical training is intended to scale to **thousands to hundreds of thousands** of hands depending on compute and stability.
@@ -231,7 +231,7 @@ Bigger networks are not automatically better here because:
 - **Compute constraints:** simulation + training is already expensive; smaller models allow more hands, more experiments, and faster iteration.
 
 
-## Convergence Insight
+## Results by starting hand and over training
 
 Two figures, regenerated from the current code with one command, `sh bench/run_benchmarks.sh figures` with the venv active (`bench/figures.py`; 4 to 7 minutes with `JOBS=4` here). Each is committed with the CSV of exactly what it plots. Method, numbers and limits: [`bench/RESULTS.md`](bench/RESULTS.md), section 7; raw output: [`bench/raw/figures.log`](bench/raw/figures.log). The first version's figures, which these replace, are kept as history at the end of *Results*.
 
@@ -265,14 +265,14 @@ The first version's other figure, the cumulative average result of seven startin
 
 ---
 
-### What convergence does *not* mean
+### What these figures do *not* show
 
-Observed convergence does **not** imply:
+Neither figure shows convergence. Fig. 2 is a noisy validation at ten points per run, and against the random bot the results fall as training goes on. Nor do they show:
 - A Nash equilibrium
 - Exploitability minimisation
 - Robustness against unseen opponent strategies
 
-The policies are only guaranteed to be stable **within the self-play population** used during training. Changes to opponent behaviour, bet sizing, or reward structure may invalidate these equilibria.
+Fig. 1 describes play **within the self-play population**: one network against copies of itself. Changes to opponent behaviour, bet sizing, or reward structure may change it.
 
 These limitations are discussed further in the *Limitations & Future Work* section.
 
@@ -634,7 +634,7 @@ One network, `mlp-s` seed 3 (151 → 128 → 128 → 7, 36,871 parameters), play
 
 ### First version, not reproducible
 
-The rest of this section is history: the project's first figures and what its first README said about them. They have no recorded seeds, run settings or logs, they were logged with the faults fixed since (folded hands and the blinds were dropped), and the engine and training loop behind them have since had their betting rounds, seat order, reward assignment and legal mask corrected. They cannot be regenerated and do not describe the current agents; Figs. 1 and 2 under *Convergence Insight* replace the two that answered the same questions. The image files are kept unchanged in `images/`.
+The rest of this section is history: the project's first figures and what its first README said about them. They have no recorded seeds, run settings or logs, they were logged with the faults fixed since (folded hands and the blinds were dropped), and the engine and training loop behind them have since had their betting rounds, seat order, reward assignment and legal mask corrected. They cannot be regenerated and do not describe the current agents; Figs. 1 and 2 under *Results by starting hand and over training* replace the two that answered the same questions. The image files are kept unchanged in `images/`.
 
 The first README compared its results with a table of theoretical preflop win rates for a 4-player game (its source, like that of `theoretical_data/`, is not recorded), described as "idealised equity assuming perfect play and no postflop skill differences":
 
