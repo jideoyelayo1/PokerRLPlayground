@@ -92,3 +92,15 @@ while testing `bench/eval_demo.py` and `bench/export_weights.py` end to end, thr
 evaluation deals. The candidates, the evaluation and the rule were fixed before that. The GRU's
 hand budget was cut afterwards, from 400,000 to 150,000, for speed alone (a profile of a pilot GRU
 on its own training hands: 17 hands per second, 55 decisions per hand), not on those results.
+
+## Amendment (18 November, 00:45 GMT, during training, before any candidate was evaluated)
+
+From about 00:10 another job on the machine (twelve training processes) raised the load average
+from about 10 to 200–360, and each of these runs now gets about a third of a core. At that rate
+the GRU runs would need 5–7 more hours. So that the 6-hour budget holds: training stops at
+**05:20 GMT** (the pilots took about 0.4 hours from 23:29; the runs started at 23:53). A run that
+has not finished by then is stopped, and its candidate is the checkpoint it kept up to its last
+validation, exactly as for a finished run; its `run.json` records that it was stopped and after
+how many hands. Nothing else changes: candidates, seeds, validation, evaluation and the rule stay
+as above. The `mlp-s` runs were started by hand at 00:17, alongside the others instead of after
+them, for the same reason.
