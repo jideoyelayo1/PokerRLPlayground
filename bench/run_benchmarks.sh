@@ -22,6 +22,7 @@ if [ "$1" = demo ]; then
   ctest --test-dir build --output-on-failure -E eval_exhaustive
   python bench/train_demo.py --all --jobs "${JOBS:-6}"  # skips runs already in weights/runs
   { machine; python bench/eval_demo.py --jobs "${JOBS:-6}"; after; } > bench/raw/demo_eval.log
+  { machine; python bench/confirm_demo.py --seed 9000 --deals 40000 --jobs 3; after; } > bench/raw/demo_confirm.log
   python bench/export_weights.py
   python -m unittest discover -s tests
   exit 0

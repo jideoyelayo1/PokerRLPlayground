@@ -461,7 +461,7 @@ However, it does **not** guarantee:
 - Minimal exploitability
 - Robustness against unseen opponent populations
 
-Win rate against fixed baseline bots (random, calling, tight), in big blinds per 100 hands with confidence intervals over seeds, is now measured for a short training budget in [`bench/RESULTS.md`](bench/RESULTS.md). Cross-play leagues and exploitability-style testing are still future work.
+Win rate against fixed baseline bots (random, calling, tight), in big blinds per 100 hands with 95% intervals, is measured in [`bench/RESULTS.md`](bench/RESULTS.md): for the demo agents at 100 big blinds (section 6, which supersedes the 2,000-hand table of section 5). Cross-play leagues and exploitability-style testing are still future work.
 
 
 ## Limitations & Future Work
@@ -491,6 +491,7 @@ This project intentionally uses a **simplified poker environment**, which introd
 **Initial-condition bias**
 - The ratio between starting stack size and blind size is relatively fixed.
 - This may bias strategies toward deep-stack play and reduce exposure to edge cases such as short-stack or all-in-dominated scenarios.
+- The demo agents are trained and measured at one depth only, 100 big blinds with stacks reset every hand; how they play at other depths is not measured.
 
 **Sample size limitations**
 - Some pocket hands occur infrequently, leading to noisy EV estimates despite large overall hand counts.
@@ -499,7 +500,8 @@ This project intentionally uses a **simplified poker environment**, which introd
 - Training relies on frequent data transfer between C++ (simulation) and Python (learning) via pybind11.
 - This introduces significant overhead; for example, ~30,000 hands required several hundred CPU hours.
 - The current setup prioritises correctness and flexibility over raw throughput.
-- *Measured since* (`bench/RESULTS.md`, Apple M1 Pro, CPU): the engine runs about 44,000 hands/s in C++ and 13,500 hands/s through the binding with fixed policies. The training loop's engine, binding and encoding work costs about 0.54 ms per hand. Training the four README models costs about 0.36 s and 0.8–1.2 CPU-seconds per hand. So the networks' updates, not the C++↔Python crossing, dominate, and 30,000 hands come to roughly 7–10 CPU-hours here, an extrapolation from 2,000-hand runs. The "several hundred CPU hours" figure was not reproduced. Hands that hung on the old engine until the training loop's 2-second timeout may account for part of it.
+- *Measured since* (`bench/RESULTS.md`, Apple M1 Pro, CPU): the engine runs about 44,000 hands/s in C++ and 13,500 hands/s through the binding with fixed policies. The training loop's engine, binding and encoding work costs about 0.54 ms per hand. With the old loop (a single-sample update at every decision as well as the replay update), training the four README models cost about 0.36 s and 0.8–1.2 CPU-seconds per hand, so 30,000 hands would have come to roughly 7–10 CPU-hours, an extrapolation from 2,000-hand runs. The networks' updates, not the C++↔Python crossing, dominate. The "several hundred CPU hours" figure was not reproduced; hands that hung on the old engine until the training loop's 2-second timeout may account for part of it.
+- With the loop as it now is (one replay update per hand), one network playing all four seats at 100 big blinds trained at about 190 hands per CPU-second for the 37,000-parameter MLP, 85 for the 474,000-parameter MLP and 17 for the GRU (`bench/RESULTS.md`, section 6: 400,000 hands in 0.58–0.60, 1.31–1.33 and, for 150,000 hands, 2.15–2.56 CPU-hours).
 
 ---
 
@@ -508,7 +510,7 @@ This project intentionally uses a **simplified poker environment**, which introd
 Several extensions could meaningfully improve realism, stability, and performance:
 
 - **Richer temporal modelling**
-  - Use GRU/LSTM models or explicit action-history tokens for transformer-based agents.
+  - The GRU/LSTM models can now be given the hand so far (`sequence=True`); explicit action-history tokens for transformer-based agents are still future work.
 - **Improved self-play diversity**
   - Population-based training or opponent snapshotting to reduce overfitting.
 - **Stronger evaluation**
@@ -516,7 +518,7 @@ Several extensions could meaningfully improve realism, stability, and performanc
 - **More realistic game dynamics**
   - Finer-grained bet sizing, variable stack depths, and rake modelling.
 - **Richer state representations**
-  - Explicit position encoding, pot odds, implied odds, and betting-history features.
+  - Pot odds, implied odds, and betting-history features (position relative to the button is now encoded).
 - **Alternative learning algorithms**
   - Actor–critic methods (e.g. PPO) or NFSP-style approaches for imperfect-information games.
 - **Performance optimisation**
@@ -557,12 +559,29 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build && ctest -
 ```
 
 - `test_hand_eval`: known answers for every hand category and the main tie-breaks.
-- `test_betting`: betting rounds through the `step()` API: every seat acts, every street closes, chips are conserved; the seat order (button, blinds, who acts first and last on each street, the big blind's option) for 2, 3, 4 and 6 seats, and the button's moves as players bust.
+- `test_betting`: betting rounds through the `step()` API: every seat acts, every street closes, chips are conserved; the seat order (button, blinds, who acts first and last on each street, the big blind's option) for 2, 3, 4 and 6 seats, and the button's moves as players bust; every action `legalActions` marks legal is accepted and every other one rejected, raise sizes included.
 - `eval_exhaustive`: every 5-card and 7-card hand (133,784,560) against an independent reference evaluator and the published category counts (about a minute on 10 threads).
 
-`sh bench/run_benchmarks.sh` re-runs the tests and the throughput benchmarks with the venv active. `sh bench/run_benchmarks.sh winrate` also trains and evaluates the agents (about an hour). Results, method and raw output: [`bench/RESULTS.md`](bench/RESULTS.md).
+Python tests (training code, and the exported agents in `weights/demo/`), with the extension built:
 
-### 5) Run training / experiments (Jupyter)
+```bash
+python -m unittest discover -s tests -v
+```
+
+`sh bench/run_benchmarks.sh` re-runs the tests and the throughput benchmarks with the venv active. `sh bench/run_benchmarks.sh winrate` also trains and evaluates the README's four agents for 2,000 hands (about an hour; superseded, see `bench/RESULTS.md` section 5). Results, method and raw output: [`bench/RESULTS.md`](bench/RESULTS.md).
+
+### 5) Demo agents (trained weights)
+
+The agents for the browser demo (4 seats, 100 big blinds, stacks reset every hand) are trained, evaluated, selected and exported with one command, with the venv active:
+
+```bash
+JOBS=6 sh bench/run_benchmarks.sh demo
+```
+
+It runs `bench/train_demo.py --all` (every candidate and seed in [`bench/SELECTION.md`](bench/SELECTION.md) whose `weights/runs/<run>/run.json` is not there yet, `JOBS` at a time), `bench/eval_demo.py` (evaluation and the selection rule), `bench/confirm_demo.py` (the selected agents again, on fresh deals), `bench/export_weights.py` and the Python tests. The weights, their format and how to play one decision with them: [`weights/README.md`](weights/README.md). The state vector: [`docs/state_encoding.md`](docs/state_encoding.md). Results: [`bench/RESULTS.md`](bench/RESULTS.md), section 6.
+
+### 6) Run training / experiments (Jupyter)
+
 
 Open `main.ipynb` and edit the model list / hyperparameters:
 
@@ -599,7 +618,11 @@ agents, history = train_poker_dqn(
 
 ## Results
 
-This section summarises the learned behaviour of the agents after self-play training, focusing on expected value (EV), stability, and variance across starting hands.
+### Demo agents at 100 big blinds (measured)
+
+One network, `mlp-s` seed 3 (151 → 128 → 128 → 7, 36,871 parameters), plays all three agent seats of the browser demo. It was selected from nine candidates (two MLP sizes and a GRU, three seeds each) by the rule in [`bench/SELECTION.md`](bench/SELECTION.md), written before training. On 40,000 duplicate deals per baseline (4 seats, stacks reset to 100 big blinds every hand) it wins +359 [332, 386] bb/100 against random bots, +341 [323, 359] against calling bots and +16 [11, 21] against tight bots, and +372, +332 and +18 on fresh deals. Of the other eight candidates, none beats the tight bot with an interval above zero. Full table, method and what is not measured: [`bench/RESULTS.md`](bench/RESULTS.md), section 6; the weights: [`weights/`](weights/README.md).
+
+The rest of this section summarises the learned behaviour of the agents after self-play training, focusing on expected value (EV), stability, and variance across starting hands. These figures come from the old code and logging and have not been regenerated.
 
 ---
 
