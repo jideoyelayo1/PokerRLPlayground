@@ -235,5 +235,4 @@ With the rule the agent does better against the calling and tight bots, with pai
 - The demo agents at any other format (stack depth, number of seats, a moving button with stacks reset: evaluation and training put the button on seat 0 every hand, and the encoding is relative, but this was not measured).
 - The families at equal training: the GRU had 150,000 hands, the MLPs 400,000. More seeds per candidate, other hyperparameters, longer training.
 - Whether training repeats on another machine, another torch version or another number of threads.
-- The C++ forward pass against the parity records (next stage).
 - Throughput on other machines. Every number above comes from one shared laptop, and the training times in section 6 were measured while another job loaded it heavily.
