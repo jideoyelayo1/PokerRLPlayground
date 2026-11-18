@@ -123,11 +123,14 @@ def train_poker_dqn(
         # hand (reward = the seat's result for the hand, done). So every seat that acted learns
         # its result, not only the one whose action ends the hand.
         pending = {}
+        # Committed to the agents' replay only if the hand finishes: an aborted hand has no terminal
+        # transitions, so its earlier ones would be incomplete episodes.
+        hand_transitions = []
         seq = {}  # sequence agents: each seat's encoded states at its decisions in this hand
 
         def store(i, s_next, r, d, mask_next=None):
             s_prev, a_prev = pending.pop(i)
-            seat_agent[i].remember(s_prev, a_prev, r, s_next, d, mask_next)
+            hand_transitions.append((seat_agent[i], (s_prev, a_prev, r, s_next, d, mask_next)))
 
         while not g.hand_terminal():
             steps += 1
@@ -205,6 +208,9 @@ def train_poker_dqn(
         # Terminal transition for every seat that acted; the next state is unused when done.
         for i in list(pending):
             store(i, pending[i][0], float(stacks_end[i] - stacks_start[i]) / bb * reward_scale, True)
+
+        for ag, t in hand_transitions:
+            ag.remember(*t)
 
         rows = []
         for i in range(n_players if log_csv else 0):

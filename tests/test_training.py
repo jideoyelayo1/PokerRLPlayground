@@ -12,6 +12,8 @@ import torch
 
 from Models.MLPModel import MLPModel
 from ReinforcementLearningEnvironment.Agent import DQNAgent
+from ReinforcementLearningEnvironment.TrainingEnvironmentVariables import (
+    A_FOLD, A_CHECK, A_CALL, A_RAISE_BB, A_RAISE_HALF, A_RAISE_POT)
 
 F, A = 151, 7
 
@@ -171,6 +173,126 @@ class Dropout(unittest.TestCase):
         ag.train_long_memory()
         self.assertTrue(ag.model.training)
         self.assertTrue(any(not torch.equal(b, p) for b, p in zip(before, ag.model.parameters())))
+
+
+class Scripted(DQNAgent):
+    """Plays PLAN[k] at its k-th decision if legal (else check, else call) and logs each decision."""
+    plan, log = [], []
+
+    def select_action(self, state_vec, legal_mask):
+        k = len(Scripted.log)
+        legal = np.where(legal_mask == 0)[0]
+        want = Scripted.plan[k] if k < len(Scripted.plan) else A_CHECK
+        a = want if want in legal else (A_CHECK if A_CHECK in legal else A_CALL)
+        Scripted.log.append((self.n_hands, state_vec, legal_mask, a))
+        return a
+
+
+def key(s, a, r, s2, done, mask2):
+    return (np.asarray(s).tobytes(), int(a), round(float(r), 6), np.asarray(s2).tobytes(), bool(done), np.asarray(mask2).tobytes())
+
+
+# Seed 3, 4 seats, stacks 200, blinds 1/2, one network on every seat; the button starts on seat 0.
+# Hand 0: preflop seat 3 raises the pot, seat 0 calls, seat 1 (SB) folds, seat 2 (BB) calls; flop seat 2
+# checks, seat 3 raises half the pot, seat 0 calls, seat 2 folds; turn and river check-check.
+# Hand 1: everyone limps and checks down. Hand 2: seat 3 raises a big blind and the other three fold.
+PLAN = [A_RAISE_POT, A_CALL, A_FOLD, A_CALL, A_CHECK, A_RAISE_HALF, A_CALL, A_FOLD, A_CHECK, A_CHECK, A_CHECK, A_CHECK,
+        A_CALL, A_CALL, A_CALL, A_CHECK] + [A_CHECK] * 12 + [A_RAISE_BB, A_FOLD, A_FOLD, A_FOLD]
+SEATS_PER_HAND = [[3, 0, 1, 2, 2, 3, 0, 2, 3, 0, 3, 0], [3, 0, 1, 2] + [1, 2, 3, 0] * 3, [3, 0, 1, 2]]
+
+
+def run_scripted(max_hands, reward_scale=0.5):
+    import tempfile
+    from unittest import mock
+    import ReinforcementLearningEnvironment.helper as helper
+    import ReinforcementLearningEnvironment.Poker as Poker
+    helper.CSV_PATH = str(Path(tempfile.mkdtemp()) / "log.csv")
+    Scripted.plan, Scripted.log = PLAN, []
+    torch.manual_seed(0)
+    with mock.patch.object(Poker, "DQNAgent", Scripted):
+        agents, hist = Poker.train_poker_dqn([MLPModel(F, A, hidden=(8,))], 4, 200, 2, 1, max_hands=max_hands, seed=3,
+                                             reset_stacks=True, reward_scale=reward_scale, log_csv=False,
+                                             agent_kwargs={"memory_size": 10_000})
+    return agents[0], hist
+
+
+def expected_records(hist, reward_scale=0.5):
+    """(s, a, r, s', done, mask') per hand and seat, built from the decision log alone: a seat's
+    decisions chain with reward 0 into its next one, and the last is terminal with the hand's result."""
+    out, pos = {}, 0
+    for h, seats in enumerate(SEATS_PER_HAND[:len(hist["hand"])]):
+        dec = Scripted.log[pos:pos + len(seats)]
+        pos += len(seats)
+        for seat in sorted(set(seats)):
+            mine = [d for d, st in zip(dec, seats) if st == seat]
+            recs = [(d[1], d[3], 0.0, n[1], False, n[2]) for d, n in zip(mine, mine[1:])]
+            last = mine[-1]
+            recs.append((last[1], last[3], hist["delta_bb"][seat][h] * reward_scale, last[1], True, np.zeros(A, np.float32)))
+            out[h, seat] = recs
+    return out
+
+
+class Trajectories(unittest.TestCase):
+    def test_exact_records_for_every_seat(self):
+        ag, hist = run_scripted(3)
+        self.assertEqual([d[0] for d in Scripted.log], [0] * 12 + [1] * 16 + [2] * 4)  # epsilon is read from n_hands
+        exp = expected_records(hist)
+        # (a) multi-street hand: raise, call, fold across preflop and flop, check-check after
+        self.assertEqual([(r[1], r[2]) for r in exp[0, 3]], [(A_RAISE_POT, 0), (A_RAISE_HALF, 0), (A_CHECK, 0), (A_CHECK, -3.25)])
+        self.assertEqual([(r[1], r[2]) for r in exp[0, 0]], [(A_CALL, 0), (A_CALL, 0), (A_CHECK, 0), (A_CHECK, 4.75)])
+        self.assertEqual([(r[1], r[2]) for r in exp[0, 2]], [(A_CALL, 0), (A_CHECK, 0), (A_FOLD, -1.25)])
+        # (b) early preflop folds: one terminal transition whose next state is its own
+        self.assertEqual([(r[1], r[2], r[4]) for r in exp[0, 1]], [(A_FOLD, -0.25, True)])
+        self.assertEqual([(r[1], r[2], r[4]) for r in exp[2, 3]], [(A_RAISE_BB, 0.75, True)])
+        self.assertEqual([(r[1], r[2], r[4]) for r in exp[2, 1]], [(A_FOLD, -0.25, True)])
+        self.assertEqual(sum(len(v) for v in exp.values()), len(ag.memory))
+        self.assertEqual(sorted(key(*r) for v in exp.values() for r in v), sorted(key(*t) for t in ag.memory))
+        # (c) a hand's terminal rewards sum to zero
+        for h in range(3):
+            self.assertAlmostEqual(sum(r[2] for (hh, _), v in exp.items() if hh == h for r in v), 0.0, places=6)
+
+    def test_terminal_rewards_sum_to_zero_in_every_hand(self):
+        import tempfile
+        from unittest import mock
+        import ReinforcementLearningEnvironment.helper as helper
+        from ReinforcementLearningEnvironment.Poker import train_poker_dqn
+        helper.CSV_PATH = str(Path(tempfile.mkdtemp()) / "log.csv")
+        seen = []
+        real = DQNAgent.remember
+
+        def spy(self, s, a, r, s2, done, mask2=None):
+            seen.append((self.n_hands, r, done))
+            return real(self, s, a, r, s2, done, mask2)
+
+        torch.manual_seed(0)
+        with mock.patch.object(DQNAgent, "remember", spy):
+            train_poker_dqn([MLPModel(F, A, hidden=(8,))], 4, 200, 2, 1, max_hands=60, seed=5, reset_stacks=True,
+                            log_csv=False)
+        for h in range(60):
+            self.assertAlmostEqual(sum(r for n, r, d in seen if n == h and d), 0.0, places=5)
+        self.assertGreater(sum(d for _, _, d in seen), 60)
+
+    def test_aborted_hand_leaves_nothing_in_replay(self):
+        from unittest import mock
+        import ReinforcementLearningEnvironment.Poker as Poker
+        real, calls = Poker.action_index_to_engine_action, []
+
+        def flaky(a_idx):
+            calls.append(a_idx)
+            if len(calls) == 6:  # the second decision of seat 2, once seats 3, 0, 1, 2 and 2 have acted
+                raise RuntimeError("boom")
+            return real(a_idx)
+
+        with mock.patch.object(Poker, "action_index_to_engine_action", flaky):
+            ag, hist = run_scripted(2)
+        self.assertEqual([h for h, _ in hist["aborted"]], [0])
+        self.assertEqual(len(hist["hand"]), 2)
+        aborted = {np.asarray(d[1]).tobytes() for d in Scripted.log[:6]}
+        self.assertFalse(aborted & {np.asarray(t[0]).tobytes() for t in ag.memory})
+        self.assertFalse(aborted & {np.asarray(t[3]).tobytes() for t in ag.memory})
+        # what is stored is exactly the transitions of the two finished hands, one per decision
+        self.assertEqual(len(ag.memory), len(Scripted.log) - 6)
+        self.assertEqual(ag.n_hands, 2)
 
 
 class TargetSync(unittest.TestCase):
