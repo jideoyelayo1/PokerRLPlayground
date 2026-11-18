@@ -1,11 +1,12 @@
 # Native tests (ctest, the exhaustive evaluator included), the WebAssembly build (web/build.sh) and
-# its tests (web/test.mjs) on every pull request. A v* tag on a commit that is on main also publishes
-# poker.mjs, poker.wasm, BUILD.txt and SHA256SUMS as a release.
+# its tests (web/test.mjs) on every pull request and every push to main. A v* tag on a commit that
+# is on main also publishes poker.mjs, poker.wasm, BUILD.txt and SHA256SUMS as a release.
 name: WebAssembly
 
 on:
   pull_request:
   push:
+    branches: [main]
     tags: ['v*']
 
 permissions:
@@ -43,7 +44,18 @@ jobs:
           ./emsdk install "$EMSDK_VERSION"
           ./emsdk activate "$EMSDK_VERSION"
 
+      - name: The weights check stops the build and leaves no files
+        run: |
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          mkdir -p web/dist && touch web/dist/poker.mjs # as if left by an earlier build
+          printf x >> weights/demo/mlp-s-seed3.bin
+          if web/build.sh; then echo "::error::web/build.sh built with weights that differ from the manifest"; exit 1; fi
+          git checkout -- weights/demo/mlp-s-seed3.bin
+          [ ! -e web/dist/poker.mjs ]
+
       - name: Build the WebAssembly module
+        env:
+          SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }} # a pull request's head, not GitHub's merge
         run: |
           source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
           web/build.sh

@@ -66,8 +66,10 @@ struct TableView {
 };
 struct TableMove {
     bool ok = false;
-    std::string error;  // hand_over, not_your_turn, unknown_action, illegal_action, visitor_to_act
-    int seat = -1;
+    // hand_over, not_your_turn, unknown_action, illegal_action, visitor_to_act; hand_in_progress
+    // from startHand(); internal_error, with message, if the engine threw (the hand is then aborted)
+    std::string error, message;
+    int seat = -1;  // -1 for startHand()
     std::string action;
     int chips = 0, to = 0;
     bool over = true;  // after this call
@@ -82,14 +84,21 @@ public:
 
     Table(const agent::Mlp& net, uint64_t seed) : net_(net) { g_.seed(seed); }
 
-    // Starts the next hand; a hand still in progress is abandoned (stacks reset every hand).
-    void startHand() {
+    // Starts the next hand. Refused (hand_in_progress), with nothing changed, while a hand is in
+    // progress: a page that wants a fresh start creates a new Table.
+    TableMove startHand() {
+        if (!over()) return refuse("hand_in_progress");
         g_.reset_stacks(kStack);
         g_.start_hand();
         ++hands_;
         decisions_ = 0;
         aborted_ = false;
         cards_ = g_.getObservation(kVisitor).hole;
+        TableMove m;
+        m.ok = true;
+        m.over = over();
+        m.toAct = toAct();
+        return m;
     }
 
     bool over() const { return hands_ == 0 || aborted_ || g_.hand_terminal(); }
@@ -169,6 +178,13 @@ public:
 
     const GameEngine& engine() const { return g_; }  // for the native tests; not bound
 
+#ifdef POKER_TEST_HOOKS
+    // Test seam, compiled only into the test builds (test_table, the test module): plays an action
+    // index for the player to act without checking it, so that a test can make the engine throw
+    // inside play().
+    TableMove playUnchecked(int a) { return play(g_.currentPlayerSafe(), a); }
+#endif
+
     static std::string cardName(const Card& c) {
         if (c.rank == Ranks::Empty || c.suit == Suits::Empty) return "";
         return {"23456789TJQKA"[static_cast<int>(c.rank) - 2], "hdcs"[static_cast<int>(c.suit) - 1]};
@@ -202,7 +218,8 @@ private:
             g_.step(agent::engineAction(a), seat);  // seat is the player to act: step() acts for that player
         } catch (const std::exception& e) {        // not expected: every action was checked legal
             aborted_ = true;
-            m.error = std::string("internal_error: ") + e.what();
+            m = refuse("internal_error");
+            m.message = e.what();
             return m;
         }
         const ActionRecord& r = g_.handHistory().back();

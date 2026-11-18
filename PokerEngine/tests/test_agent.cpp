@@ -2,7 +2,9 @@
 // the encoded state equal element for element, the mask equal, the Q-values within kTolerance of
 // PyTorch's, and the same chosen action with the play-time option no_free_fold off and on (the
 // smallest gap between the two highest legal Q-values is about 1.5e-5, so close values alone
-// would not prove the same play).
+// would not prove the same play). Parity is shown on these records, not guaranteed: in play the two
+// highest legal Q-values can be closer than the largest difference measured here (8.34e-07), so a
+// rare decision may differ from PyTorch's (README, section 7).
 //   test_agent <weights/demo> [run]
 #include <algorithm>
 #include <cmath>

@@ -147,3 +147,6 @@ outputs
 # Trained agents are committed on purpose (weights/README.md)
 !weights/runs/
 !weights/**/*.pt
+
+# sanitizer build (bench/ctest_sanitizers.sh)
+build-asan/

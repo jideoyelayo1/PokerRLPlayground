@@ -25,6 +25,9 @@ add_library(poker_agent STATIC PokerEngine/Agent.cpp)
 target_link_libraries(poker_agent PUBLIC poker_core)
 target_compile_options(poker_agent PRIVATE -ffp-contract=off)
 
+add_executable(test_json PokerEngine/tests/test_json.cpp)
+add_test(NAME test_json COMMAND test_json)
+
 add_executable(test_agent PokerEngine/tests/test_agent.cpp)
 target_link_libraries(test_agent poker_agent)
 add_test(NAME test_agent COMMAND test_agent ${CMAKE_SOURCE_DIR}/weights/demo mlp-s-seed3)
@@ -34,6 +37,7 @@ add_test(NAME test_agent COMMAND test_agent ${CMAKE_SOURCE_DIR}/weights/demo mlp
 add_executable(test_table web/test_table.cpp)
 target_include_directories(test_table PRIVATE web)
 target_link_libraries(test_table poker_agent)
+target_compile_definitions(test_table PRIVATE POKER_TEST_HOOKS)  # Table::playUnchecked
 add_test(NAME test_table COMMAND test_table ${CMAKE_SOURCE_DIR}/weights/demo)
 add_executable(replay_driver web/replay_driver.cpp)
 target_include_directories(replay_driver PRIVATE web)
