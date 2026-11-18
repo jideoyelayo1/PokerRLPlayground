@@ -82,6 +82,14 @@ def git(*args):
     return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True).stdout.strip()
 
 
+def diagnostics(stats):
+    """Mean of each QTrainer.last_stats entry over the train steps since the last checkpoint;
+    nonfinite is the total count."""
+    if not stats:
+        return {}
+    return {k: float(sum(s[k] for s in stats) if k == "nonfinite" else np.mean([s[k] for s in stats])) for k in stats[0]}
+
+
 def train(name, seed, hands, out, checkpoints, threads, keep=False):
     out.mkdir(parents=True, exist_ok=True)
     # the code the run uses, read before it starts (other commits may land while it trains)
@@ -95,13 +103,14 @@ def train(name, seed, hands, out, checkpoints, threads, keep=False):
     agent_kw = dict(AGENT, eps_decay_hands=hands // 5, sequence=seq)
     log = (out / "log.jsonl").open("w")
     every = hands // checkpoints
-    state = {"best": None, "score": -float("inf"), "loss": [], "t0": time.time(),
+    state = {"best": None, "score": -float("inf"), "loss": [], "stats": [], "t0": time.time(),
              "r0": resource.getrusage(resource.RUSAGE_SELF), "transitions": 0}
 
     def on_hand_end(n, agents):
         ag = agents[0]
         if ag.last_loss is not None:
             state["loss"].append(ag.last_loss)
+            state["stats"].append(ag.last_stats)
         if n % every:
             return
         val, score = validate(ag.model, seq)
@@ -109,9 +118,10 @@ def train(name, seed, hands, out, checkpoints, threads, keep=False):
         row = {"hands": n, "wall_s": round(time.time() - state["t0"], 1),
                "cpu_s": round(r.ru_utime + r.ru_stime - state["r0"].ru_utime - state["r0"].ru_stime, 1),
                "epsilon": round(ag.epsilon, 4), "mean_loss": float(np.mean(state["loss"])) if state["loss"] else None,
+               **diagnostics(state["stats"]),
                "decisions_per_hand": round((ag.transitions - state["transitions"]) / every, 2),
                "val": val, "val_score": score}
-        state["loss"], state["transitions"] = [], ag.transitions
+        state["loss"], state["stats"], state["transitions"] = [], [], ag.transitions
         if score > state["score"]:
             state["score"], state["best"] = score, n
             torch.save(ag.model.state_dict(), out / "model.pt")
