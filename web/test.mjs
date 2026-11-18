@@ -1,6 +1,7 @@
 // Tests of the WebAssembly module (web/dist, from web/build.sh), with Node built-ins only:
 // 1. every parity record (weights/demo/<run>.parity.jsonl) through the compiled agent: the same
-//    state, mask and chosen action as PyTorch with no_free_fold off and on, Q within 1e-5;
+//    state, mask and chosen action as PyTorch with no_free_fold off and on, Q within 1e-5, and Q
+//    bit-identical to the native build's (replay_driver q);
 // 2. a seeded replay of HANDS hands with a scripted visitor through the compiled Table, compared
 //    line by line with the same replay through the native replay_driver (deals, every move, results);
 // 3. the replay's totals, pinned, so that a change of behaviour that both builds share shows;
@@ -52,7 +53,19 @@ const M = await createModule();
       fail(`record ${i}: actions ${off.action}/${on.action}, PyTorch ${r.action}/${r.action_no_free_fold}`);
     else matched++;
   }
-  console.log(`parity: ${lines.length} records; same action as PyTorch, rule off and on, in ${matched}; largest |q - q_torch| ${worst.toPrecision(3)} (tolerance ${TOLERANCE})`);
+  // the native build's Q-values, bit for bit (both are built with -ffp-contract=off)
+  const bits = (x) => {
+    const b = new DataView(new ArrayBuffer(4));
+    b.setFloat32(0, x);
+    return b.getUint32(0).toString(16).padStart(8, '0');
+  };
+  const nativeQ = spawnSync(driver, [`${ROOT}weights/demo`, 'q'], { encoding: 'utf8', maxBuffer: 1 << 28 }).stdout.trimEnd().split('\n');
+  let identical = 0;
+  for (const [i, line] of lines.entries())
+    identical += M.decideObservation(JSON.stringify(JSON.parse(line).observation), false).q.map(bits).join(' ') === nativeQ[i];
+  if (identical !== lines.length) fail(`Q-values bit-identical to the native build's in ${identical} of ${lines.length} records`);
+  console.log(`parity: ${lines.length} records; same action as PyTorch, rule off and on, in ${matched}; largest |q - q_torch| ${worst.toPrecision(3)} (tolerance ${TOLERANCE}); ` +
+    `Q-values bit-identical to the native build's in ${identical}`);
 }
 
 // 2. replay through the WebAssembly Table, in replay_driver's format

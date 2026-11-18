@@ -3,6 +3,10 @@
 // "call" checks, or else calls. Prints one line per hand start, move and hand end, in the format
 // test.mjs builds from the WebAssembly module, so the two outputs can be compared as text.
 //   replay_driver <weights/demo> <seed> <visitorSeed> <hands> <random|call>
+// With "q" instead, it prints the network's Q-values for every parity record, as float32 bits in hex.
+//   replay_driver <weights/demo> q
+#include <bit>
+#include <cstdio>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -42,6 +46,17 @@ std::string num(int x) { return std::to_string(x); }
 }  // namespace
 
 int main(int argc, char** argv) {
+    if (argc == 3 && std::string(argv[2]) == "q") {
+        const std::string dir = argv[1];
+        const agent::Mlp net = agent::Mlp::fromManifest(slurp(dir + "/mlp-s-seed3.json"), slurp(dir + "/mlp-s-seed3.bin"));
+        std::istringstream lines(slurp(dir + "/mlp-s-seed3.parity.jsonl"));
+        for (std::string line; std::getline(lines, line);) {
+            if (line.empty()) continue;
+            const auto q = agent::decide(net, agent::observationFromJson(Json::parse(line)["observation"]), false).q;
+            std::cout << join(q, " ", [](float x) { char b[9]; std::snprintf(b, sizeof b, "%08x", std::bit_cast<uint32_t>(x)); return std::string(b); }) << "\n";
+        }
+        return 0;
+    }
     if (argc != 6) {
         std::cerr << "usage: replay_driver <weights/demo> <seed> <visitorSeed> <hands> <random|call>\n";
         return 2;
