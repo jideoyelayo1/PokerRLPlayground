@@ -123,10 +123,20 @@ function mulberry32(seed) {
   };
 }
 
-const CARD = /^[2-9TJQKA][hdcs]$/;
+// Every card-like text ([2-9TJQKA][hdcs]) inside any string of a view or a move, wherever it is
+// (a card hidden in the log's street name is found). Keys are not scanned ("toAct" holds "Ac"), so
+// every key must be one of the view's and the moves' own.
+const CARD = /[2-9TJQKA][hdcs]/g;
+const KEYS = new Set(['hand', 'over', 'aborted', 'street', 'visitor', 'button', 'smallBlind', 'bigBlind', 'pot', 'toAct',
+  'board', 'cards', 'seats', 'seat', 'stack', 'streetContribution', 'totalContribution', 'status', 'legal', 'action',
+  'chips', 'to', 'log', 'result', 'pots', 'amount', 'eligible', 'winners', 'shares', 'net', 'showdown', 'ok', 'error', 'message']);
 const cardsIn = (value, out = new Set()) => {
-  if (typeof value === 'string' && CARD.test(value)) out.add(value);
-  else if (value && typeof value === 'object') for (const v of Object.values(value)) cardsIn(v, out);
+  if (typeof value === 'string') for (const c of value.match(CARD) ?? []) out.add(c);
+  else if (value && typeof value === 'object')
+    for (const [k, v] of Object.entries(value)) {
+      if (!Array.isArray(value) && !KEYS.has(k)) out.add(`(unknown key ${k})`);
+      cardsIn(v, out);
+    }
   return out;
 };
 
@@ -139,13 +149,18 @@ function replay() {
     if (!table.startHand().ok) throw new Error('startHand refused after a finished hand');
     let v = table.view();
     out.push(`hand ${v.hand} button ${v.button} cards ${v.cards.join(' ')}`);
-    for (;;) {
-      // the only cards a view may hold: the board, the visitor's own and, at the end, the showdown seats'
+    const mine = v.cards.join();
+    let board = '';
+    for (let m = null; ; ) {
+      // the only cards a view or a move may hold: the board, the visitor's own two (the same all
+      // hand) and, at the end, the showdown seats'; the board only grows
       const allowed = new Set([...v.board, ...v.cards, ...(v.result?.showdown ?? []).flatMap((s) => s.cards)]);
-      for (const c of cardsIn(v)) if (!allowed.has(c)) leaks++;
+      for (const c of [...cardsIn(v), ...cardsIn(m)]) if (!allowed.has(c)) leaks++;
       for (const s of v.result?.showdown ?? []) if (v.seats[s.seat].status === 'folded') leaks++;
+      if (v.cards.length !== 2 || v.cards.join() !== mine || !v.board.join().startsWith(board) || v.board.length > 5) leaks++;
+      board = v.board.join();
       if (v.over) break;
-      const m = v.toAct === v.visitor ? table.act(v.legal[next() % v.legal.length].action) : table.advance();
+      m = v.toAct === v.visitor ? table.act(v.legal[next() % v.legal.length].action) : table.advance();
       if (!m.ok) throw new Error(`refused: ${m.error}`);
       out.push(`${m.seat} ${m.action} ${m.chips} ${m.to}`);
       v = table.view();

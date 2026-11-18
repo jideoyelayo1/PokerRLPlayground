@@ -2,6 +2,7 @@
 //   test_table <weights/demo>
 #include <fstream>
 #include <random>
+#include <regex>
 #include <set>
 #include <sstream>
 
@@ -16,12 +17,25 @@ static std::string slurp(const std::string& path) {
     return s.str();
 }
 
-// Every card string anywhere in a view.
-static std::set<std::string> cardsIn(const TableView& v) {
-    std::set<std::string> out(v.board.begin(), v.board.end());
-    out.insert(v.cards.begin(), v.cards.end());
+// Every string field of a view and of a move (keep this in step with the structs in Table.hpp).
+static std::vector<std::string> strings(const TableView& v, const TableMove& m) {
+    std::vector<std::string> out{v.street, m.error, m.action};
+    out.insert(out.end(), v.board.begin(), v.board.end());
+    out.insert(out.end(), v.cards.begin(), v.cards.end());
+    for (const auto& s : v.seats) out.push_back(s.status);
+    for (const auto& a : v.legal) out.push_back(a.action);
+    for (const auto& e : v.log) { out.push_back(e.street); out.push_back(e.action); }
     if (v.result)
-        for (const auto& s : v.result->showdown) out.insert(s.cards.begin(), s.cards.end());
+        for (const auto& s : v.result->showdown) { out.insert(out.end(), s.cards.begin(), s.cards.end()); out.push_back(s.hand); }
+    return out;
+}
+
+// Every card-like text ([2-9TJQKA][hdcs]) inside those strings, wherever it is.
+static std::set<std::string> cardsIn(const TableView& v, const TableMove& m = {}) {
+    static const std::regex card("[2-9TJQKA][hdcs]");
+    std::set<std::string> out;
+    for (const auto& text : strings(v, m))
+        for (std::sregex_iterator it(text.begin(), text.end(), card), end; it != end; ++it) out.insert(it->str());
     return out;
 }
 
@@ -80,18 +94,23 @@ static void format(const agent::Mlp& net) {
 static void hiddenCards(const agent::Mlp& net) {
     Table t(net, 11);
     std::mt19937 rng(5);
-    int views = 0, leaks = 0, wrongShowdown = 0, showdowns = 0, foldedAgents = 0, resultsBad = 0;
+    int views = 0, leaks = 0, strays = 0, wrongShowdown = 0, showdowns = 0, foldedAgents = 0, resultsBad = 0;
     for (int h = 0; h < 2000; ++h) {
         t.startHand();
         std::vector<std::set<std::string>> hole(4);
-        for (int s = 1; s < 4; ++s)
+        for (int s = 0; s < 4; ++s)
             for (const Card& c : t.engine().getObservation(s).hole) hole[s].insert(Table::cardName(c));
-        auto check = [&] {
+        auto check = [&](const TableMove& m) {
             auto v = t.view();
             ++views;
-            auto seen = cardsIn(v);
+            auto seen = cardsIn(v, m);
             std::set<int> shown;  // the engine's own record, not the view's
             if (v.over) for (int s : t.engine().showdownSeats()) shown.insert(s);
+            // anything card-like must be the visitor's, the board's or, at the end, a showdown seat's
+            std::set<std::string> allowed = hole[0];
+            for (const Card& c : t.engine().boardCardsFixed()) if (c.rank != Ranks::Empty) allowed.insert(Table::cardName(c));
+            for (int s : shown) allowed.insert(hole[s].begin(), hole[s].end());
+            for (const auto& c : seen) strays += !allowed.count(c);
             for (int s = 1; s < 4; ++s) {
                 bool visible = false;
                 for (auto& c : hole[s]) visible = visible || seen.count(c);
@@ -109,18 +128,15 @@ static void hiddenCards(const agent::Mlp& net) {
                 resultsBad += sum != 0 || paid != v.pot;
             }
         };
-        check();
-        while (!t.over()) {
-            if (t.toAct() == Table::kVisitor) t.act(pick(t.view(), rng));
-            else t.advance();
-            check();
-        }
+        check({});
+        while (!t.over()) check(t.toAct() == Table::kVisitor ? t.act(pick(t.view(), rng)) : t.advance());
         auto v = t.view();
         showdowns += v.result && !v.result->showdown.empty();
         for (int s = 1; s < 4; ++s) foldedAgents += v.seats[s].status == "folded";
     }
     std::printf("hidden cards: %d views over 2,000 hands, %d with a showdown, %d agent folds\n", views, showdowns, foldedAgents);
     CHECK(leaks == 0, "%d views showed an agent's hole cards they should not", leaks);
+    CHECK(strays == 0, "%d card-like texts in views or moves were not the visitor's, the board's or a showdown seat's", strays);
     CHECK(wrongShowdown == 0, "%d showdown entries were folded seats or the wrong cards", wrongShowdown);
     CHECK(resultsBad == 0, "%d results do not add up", resultsBad);
     CHECK(showdowns > 0 && foldedAgents > 0, "cases covered");
