@@ -1,0 +1,11 @@
+# commit 2488255 + the free-fold counting committed with this file, load average before: { 7.87 12.81 13.39 }
+# python bench/confirm_demo.py --seed 7000 --deals 40000 --jobs 3 --out demo_free_folds   (the evaluation deals again, to count free folds; play as evaluated)
+40,000 duplicate deals per cell from seed 7000. bb/100 [95% CI over deals].
+
+| run | vs random | vs call | vs tight |
+|---|---:|---:|---:|
+| mlp-s-seed3 | 359 [332, 386] | 341 [323, 359] | 16 [11, 21] |
+mlp-s-seed3 vs random: 325,675 decisions, 125,619 folds, 2,532 of them with check legal (0.8% of decisions, 2% of folds)
+mlp-s-seed3 vs call: 458,747 decisions, 86,086 folds, 53,190 of them with check legal (11.6% of decisions, 62% of folds)
+mlp-s-seed3 vs tight: 362,082 decisions, 41,963 folds, 19,323 of them with check legal (5.3% of decisions, 46% of folds)
+# load average after: { 9.06 11.73 12.88 }

@@ -100,7 +100,8 @@ BOTS = {"random": bot_random, "call": bot_call, "tight": bot_tight}
 def greedy_policy(model, sequence=False, record=None):
     """A trained network's play: argmax of its Q-values plus the legal mask. A sequence model sees
     the player's encoded states at each of its decisions in this hand so far, the current one last
-    (docs/state_encoding.md). act.counts tallies the actions chosen. If record is a list, each
+    (docs/state_encoding.md). act.counts tallies the actions chosen; act.free_folds counts the
+    folds chosen when checking was legal. If record is a list, each
     decision is appended to it: the observations this hand (the current one last), the network
     input, the mask, the Q-values and the action."""
     hist, seen = {}, {}
@@ -115,6 +116,7 @@ def greedy_policy(model, sequence=False, record=None):
             q = model(torch.from_numpy(s)[None])[0]
         a = int(torch.argmax(q + torch.from_numpy(mask)))
         act.counts[a] += 1
+        act.free_folds += int(a == A_FOLD and mask[A_CHECK] == 0.0)
         if record is not None:
             record.append({"observations": list(seen[obs.viewer_id]), "input": s, "mask": mask, "q": q.numpy().copy(),
                            "action": a, "hand": act.hands})
@@ -125,6 +127,7 @@ def greedy_policy(model, sequence=False, record=None):
         act.hands += 1
     act.new_hand = new_hand
     act.counts = [0] * N_ACTIONS
+    act.free_folds = 0
     act.hands = 0
     return act
 
