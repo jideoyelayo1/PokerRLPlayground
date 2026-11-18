@@ -173,6 +173,25 @@ class Dropout(unittest.TestCase):
         self.assertTrue(any(not torch.equal(b, p) for b, p in zip(before, ag.model.parameters())))
 
 
+class TargetSync(unittest.TestCase):
+    def test_target_is_copied_after_hands_3_6_9(self):
+        import tempfile
+        import ReinforcementLearningEnvironment.helper as helper
+        from ReinforcementLearningEnvironment.Poker import train_poker_dqn
+        helper.CSV_PATH = str(Path(tempfile.mkdtemp()) / "log.csv")
+        synced = []
+
+        def on_hand_end(n, agents):
+            ag = agents[0]
+            synced.append(all(torch.equal(a, b) for a, b in zip(ag.model.state_dict().values(),
+                                                                 ag.target_model.state_dict().values())))
+
+        torch.manual_seed(0)
+        train_poker_dqn([MLPModel(F, A, hidden=(8,))], 4, 200, 2, 1, max_hands=10, seed=1, reset_stacks=True,
+                        agent_kwargs={"target_update_freq": 3}, log_csv=False, on_hand_end=on_hand_end)
+        self.assertEqual([n for n, same in enumerate(synced, 1) if same], [3, 6, 9])
+
+
 class SharedSeats(unittest.TestCase):
     def test_one_model_plays_every_seat(self):
         import tempfile

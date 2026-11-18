@@ -253,8 +253,8 @@ def train_poker_dqn(
             history["delta_bb"][i].append(d)
 
         for ag in agents:
+            ag.n_hands += 1  # first, so target_update_freq counts completed hands (copies after hands 200, 400, ...)
             ag.train_long_memory()
-            ag.n_hands += 1
 
         hands_played += 1
         pbar.update(1)

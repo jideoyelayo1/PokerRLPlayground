@@ -41,6 +41,8 @@ class DQNAgent:
         self.batch_size = batch_size
         self.trainer = QTrainer(self.model, self.target_model, lr=lr, gamma=self.gamma, device=device, double=double,
                                loss=loss, max_grad_norm=max_grad_norm)
+        # target_update_freq counts completed hands: the target is copied after hands
+        # target_update_freq, 2 * target_update_freq, ... (n_hands is incremented first)
         self.target_update_freq = target_update_freq
         self.last_loss = None
         self.last_stats = None  # the last train step's td_abs_mean, td_abs_max, q_abs_max, grad_norm, nonfinite
