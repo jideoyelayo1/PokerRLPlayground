@@ -92,7 +92,7 @@ For every completed hand, a row is logged **per player** with:
   - `raises_made`, `raises_faced`
   - `aggressive` (made at least one raise)
 
-**Logging fixes.** Every player dealt into a hand now gets a row, whether they folded or not, using the hole cards read straight after the deal. `bb_delta` counts the blinds, because stacks are now read before the blinds are posted, so the deltas of a hand sum to zero (the loop asserts this). Busted players are no longer logged. Before these fixes, folded players were never logged (their observation hides their cards by the end of the hand), every hand's deltas summed to +1.5 BB, and busted players reappeared with their last cards and a delta of 0. Mean EV per starting hand was therefore measured only over hands that were not folded. The figures under *Convergence Insight* and *Results* come from the earlier code and have not been regenerated.
+**Logging fixes.** Every player dealt into a hand now gets a row, whether they folded or not, using the hole cards read straight after the deal. `bb_delta` counts the blinds, because stacks are now read before the blinds are posted, so the deltas of a hand sum to zero (the loop asserts this). Busted players are no longer logged. Before these fixes, folded players were never logged (their observation hides their cards by the end of the hand), every hand's deltas summed to +1.5 BB, and busted players reappeared with their last cards and a delta of 0. Mean EV per starting hand was therefore measured only over hands that were not folded. Figs. 1 and 2 under *Results by starting hand and over training* are regenerated from the current code; the first version's figures, which came from the earlier code and cannot be regenerated, are kept as history at the end of *Results*.
 
 **Hands trained (order of magnitude)**
 - Training runs for `max_hands` hands (episodes). In the example call, `max_hands=10`, but typical training is intended to scale to **thousands to hundreds of thousands** of hands depending on compute and stability.
@@ -231,72 +231,56 @@ Bigger networks are not automatically better here because:
 - **Compute constraints:** simulation + training is already expensive; smaller models allow more hands, more experiments, and faster iteration.
 
 
-## Convergence Insight
+## Results by starting hand and over training
 
-The primary metric tracked during training is **big blind delta (BB/hand)**, which directly measures profitability and aligns with standard poker evaluation. Convergence is assessed by analysing both **aggregate pocket-level statistics** and **time-evolving cumulative averages**.
+Two figures, regenerated from the current code with one command, `sh bench/run_benchmarks.sh figures` with the venv active (`bench/figures.py`; about 8 minutes with `JOBS=4` here, both seeds). Each is committed with the CSV of exactly what it plots. Method, numbers and limits: [`bench/RESULTS.md`](bench/RESULTS.md), section 7; raw output: [`bench/raw/figures.log`](bench/raw/figures.log). The first version's figures, which these replace, are kept as history at the end of *Results*.
 
-### Comparison to theoretical preflop equity
-
-As a reference point, the theoretical preflop win rates for a **4-player game** are shown below:
+### Fig. 1: result by starting hand
 
 <p align="center">
-  <img src="images/4_person_expected_value_perfect_plat.png" width="500">
+  <img src="images/selfplay_result_by_starting_hand.png" width="700" alt="13 by 13 grid of the 169 starting hands, pairs on the diagonal, suited above, offsuit below, each cell giving the mean result in big blinds per hand on a blue (win) to red (loss) scale. The high pairs and big aces are blue, AA darkest at +35.95; nearly every other cell is pale, most slightly negative.">
 </p>
 
-These values represent idealised equity assuming perfect play and no postflop skill differences.
+The selected agent (`mlp-s` seed 3) plays all four seats against copies of itself, greedy, with the play-time rule `no_free_fold` on, as the demo seats it: 4 seats, blinds 1/2, stacks 200 reset every hand. 250,000 hands from deck seed 17000, both chosen before any result was seen and the seed used by no other measurement: 1,000,000 seat-hands, 2,880 to 9,333 per starting hand. A seat's result counts its blinds and the hands it folded, so each hand's four results sum to zero (checked on every hand). The same hands were played again on a second deck seed, 23000, declared before it was run; Fig. 1 is drawn from seed 17000, and the text below states only what holds on both, giving the second seed's numbers in brackets. Each cell is the mean result in big blinds per hand; the [CSV](images/selfplay_result_by_starting_hand.csv) adds the counts and standard errors (0.08 to 1.11 big blinds per hand). The button stays on seat 0, where the demo moves it: the Python binding has no `reset_stacks`, so the stacks are reset with `reset_tournament`, which also resets the button. With the same network in every seat and its input relative to the player and the button, that changes only which seat gets the odd chip of a split pot.
 
-The following plots show the **simulated expected value by pocket hand** after self-play training:
+What it shows:
+- **Pairs and big aces win most; most other hands have small negative means.** AA +36.0 big blinds per hand [+37.3], KK +24.8 [+26.0], QQ +18.8 [+18.9], JJ +14.5 [+14.7], AKs +13.3 [+13.8], AKo +9.8 [+11.7], the top six by result on both seeds. 42 of the 169 hands have a positive mean on each seed, not the same 42; every pair from 44 up is positive on both, 22 negative on both. The other 127 have a negative mean in that run, 6 [16] of them within one standard error of zero; the lowest is −3.14 [−3.84]. Seat-hands dealt a pair average +9.3 [+9.2], suited hands −0.08 [−0.16] and offsuit hands −0.75 [−0.71].
+- **The ordering agrees with all-in equity against three random hands at the top, not across the bottom half.** On both seeds the ten best hands by result are all in the top 14 by equity. Within the 84 hands highest by equity, the rank correlation between result and equity is 0.83 [0.85]; within the other 85 it is −0.08 [−0.09], no agreement. 72o, 168th of 169 by equity, is 60th [86th] by result; K2o, 115th by equity, is last on both seeds (−3.14 [−3.84]). A result by starting hand measures how the agent plays the hand as well as how strong it is; why the bottom half does not follow equity was not measured.
+- Suited hands do better than the offsuit hand of the same ranks in 60 of 78 cases on both seeds, by +0.67 [+0.56] big blinds per hand on average.
+- Spearman rank correlation between result and equity over all 169 hands: 0.615 on seed 17000 and 0.646 on seed 23000.
+
+What it does not show: how strong the agent is. It is one network against copies of itself, so the numbers depend on the opponents being that network; against other players the same hands would win or lose different amounts.
+
+### Fig. 2: learning over training
 
 <p align="center">
-  <img src="images/expected_value_of_pocketcards_50000_iter.png" width="500">
+  <img src="images/validation_over_training.png" width="800" alt="Three line charts, against random, calling and tight bots, of validation result in big blinds per 100 hands against training hands for nine runs, the selected run in black with a shaded interval. Against the tight bot every run starts between −803 and −275 and climbs towards zero; from 80,000 hands on, the selected run stays between −78 and +39, and its kept checkpoint, +27 at 320,000 hands, is ringed.">
 </p>
 
-<p align="center">
-  <img src="images/expected_value_of_pocketcards_100000_iter.png" width="500">
-</p>
+Each of the nine committed training runs at each of its ten checkpoints (`weights/runs/*/log.jsonl`; nothing retrained): the network's greedy result against three copies of each baseline on the validation deals (1,000 duplicate deals from seed 5000, `no_free_fold` off), in big blinds per 100 hands. The selected run is in black with its 95% interval, its kept checkpoint ringed. Data: [CSV](images/validation_over_training.csv).
 
-At **50,000 hands**, the learned ordering incorrectly ranks **QQ above AA**, indicating insufficient exploration and unstable estimates. By **100,000 hands**, **pocket aces (AA)** emerge as the highest-EV hand, matching theoretical expectations. This shift suggests that the agents are gradually correcting early misestimations as more data is observed.
+Against the tight bot every run starts well below zero (−803 to −275 at its first checkpoint) and climbs (−274 to −3 at its last). From 80,000 hands on, the selected run stays between −78 and +39 against the tight bot. Its kept checkpoint, +27 [4, 51] at 320,000 hands, was kept because its worst lower bound across the three bots was the highest in its run, not for its result against the tight bot, which was higher at 240,000 (+39) and 360,000 (+33). It is the only one of the 90 checkpoints whose interval is above zero against all three baselines. As the best of its run's ten noisy validations it is a little optimistic; on fresh deals it scored +18 [14, 23] ([`bench/RESULTS.md`](bench/RESULTS.md), section 6). Against the random bot the results fall as training goes on (+713 to +1,322 at the first checkpoint, +196 to +945 at the last); against the calling bot they rise and fall (+84 to +581 at the first, +79 to +525 at the last). One validation is 1,000 deals, so the curves are noisy: the selected run's 95% intervals are ±23 to ±269 bb/100.
 
-While this alignment with theory is encouraging, it is **not sufficient on its own** to claim convergence.
+The first version's other figure, the cumulative average result of seven starting hands over training, has no like-for-like replacement: the committed runs record only their ten checkpoint validations, not each hand's cards and result, so drawing it would mean retraining the nine runs (about 13 CPU-hours).
 
 ---
 
-### Cumulative average EV curves (stronger indicator)
+### What these figures do *not* show
 
-A more reliable signal comes from tracking the **cumulative average BB/hand over time** for individual pocket hands:
-
-<p align="center">
-  <img src="images/ev_curves_by_pocket_cum_avg.png" width="700">
-</p>
-
-These curves show:
-- High-variance behaviour early in training
-- Gradual flattening as the number of hands increases
-- Reduced drift in later stages, indicating stabilising policies
-
-Moving averages are applied to reduce noise from short-term variance, making long-run trends clearer.
-
-Convergence is identified heuristically when:
-- The slope of cumulative EV curves approaches zero over a large window
-- Relative ordering between strong hands (AA, KK, QQ) stabilises
-- Weak hands (e.g. 72o) consistently converge to negative EV
-
----
-
-### What convergence does *not* mean
-
-Observed convergence does **not** imply:
+Neither figure shows convergence. Fig. 2 is a noisy validation at ten points per run, and against the random bot the results fall as training goes on. Nor do they show:
 - A Nash equilibrium
 - Exploitability minimisation
 - Robustness against unseen opponent strategies
 
-The policies are only guaranteed to be stable **within the self-play population** used during training. Changes to opponent behaviour, bet sizing, or reward structure may invalidate these equilibria.
+Fig. 1 describes play **within the self-play population**: one network against copies of itself. Changes to opponent behaviour, bet sizing, or reward structure may change it.
 
 These limitations are discussed further in the *Limitations & Future Work* section.
 
 
 
 ## Symbolic Regression
+
+> **First version, not reproducible.** This section describes the first version's analysis: its equations were fitted to data logged with the faults fixed since (folded hands and the blinds dropped), from runs with no recorded seeds or logs, and they have not been fitted again. It is kept as history. What the current agents do by starting hand is in Fig. 1 above and [`bench/RESULTS.md`](bench/RESULTS.md), section 7.
 
 ### Purpose
 
@@ -403,6 +387,8 @@ Symbolic regression confirms that, despite being trained purely through self-pla
 
 ## Validation & Metrics
 
+> **First version, not reproducible.** Apart from its last paragraph, this section describes how the first version validated its agents, from per-hand logs with the faults fixed since and runs with no recorded seeds; its claims are kept as history, not as current results. The current measurements are [`bench/RESULTS.md`](bench/RESULTS.md), section 6 (win rates against fixed baselines), and the figures above (section 7).
+
 Given the self-play nature of this project, validation focuses on **internal consistency, stability over time, and alignment with known poker theory**, rather than external optimality guarantees.
 
 ---
@@ -451,7 +437,7 @@ Metrics are analysed both **globally** and **per pocket hand**.
 
 ### What this validation does and does not show
 
-This validation demonstrates that:
+The first version said this validation demonstrates that:
 - Agents learn **stable, poker-consistent hand valuations**
 - Learned strategies converge to internally coherent policies
 - Results are reproducible across architectures and training runs. *(Not supported by the repository: the runs behind the figures were not recorded, and the deck was seeded from the clock. Runs can now be repeated with a seed; see `bench/winrate.py`.)*
@@ -654,11 +640,25 @@ node web/test.mjs                    # against PyTorch's parity records and the 
 
 One network, `mlp-s` seed 3 (151 → 128 → 128 → 7, 36,871 parameters), plays all three agent seats of the browser demo. It was selected from nine candidates (two MLP sizes and a GRU, three seeds each) by the rule in [`bench/SELECTION.md`](bench/SELECTION.md), written before training. On 40,000 fresh duplicate deals per baseline (4 seats, stacks reset to 100 big blinds every hand), not used in its selection, it wins +372 [345, 398] bb/100 against random bots, +332 [314, 350] against calling bots and +18 [14, 23] against tight bots. (On the evaluation deals it was selected on, the best of nine scored on those deals, it had +359, +341 and +16.) Of the other eight candidates, none beats the tight bot with an interval above zero. Full table, method and what is not measured: [`bench/RESULTS.md`](bench/RESULTS.md), section 6; the weights: [`weights/`](weights/README.md).
 
-The rest of this section summarises the learned behaviour of the agents after self-play training, focusing on expected value (EV), stability, and variance across starting hands. These figures come from the old code and logging and have not been regenerated.
+### First version, not reproducible
+
+The rest of this section is history: the project's first figures and what its first README said about them. They have no recorded seeds, run settings or logs, they were logged with the faults fixed since (folded hands and the blinds were dropped), and the engine and training loop behind them have since had their betting rounds, seat order, reward assignment and legal mask corrected. They cannot be regenerated and do not describe the current agents; Figs. 1 and 2 under *Results by starting hand and over training* replace the two that answered the same questions. The image files are kept unchanged in `images/`.
+
+The first README compared its results with a table of theoretical preflop win rates for a 4-player game (its source, like that of `theoretical_data/`, is not recorded), described as "idealised equity assuming perfect play and no postflop skill differences":
+
+<p align="center">
+  <img src="images/4_person_expected_value_perfect_plat.png" width="500">
+</p>
+
+and with its heatmap at 50,000 hands, where it noted that QQ ranked above AA:
+
+<p align="center">
+  <img src="images/expected_value_of_pocketcards_50000_iter.png" width="500">
+</p>
 
 ---
 
-### Pocket hand expected value (100,000 hands)
+#### Pocket hand expected value (100,000 hands)
 
 <p align="center">
   <img src="images/expected_value_of_pocketcards_100000_iter.png" width="500">
@@ -669,7 +669,7 @@ Stronger hands (AA, KK, QQ, AK) consistently emerge as high-EV, while weak offsu
 
 ---
 
-### Convergence behaviour (cumulative average EV)
+#### Convergence behaviour (cumulative average EV)
 
 <p align="center">
   <img src="images/ev_curves_by_pocket_cum_avg.png" width="700">
@@ -680,7 +680,7 @@ Early training exhibits high variance, while later stages show **flattening curv
 
 ---
 
-### EV vs risk (Sharpe-style analysis)
+#### EV vs risk (Sharpe-style analysis)
 
 <p align="center">
   <img src="images/pocket_cards_ev_vs_sharpe.png" width="700">
@@ -691,7 +691,7 @@ Some hands exhibit high EV but also high variance, while others achieve more sta
 
 ---
 
-### Expected value vs occurrence frequency
+#### Expected value vs occurrence frequency
 
 <p align="center">
   <img src="images/expected_value_vs_occurence.png" width="700">
@@ -702,7 +702,7 @@ Hands with low occurrence counts tend to have noisier EV estimates, reinforcing 
 
 ---
 
-### Key observations
+#### Key observations
 
 - **Premium hands are sometimes overplayed early**, leading to unnecessary variance in multiway pots.
 - **EV estimates stabilise over time**, with correct ordering of top hands emerging only after sufficient training.
