@@ -1,0 +1,18 @@
+# commit 2c6cf03 + the no_free_fold option committed with this file, load average before: { 11.13 14.57 14.03 }
+# python bench/confirm_demo.py --seed 13000 --deals 40000 --jobs 6 --no-free-fold both --out demo_no_free_fold   (new deals; seed 13000 used nowhere else)
+40,000 duplicate deals per cell from seed 13000. bb/100 [95% CI over deals].
+
+| run | no_free_fold | vs random | vs call | vs tight |
+|---|---|---:|---:|---:|
+| mlp-s-seed3 | off | 396 [369, 422] | 315 [298, 333] | 17 [12, 21] |
+| mlp-s-seed3 | on | 365 [338, 392] | 357 [340, 375] | 27 [23, 32] |
+mlp-s-seed3 vs random: no_free_fold on minus off, deal by deal: -30.9 [-62.4, 0.6] bb/100
+mlp-s-seed3 vs call: no_free_fold on minus off, deal by deal: 42.1 [38.3, 45.9] bb/100
+mlp-s-seed3 vs tight: no_free_fold on minus off, deal by deal: 10.7 [9.7, 11.7] bb/100
+mlp-s-seed3 vs random, no_free_fold off: 324,351 decisions, 125,761 folds played; the network chose a fold with check legal 2,476 times (0.8% of decisions)
+mlp-s-seed3 vs call, no_free_fold off: 457,047 decisions, 86,584 folds played; the network chose a fold with check legal 53,193 times (11.6% of decisions)
+mlp-s-seed3 vs tight, no_free_fold off: 360,413 decisions, 42,360 folds played; the network chose a fold with check legal 19,356 times (5.4% of decisions)
+mlp-s-seed3 vs random, no_free_fold on: 326,416 decisions, 125,641 folds played; the network chose a fold with check legal 2,681 times (0.8% of decisions)
+mlp-s-seed3 vs call, no_free_fold on: 535,444 decisions, 33,391 folds played; the network chose a fold with check legal 108,424 times (20.2% of decisions)
+mlp-s-seed3 vs tight, no_free_fold on: 385,923 decisions, 23,004 folds played; the network chose a fold with check legal 35,023 times (9.1% of decisions)
+# load average after: { 14.69 15.40 14.50 }

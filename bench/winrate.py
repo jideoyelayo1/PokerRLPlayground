@@ -39,7 +39,7 @@ from Models.GRUModel import GRUModel
 from Models.LSTMModel import LSTMModel
 from Models.MLPModel import MLPModel
 from Models.TransformerQModel import TransformerQModel
-from ReinforcementLearningEnvironment.helper import action_index_to_engine_action, encode_observation, legal_mask_from_obs
+from ReinforcementLearningEnvironment.helper import action_index_to_engine_action, encode_observation, legal_mask_from_obs, no_free_fold
 from ReinforcementLearningEnvironment.Poker import train_poker_dqn
 from ReinforcementLearningEnvironment.TrainingEnvironmentVariables import (
     A_CALL, A_CHECK, A_FOLD, A_RAISE_POT, N_ACTIONS)
@@ -97,13 +97,15 @@ def bot_tight(obs, mask, rng):
 BOTS = {"random": bot_random, "call": bot_call, "tight": bot_tight}
 
 
-def greedy_policy(model, sequence=False, record=None):
+def greedy_policy(model, sequence=False, record=None, free_fold_rule=False):
     """A trained network's play: argmax of its Q-values plus the legal mask. A sequence model sees
     the player's encoded states at each of its decisions in this hand so far, the current one last
     (docs/state_encoding.md). act.counts tallies the actions chosen; act.free_folds counts the
-    folds chosen when checking was legal. If record is a list, each
-    decision is appended to it: the observations this hand (the current one last), the network
-    input, the mask, the Q-values and the action."""
+    folds chosen when checking was legal (by the network, before any rule). free_fold_rule=True
+    applies the play-time option no_free_fold (helper.no_free_fold) before the argmax; it is off in
+    training and in the pre-registered evaluation. If record is a list, each decision is appended to
+    it: the observations this hand (the current one last), the network input, the mask, the
+    Q-values, the action without the rule and the action with it."""
     hist, seen = {}, {}
 
     def act(obs, mask, rng):
@@ -114,12 +116,14 @@ def greedy_policy(model, sequence=False, record=None):
             s = np.stack(hist[obs.viewer_id])
         with torch.no_grad():
             q = model(torch.from_numpy(s)[None])[0]
-        a = int(torch.argmax(q + torch.from_numpy(mask)))
+        a_raw = int(torch.argmax(q + torch.from_numpy(mask)))
+        a_rule = int(torch.argmax(q + torch.from_numpy(no_free_fold(mask))))
+        act.free_folds += int(a_raw == A_FOLD and mask[A_CHECK] == 0.0)
+        a = a_rule if free_fold_rule else a_raw
         act.counts[a] += 1
-        act.free_folds += int(a == A_FOLD and mask[A_CHECK] == 0.0)
         if record is not None:
             record.append({"observations": list(seen[obs.viewer_id]), "input": s, "mask": mask, "q": q.numpy().copy(),
-                           "action": a, "hand": act.hands})
+                           "action": a_raw, "action_no_free_fold": a_rule, "hand": act.hands})
         return a
 
     def new_hand():
@@ -155,8 +159,9 @@ def play_hand(g, policies, rng, stack=STACK):
     return [(s - stack) / BB for s in g.getObservation(0).stack]
 
 
-def evaluate(policy, bot, deals, seed, stack=STACK):
-    """Agent result in BB per hand for each deal, averaged over the 4 seat rotations."""
+def evaluate(policy, bot, deals, seed, stack=STACK, keep_scores=False):
+    """Agent result in BB per hand for each deal, averaged over the 4 seat rotations. keep_scores
+    adds the per-deal scores (for paired comparisons on the same deals)."""
     g = pe.GameEngine(SEATS, stack, BB, SB)
     rng = random.Random(seed)
     scores = []
@@ -169,8 +174,11 @@ def evaluate(policy, bot, deals, seed, stack=STACK):
         scores.append(total / SEATS)
     s = np.array(scores)
     mean, half = s.mean(), 1.96 * s.std(ddof=1) / np.sqrt(len(s))
-    return {"bb100": 100 * mean, "ci95_lo": 100 * (mean - half), "ci95_hi": 100 * (mean + half),
-            "sd_bb_per_deal": float(s.std(ddof=1)), "deals": deals, "hands": deals * SEATS}
+    out = {"bb100": 100 * mean, "ci95_lo": 100 * (mean - half), "ci95_hi": 100 * (mean + half),
+           "sd_bb_per_deal": float(s.std(ddof=1)), "deals": deals, "hands": deals * SEATS}
+    if keep_scores:
+        out["scores"] = s
+    return out
 
 
 def main():

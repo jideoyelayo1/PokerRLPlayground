@@ -120,6 +120,16 @@ def legal_mask_from_obs(obs) -> np.ndarray:
     return mask
 
 
+def no_free_fold(mask: np.ndarray) -> np.ndarray:
+    """Play-time option "no_free_fold" (off in training and in the pre-registered evaluation):
+    if Check is allowed, Fold is treated as not allowed. Applied to the mask before the argmax."""
+    if mask[A_CHECK] != 0.0:
+        return mask
+    m = mask.copy()
+    m[A_FOLD] = -1e9
+    return m
+
+
 def spec_index(spec) -> int:
     """Action index of an engine ActionSpec (the inverse of action_index_to_engine_action)."""
     if spec.type == pe.ActionType.Raise:

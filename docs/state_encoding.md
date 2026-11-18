@@ -61,6 +61,11 @@ were, judged against the current bets; so read the legal list only for the playe
 action's spec is allowed, −1e9 where it is not. A network's choice is
 `argmax(q + mask)`, ties going to the lowest index (PyTorch's `argmax` returns the first maximum).
 
+**Play-time option `no_free_fold`** (decided after the agents were selected; off in training and
+in the pre-registered evaluation): if Check is allowed, Fold is treated as not allowed. In the
+mask: if `mask[1] == 0` (check legal), set `mask[0] = -1e9` (fold) before the argmax; otherwise
+leave the mask as it is. `ReinforcementLearningEnvironment/helper.py`, `no_free_fold`.
+
 ## Recurrent agents: the sequence they see
 
 An agent trained with `sequence=True` (`DQNAgent`, used for the GRU candidates) sees, at its k-th

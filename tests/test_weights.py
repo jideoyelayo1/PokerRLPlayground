@@ -5,7 +5,8 @@
 For each agent: the plain float32 export holds the same numbers as the PyTorch state_dict, its
 sha256 matches the manifest, and it is at most 8 MB. For each parity decision: re-encoding the
 recorded raw observation gives the recorded state vector and mask, the network gives the recorded
-Q-values, and argmax(q + mask) is the recorded action.
+Q-values, and argmax(q + mask) is the recorded action (and, with the play-time option
+no_free_fold, the recorded action_no_free_fold).
 """
 import hashlib
 import json
@@ -60,7 +61,7 @@ class Export(unittest.TestCase):
 
     def test_parity_vectors_reproduce(self):
         from eval_demo import load
-        from ReinforcementLearningEnvironment.helper import encode_observation, legal_mask_from_obs
+        from ReinforcementLearningEnvironment.helper import encode_observation, legal_mask_from_obs, no_free_fold
         for path in MANIFESTS:
             run = json.loads(path.read_text())["run"]
             model, seq, _ = load(run)
@@ -77,7 +78,9 @@ class Export(unittest.TestCase):
                 with torch.no_grad():
                     q = model(torch.from_numpy(x)[None])[0].numpy()
                 np.testing.assert_allclose(q, np.array(r["q"], np.float32), rtol=0, atol=1e-5)
-                self.assertEqual(int(np.argmax(np.array(r["q"], np.float32) + mask)), r["action"])
+                q = np.array(r["q"], np.float32)
+                self.assertEqual(int(np.argmax(q + mask)), r["action"])
+                self.assertEqual(int(np.argmax(q + no_free_fold(mask))), r["action_no_free_fold"])
 
 
 if __name__ == "__main__":

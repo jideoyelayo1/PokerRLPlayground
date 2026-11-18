@@ -74,6 +74,13 @@
  "forward": "net.0 Linear, ReLU, (Dropout p=0: identity), net.3 Linear, ReLU, ... last Linear: y = x W^T + b for each Linear (weight shape [out, in]); ReLU after every Linear but the last",
  "input": "docs/state_encoding.md (151 float32 values for 4 seats; a sequence model gets one per own decision this hand)",
  "output": "Q-value per action index, in units of 100 big blinds; play argmax(q + legal mask), ties to the lowest index",
+ "play_time_options": {
+  "no_free_fold": {
+   "rule": "if Check is allowed, Fold is treated as not allowed (set the mask's fold entry to -1e9 before the argmax)",
+   "default": false,
+   "status": "decided after the selection; off in training and in the pre-registered evaluation; measured on fresh deals in bench/RESULTS.md section 6, 'After selection'"
+  }
+ },
  "actions": {
   "0": "fold",
   "1": "check",

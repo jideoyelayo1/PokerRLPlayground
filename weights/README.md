@@ -56,6 +56,14 @@ tie): 0 fold, 1 check, 2 call, 3 raise to the current bet + 1 big blind, 4 raise
 `engine.step(action_index_to_engine_action(a), v)` (the table in `docs/state_encoding.md`); with
 the exact legal mask the engine always accepts it.
 
+Play-time option `no_free_fold` (in each manifest's `play_time_options`): **if Check is allowed,
+Fold is treated as not allowed**, i.e. if `mask[1] == 0` set `mask[0] = -1e9` before the argmax.
+It was decided after the selection, because the selected agent often folds when it could check
+for free; it is off in training and in the pre-registered evaluation, and it does not change
+which network was selected. Measured on new deals (`bench/RESULTS.md` section 6, *After
+selection*), it is better against the calling and tight bots and, at the point estimate, worse
+against the random bot. The demo page decides whether to use it.
+
 ## Parity records
 
 One JSON object per line:
@@ -70,6 +78,7 @@ One JSON object per line:
 | `mask` | the legal mask (7 values) |
 | `q` | the PyTorch network's output (7 float32 values) |
 | `action` | the action index played, `argmax(q + mask)` |
+| `action_no_free_fold` | the action with the play-time option `no_free_fold`: `argmax(q + mask′)`, where `mask′` is `mask` with fold set to −1e9 if check is legal (differs from `action` in 47 of the 1,213 records against the baselines) |
 
 Every float is printed so that it parses back to the same float32. Recomputing `q` with another
 BLAS or another implementation of the same arithmetic can differ in the last bits; the test

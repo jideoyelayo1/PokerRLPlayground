@@ -9,7 +9,10 @@ For each selected run:
   <run>.parity.jsonl  decision points from evaluation play (see weights/README.md)
 and seats.json, which run plays which of the three agent seats.
 
-    python bench/export_weights.py [--decisions 1200]
+    python bench/export_weights.py [--decisions 1200] [--skip-weights]
+
+--skip-weights leaves an existing <run>.pt and <run>.bin as they are (torch.save does not write
+the same bytes twice) after checking that the .bin holds the same numbers, and rewrites the rest.
 """
 import argparse
 import hashlib
@@ -56,17 +59,21 @@ def f32(a):
     return np.asarray(a, dtype=np.float32).tolist()  # exact: each value is a float32, printed to round-trip
 
 
-def export(run, decisions):
+def export(run, decisions, skip_weights=False):
     model, seq, meta = load(run)
     sd = model.state_dict()
-    torch.save(sd, DEMO / f"{run}.pt")
+    if not skip_weights:
+        torch.save(sd, DEMO / f"{run}.pt")
     tensors, blob, off = [], bytearray(), 0
     for name, t in sd.items():
         b = t.detach().cpu().contiguous().numpy().astype("<f4").tobytes()
         tensors.append({"name": name, "shape": list(t.shape), "offset": off, "nbytes": len(b)})
         blob += b
         off += len(b)
-    (DEMO / f"{run}.bin").write_bytes(bytes(blob))
+    if skip_weights:
+        assert (DEMO / f"{run}.bin").read_bytes() == bytes(blob), f"{run}.bin differs from the checkpoint"
+    else:
+        (DEMO / f"{run}.bin").write_bytes(bytes(blob))
     arch = meta["architecture"]
     manifest = {
         "run": run, "file": f"{run}.bin", "dtype": "float32", "byte_order": "little", "layout": "C order (row-major)",
@@ -77,6 +84,14 @@ def export(run, decisions):
         "forward": forward_doc(arch["cls"]),
         "input": "docs/state_encoding.md (151 float32 values for 4 seats; a sequence model gets one per own decision this hand)",
         "output": "Q-value per action index, in units of 100 big blinds; play argmax(q + legal mask), ties to the lowest index",
+        "play_time_options": {
+            "no_free_fold": {
+                "rule": "if Check is allowed, Fold is treated as not allowed (set the mask's fold entry to -1e9 before the argmax)",
+                "default": False,
+                "status": "decided after the selection; off in training and in the pre-registered evaluation; measured on "
+                          "fresh deals in bench/RESULTS.md section 6, 'After selection'",
+            },
+        },
         "actions": ACTION_NAME,
         "format": {"seats": SEATS, "stack": STACK, "blinds": [SB, BB]},
         "training": {k: meta[k] for k in ("seed", "hands", "agent", "reward_scale", "commit", "dirty",
@@ -117,7 +132,8 @@ def parity(run, model, seq, n):
             x = r["input"] if seq else r["input"][None]
             rows.append({"baseline": bname, "hand": r["hand"], "observation": obs_dict(cur), "state": f32(x[-1]),
                          "history": [{"observation": obs_dict(o), "state": f32(s)} for o, s in zip(prev, x[:-1])] if seq else [],
-                         "mask": f32(r["mask"]), "q": f32(r["q"]), "action": r["action"]})
+                         "mask": f32(r["mask"]), "q": f32(r["q"]), "action": r["action"],
+                         "action_no_free_fold": r["action_no_free_fold"]})
     with open(DEMO / f"{run}.parity.jsonl", "w") as f:
         for row in rows:
             f.write(json.dumps(row) + "\n")
@@ -126,13 +142,14 @@ def parity(run, model, seq, n):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--decisions", type=int, default=1200)
+    ap.add_argument("--skip-weights", action="store_true")
     a = ap.parse_args()
     torch.set_num_threads(1)
     DEMO.mkdir(parents=True, exist_ok=True)
     ev = json.loads((ROOT / "bench" / "raw" / "demo_eval.json").read_text())
     out = {"seats": ev["seats"], "one_network_in_all_seats": ev["one_network_in_all_seats"], "agents": {}}
     for run in dict.fromkeys(ev["seats"]):
-        m = export(run, a.decisions)
+        m = export(run, a.decisions, a.skip_weights)
         out["agents"][run] = {"bytes": m["bytes"], "parameters": m["parameters"], "sha256": m["sha256"]}
         print(run, m["bytes"], "bytes", m["sha256"])
     (DEMO / "seats.json").write_text(json.dumps(out, indent=1) + "\n")
