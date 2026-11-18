@@ -1,0 +1,13 @@
+# commit d15912a (the engine additions; extension rebuilt from it), Apple M1 Pro, Darwin 27.0.0, Apple clang version 21.0.0 (clang-2100.3.34.2)
+# python bench/check_cell_reproduces.py mlp-s-seed3 tight <scratch dir>   (run from outside the repository before this file was committed; same content)
+# load average before: { 9.65 14.01 18.87 }
+bb100: committed 15.961562500000001 recomputed 15.961562500000001 same
+ci95_lo: committed 11.341436472395284 recomputed 11.341436472395284 same
+ci95_hi: committed 20.58168852760472 recomputed 20.58168852760472 same
+sd_bb_per_deal: committed 4.714414313882365 recomputed 4.714414313882365 same
+deals: committed 40000 recomputed 40000 same
+hands: committed 160000 recomputed 160000 same
+actions: committed [41963, 123663, 70453, 118199, 739, 5856, 1209] recomputed [41963, 123663, 70453, 118199, 739, 5856, 1209] same
+model_sha256: committed '6ecbda169ef188f5f19e0e4cdfd6f44dcb9d61a2f30f707b674712c5a4257900' recomputed '6ecbda169ef188f5f19e0e4cdfd6f44dcb9d61a2f30f707b674712c5a4257900' same
+all equal: True (90 s, commit d15912af58182dba0f8e3a7e1070c40113d7051f)
+# load average after: { 11.09 13.46 18.18 }
