@@ -1,54 +1,56 @@
 # Apple M1 Pro, Darwin 27.0.0, Apple clang version 21.0.0 (clang-2100.3.34.2)
-# load average before: { 26.34 32.91 26.49 }
-# started Mon 16 Nov 2026 21:58:42 GMT
+# load average before: { 3.97 5.67 4.13 }
+./.venv/lib/python3.14/site-packages/torch/nn/modules/transformer.py:392: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
 {"python": "3.14.6", "torch": "2.9.1", "numpy": "2.4.1", "torch_threads": 8, "device": "cpu", "train_hands": 2000, "eval_deals": 1000, "seats": 4, "stack": 10000, "blinds": [1, 2]}
-{"seed": 1, "train_hands": 2000, "wall_s": 570.2128481864929, "cpu_s": 1235.170878, "tournament_resets": 21, "aborted_hands": 0}
-{"bb100": -1852.9375000000002, "ci95_lo": -14901.591979754818, "ci95_hi": 11195.716979754816, "sd_bb_per_deal": 2105.2790079890156, "deals": 1000, "hands": 4000, "seed": 1, "agent": "MLP", "baseline": "random"}
-{"bb100": 0.0, "ci95_lo": 0.0, "ci95_hi": 0.0, "sd_bb_per_deal": 0.0, "deals": 1000, "hands": 4000, "seed": 1, "agent": "MLP", "baseline": "call"}
-{"bb100": -2013.1125000000002, "ci95_lo": -3601.4912258156273, "ci95_hi": -424.73377418437315, "sd_bb_per_deal": 256.2701306394629, "deals": 1000, "hands": 4000, "seed": 1, "agent": "MLP", "baseline": "tight"}
-{"bb100": 9928.35, "ci95_lo": -2645.407741589895, "ci95_hi": 22502.107741589894, "sd_bb_per_deal": 2028.658837275456, "deals": 1000, "hands": 4000, "seed": 1, "agent": "LSTM", "baseline": "random"}
-{"bb100": -1.925, "ci95_lo": -4.615133507707244, "ci95_hi": 0.7651335077072451, "sd_bb_per_deal": 0.4340280150149501, "deals": 1000, "hands": 4000, "seed": 1, "agent": "LSTM", "baseline": "call"}
-{"bb100": -21866.375, "ci95_lo": -28069.20414072171, "ci95_hi": -15663.545859278287, "sd_bb_per_deal": 1000.7687766094742, "deals": 1000, "hands": 4000, "seed": 1, "agent": "LSTM", "baseline": "tight"}
-{"bb100": 8540.349999999999, "ci95_lo": -3159.8428790883604, "ci95_hi": 20240.54287908836, "sd_bb_per_deal": 1887.717273530728, "deals": 1000, "hands": 4000, "seed": 1, "agent": "GRU", "baseline": "random"}
+{"seed": 1, "train_hands": 2000, "wall_s": 718.0072009563446, "cpu_s": 1732.223012, "tournament_resets": 324, "aborted_hands": 15, "abort_reasons": ["timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout"]}
+{"bb100": -8697.625, "ci95_lo": -21762.007779440453, "ci95_hi": 4366.757779440453, "sd_bb_per_deal": 2107.816622822093, "deals": 1000, "hands": 4000, "seed": 1, "agent": "MLP", "baseline": "random"}
+{"bb100": -59.3625, "ci95_lo": -793.6091898038339, "ci95_hi": 674.8841898038338, "sd_bb_per_deal": 118.46387266424723, "deals": 1000, "hands": 4000, "seed": 1, "agent": "MLP", "baseline": "call"}
+{"bb100": -9837.7375, "ci95_lo": -14039.12772159376, "ci95_hi": -5636.34727840624, "sd_bb_per_deal": 677.855226499787, "deals": 1000, "hands": 4000, "seed": 1, "agent": "MLP", "baseline": "tight"}
+{"bb100": 20761.425, "ci95_lo": 7857.993897196537, "ci95_hi": 33664.85610280346, "sd_bb_per_deal": 2081.8485671386343, "deals": 1000, "hands": 4000, "seed": 1, "agent": "LSTM", "baseline": "random"}
+{"bb100": 0.0, "ci95_lo": 0.0, "ci95_hi": 0.0, "sd_bb_per_deal": 0.0, "deals": 1000, "hands": 4000, "seed": 1, "agent": "LSTM", "baseline": "call"}
+{"bb100": -15990.0125, "ci95_lo": -22629.128590708646, "ci95_hi": -9350.896409291354, "sd_bb_per_deal": 1071.1596171894068, "deals": 1000, "hands": 4000, "seed": 1, "agent": "LSTM", "baseline": "tight"}
+{"bb100": 2439.9249999999997, "ci95_lo": -9594.375725602496, "ci95_hi": 14474.225725602497, "sd_bb_per_deal": 1941.6224663429025, "deals": 1000, "hands": 4000, "seed": 1, "agent": "GRU", "baseline": "random"}
 {"bb100": 0.0, "ci95_lo": 0.0, "ci95_hi": 0.0, "sd_bb_per_deal": 0.0, "deals": 1000, "hands": 4000, "seed": 1, "agent": "GRU", "baseline": "call"}
-{"bb100": -69993.575, "ci95_lo": -81983.61092267957, "ci95_hi": -58003.539077320434, "sd_bb_per_deal": 1934.4807521890798, "deals": 1000, "hands": 4000, "seed": 1, "agent": "GRU", "baseline": "tight"}
-{"bb100": -8575.725, "ci95_lo": -16209.278652195168, "ci95_hi": -942.1713478048318, "sd_bb_per_deal": 1231.602866430282, "deals": 1000, "hands": 4000, "seed": 1, "agent": "Transformer", "baseline": "random"}
+{"bb100": -69993.2375, "ci95_lo": -81983.16148063423, "ci95_hi": -58003.31351936577, "sd_bb_per_deal": 1934.4626913814675, "deals": 1000, "hands": 4000, "seed": 1, "agent": "GRU", "baseline": "tight"}
+{"bb100": 24114.5125, "ci95_lo": 11408.33169990429, "ci95_hi": 36820.693300095714, "sd_bb_per_deal": 2050.024065826686, "deals": 1000, "hands": 4000, "seed": 1, "agent": "Transformer", "baseline": "random"}
 {"bb100": 0.0, "ci95_lo": 0.0, "ci95_hi": 0.0, "sd_bb_per_deal": 0.0, "deals": 1000, "hands": 4000, "seed": 1, "agent": "Transformer", "baseline": "call"}
-{"bb100": -11481.512499999999, "ci95_lo": -16359.34757332201, "ci95_hi": -6603.677426677991, "sd_bb_per_deal": 786.9933103240803, "deals": 1000, "hands": 4000, "seed": 1, "agent": "Transformer", "baseline": "tight"}
-{"bb100": -791.9875000000001, "ci95_lo": -13325.649797281378, "ci95_hi": 11741.674797281377, "sd_bb_per_deal": 2022.1898103463056, "deals": 1000, "hands": 4000, "seed": 1, "agent": "random-bot", "baseline": "random"}
-{"bb100": -1096.3374999999999, "ci95_lo": -13583.75533116774, "ci95_hi": 11391.08033116774, "sd_bb_per_deal": 2014.7286959535725, "deals": 1000, "hands": 4000, "seed": 1, "agent": "random-bot", "baseline": "call"}
-{"bb100": -34147.55, "ci95_lo": -41179.89976229012, "ci95_hi": -27115.200237709876, "sd_bb_per_deal": 1134.6042118255345, "deals": 1000, "hands": 4000, "seed": 1, "agent": "random-bot", "baseline": "tight"}
-{"seed": 2, "train_hands": 2000, "wall_s": 704.2896990776062, "cpu_s": 1645.1097290000002, "tournament_resets": 1263, "aborted_hands": 8}
-{"bb100": -11169.8, "ci95_lo": -22857.908502969836, "ci95_hi": 518.308502969839, "sd_bb_per_deal": 1885.767571865592, "deals": 1000, "hands": 4000, "seed": 2, "agent": "MLP", "baseline": "random"}
-{"bb100": 0.0, "ci95_lo": 0.0, "ci95_hi": 0.0, "sd_bb_per_deal": 0.0, "deals": 1000, "hands": 4000, "seed": 2, "agent": "MLP", "baseline": "call"}
-{"bb100": -69494.975, "ci95_lo": -81533.54319320616, "ci95_hi": -57456.406806793835, "sd_bb_per_deal": 1942.3109825402792, "deals": 1000, "hands": 4000, "seed": 2, "agent": "MLP", "baseline": "tight"}
-{"bb100": 19527.0625, "ci95_lo": 7286.595512479135, "ci95_hi": 31767.529487520864, "sd_bb_per_deal": 1974.8854747278451, "deals": 1000, "hands": 4000, "seed": 2, "agent": "LSTM", "baseline": "random"}
-{"bb100": 0.0, "ci95_lo": 0.0, "ci95_hi": 0.0, "sd_bb_per_deal": 0.0, "deals": 1000, "hands": 4000, "seed": 2, "agent": "LSTM", "baseline": "call"}
-{"bb100": -17086.0625, "ci95_lo": -23444.155854663648, "ci95_hi": -10727.96914533635, "sd_bb_per_deal": 1025.8192130978514, "deals": 1000, "hands": 4000, "seed": 2, "agent": "LSTM", "baseline": "tight"}
-{"bb100": 25510.4, "ci95_lo": 12631.679702769812, "ci95_hi": 38389.12029723019, "sd_bb_per_deal": 2077.861708545311, "deals": 1000, "hands": 4000, "seed": 2, "agent": "GRU", "baseline": "random"}
-{"bb100": -25.2, "ci95_lo": -66.2346035807223, "ci95_hi": 15.834603580722295, "sd_bb_per_deal": 6.620551540672627, "deals": 1000, "hands": 4000, "seed": 2, "agent": "GRU", "baseline": "call"}
-{"bb100": -17211.25, "ci95_lo": -23566.584578161906, "ci95_hi": -10855.915421838095, "sd_bb_per_deal": 1025.374110174338, "deals": 1000, "hands": 4000, "seed": 2, "agent": "GRU", "baseline": "tight"}
-{"bb100": -9235.5625, "ci95_lo": -21223.06922188631, "ci95_hi": 2751.944221886312, "sd_bb_per_deal": 1934.0726891703757, "deals": 1000, "hands": 4000, "seed": 2, "agent": "Transformer", "baseline": "random"}
-{"bb100": 0.0, "ci95_lo": 0.0, "ci95_hi": 0.0, "sd_bb_per_deal": 0.0, "deals": 1000, "hands": 4000, "seed": 2, "agent": "Transformer", "baseline": "call"}
-{"bb100": -69494.975, "ci95_lo": -81533.54319320616, "ci95_hi": -57456.406806793835, "sd_bb_per_deal": 1942.3109825402792, "deals": 1000, "hands": 4000, "seed": 2, "agent": "Transformer", "baseline": "tight"}
-{"bb100": 10861.1875, "ci95_lo": -1926.1836896216253, "ci95_hi": 23648.558689621626, "sd_bb_per_deal": 2063.1233798582252, "deals": 1000, "hands": 4000, "seed": 2, "agent": "random-bot", "baseline": "random"}
-{"bb100": -1847.1875, "ci95_lo": -14617.863395847226, "ci95_hi": 10923.488395847227, "sd_bb_per_deal": 2060.429749524923, "deals": 1000, "hands": 4000, "seed": 2, "agent": "random-bot", "baseline": "call"}
-{"bb100": -29638.1375, "ci95_lo": -36785.21109864181, "ci95_hi": -22491.063901358182, "sd_bb_per_deal": 1153.1138355389921, "deals": 1000, "hands": 4000, "seed": 2, "agent": "random-bot", "baseline": "tight"}
-{"seed": 3, "train_hands": 2000, "wall_s": 597.4405632019043, "cpu_s": 1357.0385919999999, "tournament_resets": 190, "aborted_hands": 3}
-{"bb100": 351.35, "ci95_lo": -11466.288655977172, "ci95_hi": 12168.988655977171, "sd_bb_per_deal": 1906.666057027494, "deals": 1000, "hands": 4000, "seed": 3, "agent": "MLP", "baseline": "random"}
+{"bb100": -2357.125, "ci95_lo": -9856.248502051943, "ci95_hi": 5141.998502051944, "sd_bb_per_deal": 1209.9138123154348, "deals": 1000, "hands": 4000, "seed": 1, "agent": "Transformer", "baseline": "tight"}
+{"bb100": 5326.2625, "ci95_lo": -7313.970304140791, "ci95_hi": 17966.49530414079, "sd_bb_per_deal": 2039.3839701970373, "deals": 1000, "hands": 4000, "seed": 1, "agent": "random-bot", "baseline": "random"}
+{"bb100": -1087.7875, "ci95_lo": -13572.623847943578, "ci95_hi": 11397.048847943579, "sd_bb_per_deal": 2014.3121976510283, "deals": 1000, "hands": 4000, "seed": 1, "agent": "random-bot", "baseline": "call"}
+{"bb100": -33630.65, "ci95_lo": -40572.426566352355, "ci95_hi": -26688.87343364765, "sd_bb_per_deal": 1119.991069268184, "deals": 1000, "hands": 4000, "seed": 1, "agent": "random-bot", "baseline": "tight"}
+./.venv/lib/python3.14/site-packages/torch/nn/modules/transformer.py:392: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+{"seed": 2, "train_hands": 2000, "wall_s": 645.2994599342346, "cpu_s": 1582.9876689999996, "tournament_resets": 462, "aborted_hands": 2, "abort_reasons": ["timeout", "timeout"]}
+{"bb100": 12597.95, "ci95_lo": -813.8267073154822, "ci95_hi": 26009.726707315487, "sd_bb_per_deal": 2163.865401260733, "deals": 1000, "hands": 4000, "seed": 2, "agent": "MLP", "baseline": "random"}
+{"bb100": 32.4, "ci95_lo": -36.30340476869257, "ci95_hi": 101.10340476869257, "sd_bb_per_deal": 11.08465520803787, "deals": 1000, "hands": 4000, "seed": 2, "agent": "MLP", "baseline": "call"}
+{"bb100": -7153.025, "ci95_lo": -11272.162501407724, "ci95_hi": -3033.8874985922766, "sd_bb_per_deal": 664.5845152991551, "deals": 1000, "hands": 4000, "seed": 2, "agent": "MLP", "baseline": "tight"}
+{"bb100": 164.88750000000002, "ci95_lo": -8370.05985424248, "ci95_hi": 8699.834854242481, "sd_bb_per_deal": 1377.0343545425617, "deals": 1000, "hands": 4000, "seed": 2, "agent": "LSTM", "baseline": "random"}
+{"bb100": -37.5, "ci95_lo": -37.5, "ci95_hi": -37.5, "sd_bb_per_deal": 0.0, "deals": 1000, "hands": 4000, "seed": 2, "agent": "LSTM", "baseline": "call"}
+{"bb100": -18.224999999999998, "ci95_lo": -19.387262669758222, "ci95_hi": -17.062737330241777, "sd_bb_per_deal": 0.1875202691746984, "deals": 1000, "hands": 4000, "seed": 2, "agent": "LSTM", "baseline": "tight"}
+{"bb100": 20422.95, "ci95_lo": 7160.022506047562, "ci95_hi": 33685.87749395244, "sd_bb_per_deal": 2139.849965436673, "deals": 1000, "hands": 4000, "seed": 2, "agent": "GRU", "baseline": "random"}
+{"bb100": 143.75, "ci95_lo": -597.0163608256187, "ci95_hi": 884.5163608256187, "sd_bb_per_deal": 119.51576093076955, "deals": 1000, "hands": 4000, "seed": 2, "agent": "GRU", "baseline": "call"}
+{"bb100": -19386.7625, "ci95_lo": -25773.727376926825, "ci95_hi": -12999.797623073175, "sd_bb_per_deal": 1030.4773646217234, "deals": 1000, "hands": 4000, "seed": 2, "agent": "GRU", "baseline": "tight"}
+{"bb100": 10423.487500000001, "ci95_lo": -1940.1218757857166, "ci95_hi": 22787.096875785715, "sd_bb_per_deal": 1994.75335347426, "deals": 1000, "hands": 4000, "seed": 2, "agent": "Transformer", "baseline": "random"}
+{"bb100": 32.4, "ci95_lo": -36.30340476869257, "ci95_hi": 101.10340476869257, "sd_bb_per_deal": 11.08465520803787, "deals": 1000, "hands": 4000, "seed": 2, "agent": "Transformer", "baseline": "call"}
+{"bb100": -6183.9625, "ci95_lo": -11067.641121798615, "ci95_hi": -1300.2838782013832, "sd_bb_per_deal": 787.9361125079421, "deals": 1000, "hands": 4000, "seed": 2, "agent": "Transformer", "baseline": "tight"}
+{"bb100": 567.9, "ci95_lo": -11874.334176154203, "ci95_hi": 13010.134176154204, "sd_bb_per_deal": 2007.4387335630593, "deals": 1000, "hands": 4000, "seed": 2, "agent": "random-bot", "baseline": "random"}
+{"bb100": -1876.2625, "ci95_lo": -14648.024494261448, "ci95_hi": 10895.49949426145, "sd_bb_per_deal": 2060.604981400027, "deals": 1000, "hands": 4000, "seed": 2, "agent": "random-bot", "baseline": "call"}
+{"bb100": -28818.6, "ci95_lo": -36034.27338321059, "ci95_hi": -21602.92661678941, "sd_bb_per_deal": 1164.1817725917567, "deals": 1000, "hands": 4000, "seed": 2, "agent": "random-bot", "baseline": "tight"}
+{"seed": 3, "train_hands": 2000, "wall_s": 933.5890400409698, "cpu_s": 2437.7104950000003, "tournament_resets": 792, "aborted_hands": 41, "abort_reasons": ["timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout", "timeout"]}
+{"bb100": -12168.0, "ci95_lo": -23646.627112428287, "ci95_hi": -689.372887571713, "sd_bb_per_deal": 1851.9696983181145, "deals": 1000, "hands": 4000, "seed": 3, "agent": "MLP", "baseline": "random"}
 {"bb100": 0.0, "ci95_lo": 0.0, "ci95_hi": 0.0, "sd_bb_per_deal": 0.0, "deals": 1000, "hands": 4000, "seed": 3, "agent": "MLP", "baseline": "call"}
-{"bb100": -66684.9875, "ci95_lo": -79131.72519540196, "ci95_hi": -54238.24980459803, "sd_bb_per_deal": 2008.1653344972085, "deals": 1000, "hands": 4000, "seed": 3, "agent": "MLP", "baseline": "tight"}
-{"bb100": 8628.199999999999, "ci95_lo": -2897.2909678392766, "ci95_hi": 20153.690967839277, "sd_bb_per_deal": 1859.5307454117642, "deals": 1000, "hands": 4000, "seed": 3, "agent": "LSTM", "baseline": "random"}
-{"bb100": 13.725000000000001, "ci95_lo": -27.114206995570168, "ci95_hi": 54.56420699557016, "sd_bb_per_deal": 6.589026119443047, "deals": 1000, "hands": 4000, "seed": 3, "agent": "LSTM", "baseline": "call"}
-{"bb100": -14667.599999999999, "ci95_lo": -20704.416592825386, "ci95_hi": -8630.783407174613, "sd_bb_per_deal": 973.9841964298729, "deals": 1000, "hands": 4000, "seed": 3, "agent": "LSTM", "baseline": "tight"}
-{"bb100": 8878.449999999999, "ci95_lo": -1100.8468637362384, "ci95_hi": 18857.746863736236, "sd_bb_per_deal": 1610.0667110398713, "deals": 1000, "hands": 4000, "seed": 3, "agent": "GRU", "baseline": "random"}
-{"bb100": -37.5, "ci95_lo": -37.5, "ci95_hi": -37.5, "sd_bb_per_deal": 0.0, "deals": 1000, "hands": 4000, "seed": 3, "agent": "GRU", "baseline": "call"}
-{"bb100": -37.5, "ci95_lo": -37.5, "ci95_hi": -37.5, "sd_bb_per_deal": 0.0, "deals": 1000, "hands": 4000, "seed": 3, "agent": "GRU", "baseline": "tight"}
-{"bb100": 17810.85, "ci95_lo": 4345.125360035462, "ci95_hi": 31276.574639964536, "sd_bb_per_deal": 2172.5693983132014, "deals": 1000, "hands": 4000, "seed": 3, "agent": "Transformer", "baseline": "random"}
-{"bb100": 13.725000000000001, "ci95_lo": -27.114206995570168, "ci95_hi": 54.56420699557016, "sd_bb_per_deal": 6.589026119443047, "deals": 1000, "hands": 4000, "seed": 3, "agent": "Transformer", "baseline": "call"}
-{"bb100": -11408.45, "ci95_lo": -17997.898720957946, "ci95_hi": -4819.001279042055, "sd_bb_per_deal": 1063.1462491382863, "deals": 1000, "hands": 4000, "seed": 3, "agent": "Transformer", "baseline": "tight"}
-{"bb100": -617.8125, "ci95_lo": -13143.200095241, "ci95_hi": 11907.575095241, "sd_bb_per_deal": 2020.8547641520793, "deals": 1000, "hands": 4000, "seed": 3, "agent": "random-bot", "baseline": "random"}
-{"bb100": 11577.1875, "ci95_lo": -1198.7144354377292, "ci95_hi": 24353.089435437727, "sd_bb_per_deal": 2061.272922394729, "deals": 1000, "hands": 4000, "seed": 3, "agent": "random-bot", "baseline": "call"}
-{"bb100": -30717.3375, "ci95_lo": -38067.9276792302, "ci95_hi": -23366.747320769806, "sd_bb_per_deal": 1185.949342491466, "deals": 1000, "hands": 4000, "seed": 3, "agent": "random-bot", "baseline": "tight"}
-# load average after: { 5.98 7.27 9.78 }
-# finished Mon 16 Nov 2026 22:41:10 GMT
+{"bb100": -66684.40000000001, "ci95_lo": -79131.11118158686, "ci95_hi": -54237.68881841315, "sd_bb_per_deal": 2008.1610567397988, "deals": 1000, "hands": 4000, "seed": 3, "agent": "MLP", "baseline": "tight"}
+{"bb100": 5080.5625, "ci95_lo": -7442.760234535075, "ci95_hi": 17603.885234535075, "sd_bb_per_deal": 2020.521618086686, "deals": 1000, "hands": 4000, "seed": 3, "agent": "LSTM", "baseline": "random"}
+{"bb100": -4.275, "ci95_lo": -71.62750295656068, "ci95_hi": 63.077502956560686, "sd_bb_per_deal": 10.866699768161048, "deals": 1000, "hands": 4000, "seed": 3, "agent": "LSTM", "baseline": "call"}
+{"bb100": -13035.325, "ci95_lo": -19025.601466955042, "ci95_hi": -7045.0485330449565, "sd_bb_per_deal": 966.4753800859336, "deals": 1000, "hands": 4000, "seed": 3, "agent": "LSTM", "baseline": "tight"}
+{"bb100": 29994.737500000003, "ci95_lo": 16862.620029065056, "ci95_hi": 43126.854970934946, "sd_bb_per_deal": 2118.7449851553292, "deals": 1000, "hands": 4000, "seed": 3, "agent": "GRU", "baseline": "random"}
+{"bb100": -4.275, "ci95_lo": -71.62750295656068, "ci95_hi": 63.077502956560686, "sd_bb_per_deal": 10.866699768161048, "deals": 1000, "hands": 4000, "seed": 3, "agent": "GRU", "baseline": "call"}
+{"bb100": 2389.325, "ci95_lo": -4823.391381494697, "ci95_hi": 9602.041381494697, "sd_bb_per_deal": 1163.7046878740402, "deals": 1000, "hands": 4000, "seed": 3, "agent": "GRU", "baseline": "tight"}
+{"bb100": 29678.2625, "ci95_lo": 16363.100695495155, "ci95_hi": 42993.42430450484, "sd_bb_per_deal": 2148.2774855057633, "deals": 1000, "hands": 4000, "seed": 3, "agent": "Transformer", "baseline": "random"}
+{"bb100": -4.275, "ci95_lo": -71.62750295656068, "ci95_hi": 63.077502956560686, "sd_bb_per_deal": 10.866699768161048, "deals": 1000, "hands": 4000, "seed": 3, "agent": "Transformer", "baseline": "call"}
+{"bb100": -1499.5, "ci95_lo": -8206.077375453335, "ci95_hi": 5207.077375453334, "sd_bb_per_deal": 1082.0438678870796, "deals": 1000, "hands": 4000, "seed": 3, "agent": "Transformer", "baseline": "tight"}
+{"bb100": -7017.475, "ci95_lo": -19262.469597124233, "ci95_hi": 5227.51959712423, "sd_bb_per_deal": 1975.615962416758, "deals": 1000, "hands": 4000, "seed": 3, "agent": "random-bot", "baseline": "random"}
+{"bb100": 11556.1625, "ci95_lo": -1219.4780518800087, "ci95_hi": 24331.80305188001, "sd_bb_per_deal": 2061.230750589356, "deals": 1000, "hands": 4000, "seed": 3, "agent": "random-bot", "baseline": "call"}
+{"bb100": -31363.3375, "ci95_lo": -38636.36731903025, "ci95_hi": -24090.30768096975, "sd_bb_per_deal": 1173.4356999213182, "deals": 1000, "hands": 4000, "seed": 3, "agent": "random-bot", "baseline": "tight"}
+# load average after: { 3.62 4.04 4.26 }

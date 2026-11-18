@@ -19,11 +19,12 @@ To reduce action complexity and stabilise learning, raises are restricted to thr
 - Big Blind
 - Half Pot
 - Full Pot
-Blind positions rotate by one seat after each hand.
+The dealer button, and with it the blinds, moves one seat after each hand.
 This action abstraction keeps the state–action space manageable while still allowing meaningful strategic decisions.
 
 As implemented in `PokerEngine/GameEngine.cpp` (the points the list above leaves open):
-- **Seats.** The big blind is posted first and the small blind by the *next* seat, so the small blind sits after the big blind. The seat after the small blind acts first on every street and the small blind acts last (heads-up: the big blind acts first on every street). In standard hold'em the small blind sits before the big blind.
+- **Seats.** Standard hold'em order. A dealer button moves one seat per hand among the players still in the tournament; on a new engine and after `reset_tournament()` it starts on seat 0. With three or more players the first seat after the button posts the small blind and the next one the big blind. Preflop the seat after the big blind acts first and the big blind acts last, and may raise if nobody has. On the flop, turn and river the first seat after the button that can still act (has not folded and is not all-in) acts first. Heads-up the button posts the small blind, acts first preflop and last on the later streets.
+- **Busted players.** Each hand the button goes to the first seat after the previous button's seat (in seat order, wrapping round) that is still in the tournament, whether or not the previous button has just busted; the blinds then follow from the button as above. There is no dead button and there are no dead blinds. So a player can miss a blind or post the big blind twice in a row: for example, three-handed, if the button busts, the big blind posts the big blind again in the first heads-up hand (tournament rules move the button to prevent this). Until 2a3e3df the engine used a non-standard order (the small blind sat after the big blind and acted last on every street); results measured before then, in the git history, used that order.
 - **Raise sizes** are "raise to": the current bet plus one big blind, half the pot or the whole pot (the pot including bets already in front of players). A size below the minimum raise (the last full raise increment) or above the player's stack is rejected; the training loop then tries the other sizes, then check, call, all-in, fold.
 - **Betting rounds.** Every player who can still act acts at least once per street, and again after any bet or raise; the street closes when nobody is left to act. When at most one player can act and the bet is matched, the board is run out to showdown.
 - **Pots.** Side pots are built from each player's total contribution; ties split the pot, with any odd chip to the winner in the lowest-numbered seat. A hand won by folds pays the whole pot to the last player in.
@@ -502,7 +503,7 @@ This project intentionally uses a **simplified poker environment**, which introd
 - Training relies on frequent data transfer between C++ (simulation) and Python (learning) via pybind11.
 - This introduces significant overhead; for example, ~30,000 hands required several hundred CPU hours.
 - The current setup prioritises correctness and flexibility over raw throughput.
-- *Measured since* (`bench/RESULTS.md`, Apple M1 Pro, CPU): the engine runs about 42,000 hands/s in C++ and 13,000 hands/s through the binding with fixed policies. The training loop's engine, binding and encoding work costs about 0.55 ms per hand. Training the four README models costs about 0.3 s and 0.6–0.8 CPU-seconds per hand. So the networks' updates, not the C++↔Python crossing, dominate, and 30,000 hands come to roughly 5–7 CPU-hours here, an extrapolation from 2,000-hand runs. The "several hundred CPU hours" figure was not reproduced. Hands that hung on the old engine until the training loop's 2-second timeout may account for part of it.
+- *Measured since* (`bench/RESULTS.md`, Apple M1 Pro, CPU): the engine runs about 44,000 hands/s in C++ and 13,500 hands/s through the binding with fixed policies. The training loop's engine, binding and encoding work costs about 0.54 ms per hand. Training the four README models costs about 0.36 s and 0.8–1.2 CPU-seconds per hand. So the networks' updates, not the C++↔Python crossing, dominate, and 30,000 hands come to roughly 7–10 CPU-hours here, an extrapolation from 2,000-hand runs. The "several hundred CPU hours" figure was not reproduced. Hands that hung on the old engine until the training loop's 2-second timeout may account for part of it.
 
 ---
 
@@ -560,7 +561,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build && ctest -
 ```
 
 - `test_hand_eval`: known answers for every hand category and the main tie-breaks.
-- `test_betting`: betting rounds through the `step()` API: every seat acts, every street closes, chips are conserved.
+- `test_betting`: betting rounds through the `step()` API: every seat acts, every street closes, chips are conserved; the seat order (button, blinds, who acts first and last on each street, the big blind's option) for 2, 3, 4 and 6 seats, and the button's moves as players bust.
 - `eval_exhaustive`: every 5-card and 7-card hand (133,784,560) against an independent reference evaluator and the published category counts (about a minute on 10 threads).
 
 `sh bench/run_benchmarks.sh` re-runs the tests and the throughput benchmarks with the venv active. `sh bench/run_benchmarks.sh winrate` also trains and evaluates the agents (about an hour). Results, method and raw output: [`bench/RESULTS.md`](bench/RESULTS.md).

@@ -26,42 +26,7 @@ void GameEngine::start_hand() {
     dealOutCardsToPlayersAliveOnly();
 
     currently_betting_player_ids_ = activate_player_ids_;
-
-    if (big_blind_position_ == activate_player_ids_.end())
-        big_blind_position_ = activate_player_ids_.begin();
-
-    // BB posts
-    current_betting_player_ = big_blind_position_;
-    int bbId = *current_betting_player_;
-    int bbPay = std::min(big_blind_, players_[bbId].getMoney());
-    players_[bbId].betChips(bbPay);
-    pot_ += bbPay;
-    to_call_ = std::max(to_call_, players_[bbId].streetContrib());
-
-    // SB posts (next)
-    ++current_betting_player_;
-    if (current_betting_player_ == activate_player_ids_.end())
-        current_betting_player_ = activate_player_ids_.begin();
-
-    int sbId = *current_betting_player_;
-    int sbPay = std::min(small_blind_, players_[sbId].getMoney());
-    players_[sbId].betChips(sbPay);
-    pot_ += sbPay;
-
-    // Preflop min raise = BB
-    min_raise_ = big_blind_;
-
-    // Next to act (UTG), skipping anyone the blinds put all-in
-    ++current_betting_player_;
-    if (current_betting_player_ == activate_player_ids_.end())
-        current_betting_player_ = activate_player_ids_.begin();
-    if (!canActNow(*current_betting_player_)) advanceToNextPlayer();
-    resetPending();
-
-    // Rotate BB position for next hand
-    ++big_blind_position_;
-    if (big_blind_position_ == activate_player_ids_.end())
-        big_blind_position_ = activate_player_ids_.begin();
+    postBlinds();
 
     // Blinds alone can leave no betting possible (short stacks all-in)
     if (bettingOver()) runOutAndShowdown();
@@ -153,9 +118,10 @@ void GameEngine::reset_tournament(int startingMoney) {
     // everyone alive again
     activate_player_ids_.clear();
     for (int i = 0; i < numPlayers_; ++i) activate_player_ids_.push_back(i);
+    current_betting_player_ = activate_player_ids_.begin();  // clear() freed the node it pointed to
 
-    // reset positions
-    big_blind_position_ = activate_player_ids_.begin();
+    // the next hand puts the button on the first seat again
+    button_ = -1;
 
     // reset hand state
     sharedCards_.clear();
@@ -235,37 +201,9 @@ void GameEngine::initialiseDeck(){
 }
 
 void GameEngine::eliminateBustedPlayers() {
-    if (activate_player_ids_.empty()) return;
-
-    // If bb iterator invalid, reset it.
-    if (big_blind_position_ == activate_player_ids_.end())
-        big_blind_position_ = activate_player_ids_.begin();
-
-    auto it = activate_player_ids_.begin();
-    while (it != activate_player_ids_.end()) {
-        int id = *it;
-        if (players_[id].getMoney() <= 0) {
-            // If we are about to erase the node big_blind_position_ points to,
-            // advance big_blind_position_ first.
-            if (it == big_blind_position_) {
-                auto nxt = std::next(it);
-                if (nxt == activate_player_ids_.end()) nxt = activate_player_ids_.begin();
-                big_blind_position_ = nxt;
-            }
-
-            // Erase busted player
-            it = activate_player_ids_.erase(it);
-        } else {
-            ++it;
-        }
-    }
-
-    // If list became empty, keep iterator consistent
-    if (activate_player_ids_.empty()) {
-        big_blind_position_ = activate_player_ids_.end();
-    } else if (big_blind_position_ == activate_player_ids_.end()) {
-        big_blind_position_ = activate_player_ids_.begin();
-    }
+    // button_ is a seat id, so erasing a busted seat (even the button's) leaves it valid
+    activate_player_ids_.remove_if([this](int id) { return players_[id].getMoney() <= 0; });
+    current_betting_player_ = activate_player_ids_.begin();  // the erased node may have been the current one
 }
 
 // Use only alive players when dealing
@@ -362,8 +300,36 @@ void GameEngine::startNewStreet() {
 
     resetPending();
 
-    current_betting_player_ = big_blind_position_;
-    advanceToNextPlayer(); // first to act
+    current_betting_player_ = iterOf(button_);
+    advanceToNextPlayer(); // first seat after the button that can act
+}
+
+// Standard hold'em order. The button moves to the next seat still in the tournament after the
+// previous button (by seat number, wrapping; the first live seat after a reset). Heads-up the
+// button posts the small blind; otherwise the next two live seats post small and big blind.
+// Preflop the seat after the big blind acts first (heads-up: the button), so the big blind acts last.
+void GameEngine::postBlinds() {
+    auto btn = std::find_if(activate_player_ids_.begin(), activate_player_ids_.end(),
+                            [this](int id) { return id > button_; });  // the list is in seat order
+    if (btn == activate_player_ids_.end()) btn = activate_player_ids_.begin();
+    button_ = *btn;
+
+    auto sb = activate_player_ids_.size() == 2 ? btn : nextSeat(btn);
+    auto bb = nextSeat(sb);
+    for (auto [id, blind] : {std::pair{*sb, small_blind_}, std::pair{*bb, big_blind_}}) {
+        int pay = std::min(blind, players_[id].getMoney());
+        players_[id].betChips(pay);
+        pot_ += pay;
+        to_call_ = std::max(to_call_, players_[id].streetContrib());
+    }
+
+    // Preflop min raise = BB
+    min_raise_ = big_blind_;
+
+    // First to act, skipping anyone the blinds put all-in
+    current_betting_player_ = nextSeat(bb);
+    if (!canActNow(*current_betting_player_)) advanceToNextPlayer();
+    resetPending();
 }
 
 void GameEngine::startNewRound() {
@@ -382,42 +348,7 @@ void GameEngine::startNewRound() {
     dealOutCardsToPlayersAliveOnly();
 
     currently_betting_player_ids_ = activate_player_ids_;
-
-    if (big_blind_position_ == activate_player_ids_.end())
-        big_blind_position_ = activate_player_ids_.begin();
-
-    // BB posts
-    current_betting_player_ = big_blind_position_;
-    int bbId = *current_betting_player_;
-    int bbPay = std::min(big_blind_, players_[bbId].getMoney());
-    players_[bbId].betChips(bbPay);
-    pot_ += bbPay;
-    to_call_ = std::max(to_call_, players_[bbId].streetContrib());
-
-    // SB posts (next)
-    ++current_betting_player_;
-    if (current_betting_player_ == activate_player_ids_.end())
-        current_betting_player_ = activate_player_ids_.begin();
-
-    int sbId = *current_betting_player_;
-    int sbPay = std::min(small_blind_, players_[sbId].getMoney());
-    players_[sbId].betChips(sbPay);
-    pot_ += sbPay;
-
-    // Preflop: minimum raise is BB
-    min_raise_ = big_blind_;
-
-    // Next to act (UTG), skipping anyone the blinds put all-in
-    ++current_betting_player_;
-    if (current_betting_player_ == activate_player_ids_.end())
-        current_betting_player_ = activate_player_ids_.begin();
-    if (!canActNow(*current_betting_player_)) advanceToNextPlayer();
-    resetPending();
-
-    // Rotate BB position for next hand (your simplified logic)
-    ++big_blind_position_;
-    if (big_blind_position_ == activate_player_ids_.end())
-        big_blind_position_ = activate_player_ids_.begin();
+    postBlinds();
 }
 
 
@@ -747,8 +678,7 @@ GameEngine::GameEngine(int numPlayers, int startingMoney, int big_blind, int sma
         players_.emplace_back(i, startingMoney);
         activate_player_ids_.push_back(i);
     }
-    // Set big blind position
-    big_blind_position_ = activate_player_ids_.begin();
+    current_betting_player_ = activate_player_ids_.begin();
     pending_.assign(numPlayers, 0);
     big_blind_ = big_blind;
     small_blind_ = small_blind;
