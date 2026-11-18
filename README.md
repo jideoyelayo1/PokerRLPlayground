@@ -108,11 +108,12 @@ For every completed hand, a row is logged **per player** with:
 - There used to be a single-sample update at every decision as well (`train_short_memory`). It was the bulk of the training cost and is gone.
 
 **Target network**
-- `DQNAgent` keeps a target network for the bootstrap targets, copied from the online network every `target_update_freq` (200) hands.
+- `DQNAgent` keeps a target network for the bootstrap targets, copied from the online network after every `target_update_freq` (200) completed hands: after hands 200, 400, and so on (the counter is incremented before the update step).
 
 **Optimisation**
 - DQN: predicted Q(s,a) against the target reward + gamma × max over the **legal** actions at s’ of the target network's Q(s’,·), where s’ is the player's next decision in the hand. With `double=True` (Double DQN) the online network picks the action at s’ and the target network values it.
-- Mean squared error, Adam (`lr`), no gradient clipping (`QTrainer`).
+- The loss is taken on the chosen action only, Q(s,a) against the target: mean squared error by default, `loss="huber"` for smooth L1. Adam (`lr`); gradient-norm clipping is off unless `max_grad_norm` is set (`QTrainer`, `DQNAgent` arguments).
+- Greedy action selection runs the online network in eval mode (no dropout) and restores the previous mode; the update step runs it in train mode.
 
 **Update cadence**
 - **Per-hand updates**: after the hand ends, every agent runs `train_long_memory()` once.
@@ -125,6 +126,7 @@ For every completed hand, a row is logged **per player** with:
 - Rewards are **sparse** (terminal only). During the hand, `reward=0.0`; when `done=True`, reward becomes that player’s **end-of-hand BB profit/loss**.
 
 **Multi-player credit assignment**
+- A hand's transitions are kept until the hand finishes and are added to replay then; an aborted hand adds none, so replay never holds an incomplete episode.
 - Each seat's decision is stored once its outcome is known: at the seat's next decision in the same hand (reward 0, next state = the state at that decision), or when the hand ends (reward = the seat's BB profit/loss for the hand, `done=True`).
 - So every seat that acted in a hand receives its result on its last decision, whoever's action ended the hand. `python bench/check_terminal_rewards.py` checks this on every hand of a short run ([raw](bench/raw/check_terminal_rewards.txt)).
 - Before this fix, only the player whose action ended the hand received a non-zero reward. The others' results were stored as `remember(None, 0, r_i, None, True)`, and `train_long_memory` dropped any transition without a state, so, for example, a bettor never learned directly that a bet won when the opponent folded. The agents in the 2,000-hand table of `bench/RESULTS.md` (section 5) were trained that way.
@@ -132,6 +134,7 @@ For every completed hand, a row is logged **per player** with:
 ---
 
 ### Stability / safety controls (implementation detail)
+- Each update step sets `agent.last_stats` (`td_abs_mean`, `td_abs_max`, `q_abs_max`, `grad_norm` before clipping, `nonfinite` count of NaN/Inf in the loss and gradients). `bench/train_demo.py` averages them between checkpoints into `log.jsonl`.
 - Hands are aborted if they exceed `MAX_STEPS_PER_HAND` (2,000 decisions), or if no legal action exists.
 - If a hand is aborted, the tournament is reset and the hand is not logged. `history["aborted"]` lists them.
 - Before the betting-round fix (see `bench/RESULTS.md`), these guards fired often: a street whose closing seat had folded or was all-in never closed. With some policy mixes 25–50% of hands never finished, so they were aborted and the tournament reset.
