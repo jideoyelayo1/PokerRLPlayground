@@ -83,6 +83,7 @@ def train(name, seed, hands, out, checkpoints, threads):
     out.mkdir(parents=True, exist_ok=True)
     # the code the run uses, read before it starts (other commits may land while it trains)
     commit = git("rev-parse", "HEAD")
+    started_utc = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     dirty = bool(git("status", "--porcelain", "--untracked-files=no", "--", ".", ":(exclude)weights"))
     torch.set_num_threads(threads)
     random.seed(seed); np.random.seed(seed); torch.manual_seed(seed)
@@ -126,7 +127,7 @@ def train(name, seed, hands, out, checkpoints, threads):
            "kept_checkpoint_hands": state["best"], "kept_val_score": state["score"],
            "wall_s": round(time.time() - t0, 1), "cpu_s": round(r.ru_utime + r.ru_stime, 1),
            "torch_threads": threads, "aborted_hands": len(history["aborted"]),
-           "commit": commit, "dirty": dirty,
+           "commit": commit, "dirty": dirty, "started_utc": started_utc,
            "python": sys.version.split()[0], "torch": torch.__version__, "numpy": np.__version__,
            "parameters": sum(p.numel() for p in model.parameters())}
     (out / "run.json").write_text(json.dumps(run, indent=1) + "\n")

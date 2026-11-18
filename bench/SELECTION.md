@@ -104,3 +104,12 @@ validation, exactly as for a finished run; its `run.json` records that it was st
 how many hands. Nothing else changes: candidates, seeds, validation, evaluation and the rule stay
 as above. The `mlp-s` runs were started by hand at 00:17, alongside the others instead of after
 them, for the same reason.
+
+## Records (added after the runs)
+
+- **Start times.** The nine runs' `run.json` have no absolute start time (`train_demo.py`
+  records `started_utc` from the commit that added it, after the runs). Their start times are
+  inferred: the commit time of each `run.json` (committed within seconds of the run ending, by a
+  script that watched for it) minus its `wall_s`. That gives 23:53:28–23:53:41 GMT for the six
+  runs started by `--all` (their directories were created at 23:53:16) and 00:17:23–00:17:34 for
+  the three `mlp-s` runs.
