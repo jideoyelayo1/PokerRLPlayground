@@ -1,7 +1,8 @@
 #pragma once
 // Minimal JSON reader (standard library only) for the agent's manifest and the parity records
-// (weights/README.md). Parses the whole text into a tree; throws std::runtime_error on bad input
-// or a missing key.
+// (weights/README.md). Parses the whole text into a tree; throws std::runtime_error on bad input,
+// a missing key, or arrays and objects nested deeper than kMaxDepth (the parser recurses once per
+// level, and in WebAssembly the stack is small).
 #include <cstdlib>
 #include <stdexcept>
 #include <string>
@@ -10,6 +11,7 @@
 #include <vector>
 
 struct Json {
+    static constexpr int kMaxDepth = 64;
     enum class Type { Null, Bool, Number, String, Array, Object };
     Type type = Type::Null;
     bool boolean = false;
@@ -35,7 +37,7 @@ struct Json {
 
     static Json parse(const std::string& text) {
         size_t i = 0;
-        Json v = value(text, i);
+        Json v = value(text, i, 0);
         skip(text, i);
         if (i != text.size()) throw std::runtime_error("JSON: trailing characters");
         return v;
@@ -68,11 +70,12 @@ private:
         ++i;
         return out;
     }
-    static Json value(const std::string& s, size_t& i) {
+    static Json value(const std::string& s, size_t& i, int depth) {
         skip(s, i);
         if (i >= s.size()) throw std::runtime_error("JSON: unexpected end");
         Json v;
         char c = s[i];
+        if ((c == '{' || c == '[') && depth >= kMaxDepth) throw std::runtime_error("JSON: nested too deeply");
         if (c == '{') {
             v.type = Type::Object;
             ++i;
@@ -81,7 +84,7 @@ private:
             for (;;) {
                 std::string k = str(s, i);
                 expect(s, i, ':');
-                v.object.emplace_back(std::move(k), value(s, i));
+                v.object.emplace_back(std::move(k), value(s, i, depth + 1));
                 skip(s, i);
                 if (i < s.size() && s[i] == ',') { ++i; continue; }
                 expect(s, i, '}');
@@ -94,7 +97,7 @@ private:
             skip(s, i);
             if (i < s.size() && s[i] == ']') { ++i; return v; }
             for (;;) {
-                v.array.push_back(value(s, i));
+                v.array.push_back(value(s, i, depth + 1));
                 skip(s, i);
                 if (i < s.size() && s[i] == ',') { ++i; continue; }
                 expect(s, i, ']');
