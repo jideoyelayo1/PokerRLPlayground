@@ -255,6 +255,29 @@ With the rule the agent does better against the calling and tight bots, with pai
 - A result by starting hand mixes the hand's strength with how the agent plays it (which hands it folds, how far it goes with the rest). Agreement or disagreement with an equity ordering says something about both, and the equity used here assumes four players all-in before the flop.
 - Two deck seeds for Fig. 1 and one machine; the button stays on seat 0 (above). The validation curves are only as fine as the runs recorded them: ten points per run, 1,000 deals each.
 
+## 11. Engine rule and property tests (#19)
+
+`PokerEngine/tests/test_engine_rules.cpp` (ctest `test_engine_rules`, 1.3 s). Fixed deals and stacks come from a setup hook (the file opens the class with `#define private public` to set stacks, the button and the deck order; the engine has no public way to do either); everything after that goes through `start_hand()` and `step()`. "Standard" means standard no-limit hold'em; "deliberate" means a simplification the README states, and the test pins it so a change to it is noticed.
+
+| Edge case | Test | Verdict |
+|---|---|---|
+| Nested side pots, 4 all-ins at 20/50/90/140 (pots 80/90/80/50, each to a different seat; the deepest stack gets back the 50 nobody matched) | `nestedSidePots4` | standard |
+| 3 all-ins at 30/70/150 and a folded big blind (its 2 chips are dead money in the first pot, not eligible) | `nestedSidePots3` | standard |
+| Tie, two-way, odd pot: seats 0 and 2 split 5 chips, the odd chip goes to seat 0 although the button is seat 0 and standard play gives it to the winner nearest the left of the button (seat 2) | `tiedPotOddChip` | deliberate: the whole remainder goes to the lowest-numbered winning seat, in each pot |
+| Tie, three-way, remainder 2 (8 chips, shares 4/2/2: both odd chips to one seat; standard gives one each to the first two winners left of the button) | `tiedPotRemainderTwo` | deliberate (same rule) |
+| Tie inside a side pot while the main pot has its own winner (93 chips, shares 47/46) | `tiedSidePot` | standard split, deliberate odd chip |
+| Short all-in raise (to 5 over a bet of 4, minimum raise 2): sets the amount to call, leaves the minimum raise at 2, and the player who already acted may re-raise (to 7) | `shortAllInReopens` | amount to call and minimum raise: standard. Re-raise by a player who already acted: deliberate (standard allows only call or fold) |
+| A full-size raise by all-in raises the minimum raise and reopens | `fullAllInRaiseMovesMinimum` | standard |
+| All-in blinds: small blind 3 of 5, big blind 7 of 10 post what they have; amount to call is 7 | `allInBlinds` | posting what is left: standard. Amount to call = the larger posted blind, not the full big blind: deliberate |
+| Both blinds all-in heads-up: the hand is over inside `start_hand()`, unmatched chips come back through the 4-chip pot | `allInBlinds` | standard |
+| Big blind (4) shorter than the small blind (5): the amount to call is 5 and the small blind may check | `allInBlinds` | deliberate (as above) |
+| Heads-up after a bust: the button (seat 1) posts the small blind and acts first preflop and last on each later street; the next hand wraps to seat 0 | `headsUpAfterBust` | standard |
+| Button after eliminations: the button seat busts, the next hand's button is the first live seat after it (no dead button); a second bust goes heads-up; the button wraps past the last seat | `buttonAfterEliminations` | deliberate (README, "Busted players": no dead button, no dead blinds) |
+
+**Randomized invariants.** `randomInvariants(30000, 19)`: 30,000 hands, 2 to 6 seats, blinds 2/1, 4/2 or 10/5, each stack either 1 to 12 chips (a third of seats) or 15 to 200, a random button, the deal shuffled from a seeded generator, and every action drawn at random from `legalActions`. After every action: no stack is negative, stacks plus pot equal the chips at the start (after the payout, stacks alone), and the pot equals the sum of the total contributions. At every showdown the engine's pots, eligible seats, winners and shares are compared with a reference written in the test (pots by depth of total contribution, winners by the best 7-card hand through `evaluate5`, remainder to the lowest seat), and so is every final stack; fold wins are checked by stack. Run: 159,143 actions; 5,507 fold wins and 24,493 showdowns, of which 23,485 had 2 or more pots, 18,551 had 3 or more, 2,853 had split pots and 653 an odd chip; 6,640 all-in blinds, 6,051 heads-up hands. Result: no mismatch and no pot without an unfolded eligible seat. The test fails if any of these cases stops occurring. No engine bug was found, so the engine and the committed evaluation numbers are unchanged. A mutation check (odd chip to the last winner instead of the first) fails the fixtures and the random run.
+
+Not covered: the Python layer (`tests/test_training.py`); hands with more than 6 seats; blinds that are not 1/2, 2/4 or 5/10; the randomized payout reference shares the engine's odd-chip rule by construction, so that rule is pinned by the fixtures only.
+
 ## 8. Not measured here
 
 - The first version's own figures (50,000 and 100,000 hands) as they were: neither their run settings nor their seeds were recorded, and they were logged with the faults fixed since. Section 7 answers the same questions from the current code instead.
