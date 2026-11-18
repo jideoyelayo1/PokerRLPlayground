@@ -30,7 +30,8 @@ echo "$version"
 # the same Q-values. The #embed paths are relative to web/.
 flags=(-std=c++20 -O2 -fexceptions -ffp-contract=off -Wno-c23-extensions -I PokerEngine -I web
        "-DPOKER_MANIFEST=\"../$manifest\"" "-DPOKER_WEIGHTS=\"../$bin\""
-       -lembind -sMODULARIZE -sEXPORT_ES6 -sENVIRONMENT=web,node -sALLOW_MEMORY_GROWTH -sFILESYSTEM=0)
+       -lembind -sMODULARIZE -sEXPORT_ES6 -sENVIRONMENT=web,node -sALLOW_MEMORY_GROWTH -sFILESYSTEM=0
+       --post-js web/post.js)
 sources=(web/poker_wasm.cpp PokerEngine/Agent.cpp PokerEngine/GameEngine.cpp PokerEngine/Player.cpp)
 em++ "${flags[@]}" "${sources[@]}" -o web/dist/poker.mjs
 mkdir -p build/wasm-test

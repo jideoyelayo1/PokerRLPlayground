@@ -73,6 +73,46 @@ if ('decideObservation' in M) fail('the release module must not have decideObser
     `Q-values bit-identical to the native build's in ${identical}`);
 }
 
+// 0. refused calls must not leak WebAssembly stack. When the C++ side threw the seed's TypeError,
+// each refused new Table() left 16 bytes on the shadow stack and the module failed after 4,499.
+// 100,000 refused calls of each kind on both modules: on the test module the stack pointer must not
+// have moved; on the release module the replay below, run afterwards, must still be identical.
+function refuseMany(Mod) {
+  const N = 100000;
+  const BAD = ['5', 1.5, -1, 2 ** 53, NaN, Infinity, 5n, true, null, undefined, {}];
+  const counts = { construct: 0, beforeHand: 0, inHand: 0, parse: 0 };
+  for (let i = 0; i < N; i++) {
+    try {
+      new Mod.Table(BAD[i % BAD.length]).delete();
+    } catch (e) {
+      counts.construct += e instanceof TypeError;
+    }
+  }
+  const t = new Mod.Table(1);
+  for (let i = 0; i < N; i++) counts.beforeHand += t.act('fold').error === 'hand_over' && t.advance().error === 'hand_over';
+  for (let v = t.view(); v.toAct !== v.visitor; v = t.view()) v.over ? t.startHand() : t.advance();
+  const illegal = Mod.Table.format().actions.find((a) => !t.view().legal.some((l) => l.action === a));
+  for (let i = 0; i < N; i++)
+    counts.inHand += t.startHand().error === 'hand_in_progress' && t.advance().error === 'visitor_to_act' &&
+      t.act('bogus').error === 'unknown_action' && t.act(illegal).error === 'illegal_action';
+  t.delete();
+  if (Mod.decideObservation) // C++ exceptions thrown and caught inside the module
+    for (let i = 0; i < N; i++) counts.parse += !Mod.decideObservation(i % 10 ? '[' : '['.repeat(900), false).ok;
+  return counts;
+}
+{
+  const sp = T.stackPointer();
+  const t = refuseMany(T);
+  const after = T.stackPointer();
+  const m = refuseMany(M);
+  for (const [name, c] of [['test', t], ['release', m]])
+    for (const [kind, n] of Object.entries(c))
+      if (n !== 100000 && !(name === 'release' && kind === 'parse')) fail(`${name} module: ${n} of 100,000 ${kind} refusals as expected`);
+  if (after !== sp) fail(`the test module's stack pointer moved from ${sp} to ${after} over its refusals`);
+  console.log(`refusals: 100,000 each of refused constructions, calls before a hand, calls during a hand (startHand, advance, ` +
+    `unknown and illegal act) on both modules, and refused observations on the test module; stack pointer ${sp} before, ${after} after`);
+}
+
 // 2. replay through the WebAssembly Table, in replay_driver's format
 function mulberry32(seed) {
   return () => {
@@ -251,12 +291,15 @@ if (calling.status === 0) {
     if (threw !== 'TypeError') fail(`new Table(${typeof seed} ${String(seed)}) did not throw a TypeError (${threw || 'no exception'})`);
   }
   for (const seed of [0, 2 ** 53 - 1]) new M.Table(seed).delete();
-  try {
-    new M.Table().delete();
-    fail('new Table() did not throw');
-  } catch (e) {
-    if (e?.name !== 'BindingError') fail(`new Table() threw ${e?.name}, expected embind's BindingError`);
+  for (const [label, make] of [['new Table()', () => new M.Table()], ['Table(1) without new', () => M.Table(1)]]) {
+    try {
+      make().delete();
+      fail(`${label} did not throw`);
+    } catch (e) {
+      if (!(e instanceof TypeError)) fail(`${label} threw ${e?.name}, expected a TypeError`);
+    }
   }
+  if ('_networkError' in M) fail('web/post.js did not run: _networkError is still on the module');
   const o = JSON.parse(readFileSync(`${ROOT}weights/demo/${RUN}.parity.jsonl`, 'utf8').split('\n')[0]).observation;
   const obs = JSON.stringify(o);
   for (const [label, got] of [
