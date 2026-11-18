@@ -8,6 +8,8 @@
 #                                         # weights/runs are reused: delete weights/runs/<run> to
 #                                         # retrain it. Cells in bench/raw/demo_cells are reused too:
 #                                         # NO_CACHE=1 recomputes the evaluation only (no retraining).
+#   sh bench/run_benchmarks.sh figures    # the README's figures (bench/figures.py; about 10 minutes
+#                                         # with JOBS=4): data, CSVs and images in images/
 set -e
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release >/dev/null
 cmake --build build >/dev/null
@@ -28,6 +30,12 @@ if [ "$1" = demo ]; then
   { machine; python bench/eval_demo.py --jobs "${JOBS:-6}" ${NO_CACHE:+--no-cache}; after; } > bench/raw/demo_eval.log
   { machine; python bench/confirm_demo.py --seed 9000 --deals 40000 --jobs 3; after; } > bench/raw/demo_confirm.log
   python bench/export_weights.py
+  python -m unittest discover -s tests
+  exit 0
+fi
+
+if [ "$1" = figures ]; then
+  { machine; echo "# python bench/figures.py --jobs ${JOBS:-4}"; python bench/figures.py --jobs "${JOBS:-4}"; after; } > bench/raw/figures.log
   python -m unittest discover -s tests
   exit 0
 fi

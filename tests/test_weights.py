@@ -6,7 +6,8 @@ For each agent: the plain float32 export holds the same numbers as the PyTorch s
 sha256 matches the manifest, and it is at most 8 MB. For each parity decision: re-encoding the
 recorded raw observation gives the recorded state vector and mask, the network gives the recorded
 Q-values, and argmax(q + mask) is the recorded action (and, with the play-time option
-no_free_fold, the recorded action_no_free_fold).
+no_free_fold, the recorded action_no_free_fold). For bench/figures.py: on a short seeded self-play
+run every hand's results sum to zero, and the per-class aggregation and grid layout are right.
 """
 import hashlib
 import json
@@ -81,6 +82,38 @@ class Export(unittest.TestCase):
                 q = np.array(r["q"], np.float32)
                 self.assertEqual(int(np.argmax(q + mask)), r["action"])
                 self.assertEqual(int(np.argmax(q + no_free_fold(mask))), r["action_no_free_fold"])
+
+
+class StartingHandFigure(unittest.TestCase):
+    def test_hands_sum_to_zero_and_classes_aggregate(self):
+        import figures
+        rows, _ = figures.self_play((0, 30, 1))
+        self.assertEqual(len(rows), 4 * 30)
+        for h in range(30):
+            self.assertEqual(sum(x for k, _, _, x in rows if k == h), 0)
+        self.assertEqual(figures.self_play((10, 5, 1))[0], rows[40:60])  # a hand's deal depends only on its number
+        agg = figures.by_class(rows)
+        self.assertEqual(sum(n for n, _, _ in agg.values()), 120)
+        for c, (n, m, se) in agg.items():
+            v = [x for _, _, k, x in rows if k == c]
+            self.assertEqual(n, len(v))
+            self.assertAlmostEqual(m, np.mean(v))
+        n, m, se = figures.by_class([(0, 0, "AA", 3.0), (0, 1, "72o", -3.0), (1, 2, "AA", -1.0), (1, 3, "AA", 1.0)])["AA"]
+        self.assertEqual((n, m), (3, 1.0))
+        self.assertAlmostEqual(se, 2 / np.sqrt(3))
+
+    def test_grid_layout(self):
+        import figures
+        import PokerEngine.poker_engine as pe
+        from ReinforcementLearningEnvironment.helper import pocket_169_key, pocket_key
+        card = lambda r, s: pe.Card(pe.Suits(s), pe.Ranks(r))
+        self.assertEqual(pocket_169_key(pocket_key(card(13, 2), card(14, 4))), "AKo")
+        self.assertEqual(pocket_169_key(pocket_key(card(2, 3), card(7, 3))), "72s")
+        cs = figures.classes()
+        self.assertEqual(len(set(cs)), 169)
+        self.assertEqual([figures.cell(c) for c in cs], [divmod(k, 13) for k in range(169)])
+        self.assertEqual([figures.cell(c) for c in ("AA", "AKs", "AKo", "32s", "32o", "22")],
+                         [(0, 0), (0, 1), (1, 0), (11, 12), (12, 11), (12, 12)])
 
 
 if __name__ == "__main__":

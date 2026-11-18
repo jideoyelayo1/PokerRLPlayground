@@ -141,9 +141,13 @@ def agent_policy(agent):
     return greedy_policy(agent.model, agent.sequence)
 
 
-def play_hand(g, policies, rng, stack=STACK):
+def play_hand(g, policies, rng, stack=STACK, holes=None):
+    """Each seat's result in big blinds, blinds included. If holes is a list, it gets each seat's
+    hole cards, read straight after the deal (a folded seat's are hidden later)."""
     g.reset_tournament(stack)
     g.start_hand()
+    if holes is not None:
+        holes[:] = [g.getObservation(i).hole for i in range(len(policies))]
     for pol in policies:
         if hasattr(pol, "new_hand"):
             pol.new_hand()
