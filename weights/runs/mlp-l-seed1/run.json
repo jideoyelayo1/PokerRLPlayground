@@ -1,0 +1,57 @@
+{
+ "candidate": "mlp-l",
+ "architecture": {
+  "cls": "MLPModel",
+  "kwargs": {
+   "hidden": [
+    512,
+    512,
+    256
+   ],
+   "dropout": 0.0
+  },
+  "sequence": false,
+  "hands": 400000
+ },
+ "seed": 1,
+ "hands": 400000,
+ "agent": {
+  "gamma": 1.0,
+  "lr": 0.0001,
+  "batch_size": 256,
+  "memory_size": 100000,
+  "eps_start": 1.0,
+  "eps_end": 0.05,
+  "double": true,
+  "target_update_freq": 200,
+  "eps_decay_hands": 80000,
+  "sequence": false
+ },
+ "reward_scale": 0.01,
+ "format": {
+  "seats": 4,
+  "stack": 200,
+  "blinds": [
+   1,
+   2
+  ],
+  "reset_stacks": true
+ },
+ "validation": {
+  "seed": 5000,
+  "deals": 1000,
+  "every_hands": 40000
+ },
+ "kept_checkpoint_hands": 120000,
+ "kept_val_score": -88.08514439330351,
+ "wall_s": 10600.4,
+ "cpu_s": 4730.7,
+ "torch_threads": 1,
+ "aborted_hands": 0,
+ "commit": "45b9e419c25564867acdce452dcc8aba9e1d0e42",
+ "dirty": false,
+ "python": "3.14.6",
+ "torch": "2.9.1",
+ "numpy": "2.4.1",
+ "parameters": 473607
+}
