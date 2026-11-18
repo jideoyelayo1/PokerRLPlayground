@@ -96,7 +96,7 @@ function replay() {
   const out = [];
   let leaks = 0;
   for (let h = 0; h < HANDS; h++) {
-    table.startHand();
+    if (!table.startHand().ok) throw new Error('startHand refused after a finished hand');
     let v = table.view();
     out.push(`hand ${v.hand} button ${v.button} cards ${v.cards.join(' ')}`);
     for (;;) {
@@ -213,9 +213,10 @@ if (calling.status === 0) {
   let outOfTurn = 0;
   let illegal = 0;
   for (let h = 0; h < 200; h++) {
-    table.startHand();
+    expect('startHand after a hand', table.startHand().ok, true);
     let v = table.view();
     while (!v.over) {
+      expect('startHand during a hand', table.startHand(), { ok: false, error: 'hand_in_progress', over: false, toAct: v.toAct });
       if (v.toAct !== v.visitor) {
         expect('act out of turn', table.act('fold').error, 'not_your_turn');
         expect('the view after a refusal', table.view(), v);

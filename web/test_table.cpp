@@ -31,7 +31,7 @@ static std::string pick(const TableView& v, std::mt19937& rng) { return v.legal[
 // One hand to its end; returns a transcript of what the view showed.
 static std::string playHand(Table& t, std::mt19937& rng) {
     std::ostringstream out;
-    t.startHand();
+    CHECK(t.startHand().ok, "startHand after the previous hand");
     for (int guard = 0; !t.over() && guard < 2 * Table::kMaxDecisions; ++guard) {
         TableMove m = t.toAct() == Table::kVisitor ? t.act(pick(t.view(), rng)) : t.advance();
         out << m.seat << ' ' << m.action << ' ' << m.chips << ' ' << m.to << ';';
@@ -141,18 +141,20 @@ static void refusals(const agent::Mlp& net) {
     refused(t.advance(), "hand_over");
     CHECK(t.view() == before, "a refusal before the first hand changes nothing");
 
-    int notTurn = 0, illegal = 0, unknown = 0, visitorTurn = 0, over = 0;
+    int notTurn = 0, illegal = 0, unknown = 0, visitorTurn = 0, over = 0, inProgress = 0;
     for (int h = 0; h < 300; ++h) {
         t.startHand();
         while (!t.over()) {
             before = t.view();
             if (t.toAct() != Table::kVisitor) {
                 for (const char* a : {"fold", "check", "call", "allin"}) notTurn += refused(t.act(a), "not_your_turn");
+                inProgress += refused(t.startHand(), "hand_in_progress");
                 CHECK(t.view() == before, "act out of turn changes nothing");
                 t.advance();
                 continue;
             }
             visitorTurn += refused(t.advance(), "visitor_to_act");
+            inProgress += refused(t.startHand(), "hand_in_progress");
             for (const char* a : {"", "Call", "raise", "bet", "7"}) unknown += refused(t.act(a), "unknown_action");
             std::set<std::string> legal;
             for (auto& a : before.legal) legal.insert(a.action);
@@ -165,9 +167,10 @@ static void refusals(const agent::Mlp& net) {
         over += refused(t.act("fold"), "hand_over") && refused(t.advance(), "hand_over");
         CHECK(t.view() == before, "a refusal after the hand changes nothing");
     }
-    std::printf("refusals: %d out of turn, %d illegal, %d unknown, %d advance on the visitor's turn, %d after the hand\n",
-                notTurn, illegal, unknown, visitorTurn, over);
-    CHECK(notTurn > 0 && illegal > 0 && unknown > 0 && visitorTurn > 0 && over == 300, "cases covered");
+    std::printf("refusals: %d out of turn, %d illegal, %d unknown, %d advance on the visitor's turn, %d after the hand, "
+                "%d startHand during a hand\n", notTurn, illegal, unknown, visitorTurn, over, inProgress);
+    CHECK(notTurn > 0 && illegal > 0 && unknown > 0 && visitorTurn > 0 && over == 300 && inProgress > 0, "cases covered");
+    CHECK(t.startHand().ok && t.view().hand == 301, "startHand after a finished hand starts the next");
 }
 
 // The visitor's legal actions carry the amounts the engine will apply.

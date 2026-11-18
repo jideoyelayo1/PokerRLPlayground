@@ -66,8 +66,10 @@ struct TableView {
 };
 struct TableMove {
     bool ok = false;
-    std::string error;  // hand_over, not_your_turn, unknown_action, illegal_action, visitor_to_act
-    int seat = -1;
+    // hand_over, not_your_turn, unknown_action, illegal_action, visitor_to_act; hand_in_progress
+    // from startHand()
+    std::string error;
+    int seat = -1;  // -1 for startHand()
     std::string action;
     int chips = 0, to = 0;
     bool over = true;  // after this call
@@ -82,14 +84,21 @@ public:
 
     Table(const agent::Mlp& net, uint64_t seed) : net_(net) { g_.seed(seed); }
 
-    // Starts the next hand; a hand still in progress is abandoned (stacks reset every hand).
-    void startHand() {
+    // Starts the next hand. Refused (hand_in_progress), with nothing changed, while a hand is in
+    // progress: a page that wants a fresh start creates a new Table.
+    TableMove startHand() {
+        if (!over()) return refuse("hand_in_progress");
         g_.reset_stacks(kStack);
         g_.start_hand();
         ++hands_;
         decisions_ = 0;
         aborted_ = false;
         cards_ = g_.getObservation(kVisitor).hole;
+        TableMove m;
+        m.ok = true;
+        m.over = over();
+        m.toAct = toAct();
+        return m;
     }
 
     bool over() const { return hands_ == 0 || aborted_ || g_.hand_terminal(); }

@@ -111,7 +111,7 @@ val viewToJs(const TableView& v) {
 val moveToJs(const TableMove& m) {
     val o = val::object();
     o.set("ok", m.ok);
-    if (m.ok) {
+    if (m.ok && m.seat >= 0) {  // a move (startHand() reports only ok, over and toAct)
         o.set("seat", m.seat);
         o.set("action", m.action);
         o.set("chips", m.chips);
@@ -158,7 +158,7 @@ EMSCRIPTEN_BINDINGS(poker) {
     emscripten::class_<Table>("Table")
         .constructor(optional_override([](val seed) { return new Table(demoNetwork(), seedOf(seed)); }), emscripten::allow_raw_pointers())
         .class_function("format", &format)
-        .function("startHand", &Table::startHand)
+        .function("startHand", optional_override([](Table& t) { return moveToJs(t.startHand()); }))
         .function("act", optional_override([](Table& t, val action) {
             return moveToJs(t.act(action.isString() ? action.as<std::string>() : std::string{}));
         }))
