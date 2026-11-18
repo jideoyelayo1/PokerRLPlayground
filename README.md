@@ -280,6 +280,8 @@ These limitations are discussed further in the *Limitations & Future Work* secti
 
 ## Symbolic Regression
 
+> **First version, not reproducible.** This section describes the first version's analysis: its equations were fitted to data logged with the faults fixed since (folded hands and the blinds dropped), from runs with no recorded seeds or logs, and they have not been fitted again. It is kept as history. What the current agents do by starting hand is in Fig. 1 above and [`bench/RESULTS.md`](bench/RESULTS.md), section 7.
+
 ### Purpose
 
 Symbolic regression is used to **interpret** the behaviour learned by the reinforcement learning agents by compressing empirical outcomes into **human-readable mathematical expressions**.
@@ -385,6 +387,8 @@ Symbolic regression confirms that, despite being trained purely through self-pla
 
 ## Validation & Metrics
 
+> **First version, not reproducible.** Apart from its last paragraph, this section describes how the first version validated its agents, from per-hand logs with the faults fixed since and runs with no recorded seeds; its claims are kept as history, not as current results. The current measurements are [`bench/RESULTS.md`](bench/RESULTS.md), section 6 (win rates against fixed baselines), and the figures above (section 7).
+
 Given the self-play nature of this project, validation focuses on **internal consistency, stability over time, and alignment with known poker theory**, rather than external optimality guarantees.
 
 ---
@@ -433,7 +437,7 @@ Metrics are analysed both **globally** and **per pocket hand**.
 
 ### What this validation does and does not show
 
-This validation demonstrates that:
+The first version said this validation demonstrates that:
 - Agents learn **stable, poker-consistent hand valuations**
 - Learned strategies converge to internally coherent policies
 - Results are reproducible across architectures and training runs. *(Not supported by the repository: the runs behind the figures were not recorded, and the deck was seeded from the clock. Runs can now be repeated with a seed; see `bench/winrate.py`.)*
