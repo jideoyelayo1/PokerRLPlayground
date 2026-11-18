@@ -8,7 +8,7 @@
 #                                         # weights/runs are reused: delete weights/runs/<run> to
 #                                         # retrain it. Cells in bench/raw/demo_cells are reused too:
 #                                         # NO_CACHE=1 recomputes the evaluation only (no retraining).
-#   sh bench/run_benchmarks.sh figures    # the README's figures (bench/figures.py; 4 to 7 minutes
+#   sh bench/run_benchmarks.sh figures    # the README's figures (bench/figures.py; about 8 minutes
 #                                         # with JOBS=4): data, CSVs and images in images/
 set -e
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release >/dev/null
