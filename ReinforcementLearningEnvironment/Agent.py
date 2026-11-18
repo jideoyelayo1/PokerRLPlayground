@@ -29,7 +29,8 @@ class DQNAgent:
         self.epsilon = eps_start
 
         # Replay buffer: a list used as a ring once full. random.sample on a deque indexes it in
-        # O(n) per item (about 50 ms per 1,024-sample at a million transitions); a list is O(1).
+        # O(n) per item (bench/bench_replay_sample.py: hundreds of ms per 1,024-sample draw at a million
+        # transitions); a list is O(1).
         self.memory = []
         self.memory_size = memory_size
         self.memory_pos = 0
