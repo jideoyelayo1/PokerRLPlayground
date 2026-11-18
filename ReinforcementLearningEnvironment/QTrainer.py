@@ -73,13 +73,16 @@ class QTrainer:
         rewards = torch.tensor(np.array(rewards), dtype=torch.float32, device=self.device)
         dones = torch.tensor(np.array(dones), dtype=torch.bool, device=self.device)
 
+        self.model.train()  # select_action leaves it however it found it
         pred = self._q(self.model, states, lengths)  # (B, N_ACTIONS)
 
         with torch.no_grad():
             next_q = self._q(self.target_model, next_states, next_lengths)  # (B, N_ACTIONS)
             m = 0.0 if next_masks is None else torch.tensor(np.array(next_masks), dtype=torch.float32, device=self.device)
             if self.double:
+                self.model.eval()  # the pick is a greedy choice: no dropout
                 pick = (self._q(self.model, next_states, next_lengths) + m).argmax(dim=1, keepdim=True)
+                self.model.train()
                 max_next_q = next_q.gather(1, pick).squeeze(1)  # (B,)
             else:
                 max_next_q = (next_q + m).max(dim=1).values  # (B,); max over the legal actions at s' only

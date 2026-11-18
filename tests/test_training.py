@@ -149,6 +149,30 @@ class Stability(unittest.TestCase):
         self.assertIsNotNone(ag.last_stats)
 
 
+class Dropout(unittest.TestCase):
+    def test_greedy_action_is_repeatable_with_dropout(self):
+        torch.manual_seed(0)
+        ag = DQNAgent(0, MLPModel(F, A, hidden=(64, 64), dropout=0.5), F, eps_start=0.0, eps_end=0.0)
+        s, mask = np.random.default_rng(0).normal(size=F).astype(np.float32), np.zeros(A, np.float32)
+        self.assertTrue(ag.model.training)
+        self.assertEqual(len({ag.select_action(s, mask) for _ in range(50)}), 1)
+        self.assertTrue(ag.model.training)  # the mode it found is restored
+        ag.model.eval()
+        ag.select_action(s, mask)
+        self.assertFalse(ag.model.training)
+
+    def test_training_step_updates_the_model_in_train_mode(self):
+        torch.manual_seed(0)
+        ag = DQNAgent(0, MLPModel(F, A, hidden=(16,), dropout=0.5), F, eps_start=0.0, eps_end=0.0, double=True)
+        ag.model.eval()  # as select_action may leave a model that was in eval mode
+        for _ in range(8):
+            ag.remember(np.ones(F, np.float32), 2, 1.0, np.ones(F, np.float32), False)
+        before = [p.clone() for p in ag.model.parameters()]
+        ag.train_long_memory()
+        self.assertTrue(ag.model.training)
+        self.assertTrue(any(not torch.equal(b, p) for b, p in zip(before, ag.model.parameters())))
+
+
 class SharedSeats(unittest.TestCase):
     def test_one_model_plays_every_seat(self):
         import tempfile

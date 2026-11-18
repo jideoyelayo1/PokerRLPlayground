@@ -83,12 +83,17 @@ class DQNAgent:
         if st.dim() == 1 or self.sequence:
             st = st.unsqueeze(0)  # (1, F), or (1, T, F) for a sequence
 
-        with torch.no_grad():
-            q = self.model(st)     # (1, N_ACTIONS) for all models if standardized
-            if isinstance(q, (tuple, list)):
-                q = q[0]
-            if q.dim() == 2:
-                q = q[0]           # (N_ACTIONS,)
+        was = self.model.training
+        self.model.eval()  # greedy play without dropout
+        try:
+            with torch.no_grad():
+                q = self.model(st)     # (1, N_ACTIONS) for all models if standardized
+                if isinstance(q, (tuple, list)):
+                    q = q[0]
+                if q.dim() == 2:
+                    q = q[0]           # (N_ACTIONS,)
 
-            q = q + torch.tensor(legal_mask, dtype=torch.float32, device=self.device)
-            return int(torch.argmax(q).item())
+                q = q + torch.tensor(legal_mask, dtype=torch.float32, device=self.device)
+                return int(torch.argmax(q).item())
+        finally:
+            self.model.train(was)
