@@ -1,0 +1,20 @@
+# commit ddd5649, Apple M1 Pro, Darwin 27.0.0, Apple clang version 21.0.0 (clang-2100.3.34.2)
+# sh bench/ctest_sanitizers.sh -E eval_exhaustive (Debug, -fsanitize=address,undefined -fno-sanitize-recover=undefined; ctest --test-dir build-asan --output-on-failure -E eval_exhaustive)
+# paths are shown relative to the repository
+Test project build-asan
+    Start 1: test_hand_eval
+1/6 Test #1: test_hand_eval ...................   Passed    0.03 sec
+    Start 2: test_betting
+2/6 Test #2: test_betting .....................   Passed   39.78 sec
+    Start 3: test_hand_result
+3/6 Test #3: test_hand_result .................   Passed   21.45 sec
+    Start 4: test_json
+4/6 Test #4: test_json ........................   Passed    0.02 sec
+    Start 5: test_agent
+5/6 Test #5: test_agent .......................   Passed    4.57 sec
+    Start 6: test_table
+6/6 Test #6: test_table .......................   Passed   58.46 sec
+
+100% tests passed out of 6
+
+Total Test time (real) = 124.32 sec
