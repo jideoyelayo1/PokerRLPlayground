@@ -13,7 +13,7 @@ add_library(poker_core STATIC PokerEngine/GameEngine.cpp PokerEngine/Player.cpp)
 target_include_directories(poker_core PUBLIC PokerEngine)
 
 enable_testing()
-foreach(t test_hand_eval test_betting eval_exhaustive)
+foreach(t test_hand_eval test_betting test_hand_result eval_exhaustive)
   add_executable(${t} PokerEngine/tests/${t}.cpp)
   target_link_libraries(${t} poker_core Threads::Threads)
   add_test(NAME ${t} COMMAND ${t})

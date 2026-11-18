@@ -29,6 +29,24 @@ struct Action {
     RaiseSize raiseSize{RaiseSize::BB}; // only used if type==Raise
 };
 
+// One action applied by step() in the current hand (GameEngine::handHistory).
+struct ActionRecord {
+    int seat = -1;
+    int street = 0;          // 0 preflop .. 3 river, when the action was taken
+    Action action{};
+    int chips = 0;           // chips the action put in
+    int street_contrib = 0;  // the seat's street contribution after it
+};
+
+// One pot at the end of a hand (GameEngine::potResults): what it held, who could win it, who won
+// it and what each winner received (an odd chip goes to the first winner, the lowest seat).
+struct PotResult {
+    int amount = 0;
+    std::vector<int> eligible;
+    std::vector<int> winners;
+    std::vector<int> shares;  // shares[k] chips to winners[k]
+};
+
 enum class Suits {
     Empty = 0,
     Hearts,

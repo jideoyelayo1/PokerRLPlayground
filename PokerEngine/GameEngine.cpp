@@ -21,6 +21,9 @@ void GameEngine::start_hand() {
     hand_terminal_ = false;
     hand_winner_id_ = -1;
     hand_started_ = true;
+    history_.clear();
+    pot_results_.clear();
+    showdown_seats_.clear();
 
     resetPlayersForNewHandAliveOnly();
     dealOutCardsToPlayersAliveOnly();
@@ -57,7 +60,9 @@ Observation GameEngine::step(const Action& a, int viewerId) {
 
     // Apply single action by current player
     int acting_id = *current_betting_player_;
+    int street = streetInt(), before = P(acting_id).streetContrib();
     applyAction(acting_id, a);
+    history_.push_back({acting_id, street, a, P(acting_id).streetContrib() - before, P(acting_id).streetContrib()});
 
     // If hand ended by folds immediately
     if (handEndedByFolds()) {
@@ -107,6 +112,12 @@ Observation GameEngine::step(const Action& a, int viewerId) {
 }
 
 void GameEngine::reset_tournament(int startingMoney) {
+    reset_stacks(startingMoney);
+    // the next hand puts the button on the first seat again
+    button_ = -1;
+}
+
+void GameEngine::reset_stacks(int startingMoney) {
     // reset all players to startingMoney
     for (auto& p : players_) {
         p.resetForNewHand();
@@ -120,9 +131,6 @@ void GameEngine::reset_tournament(int startingMoney) {
     for (int i = 0; i < numPlayers_; ++i) activate_player_ids_.push_back(i);
     current_betting_player_ = activate_player_ids_.begin();  // clear() freed the node it pointed to
 
-    // the next hand puts the button on the first seat again
-    button_ = -1;
-
     // reset hand state
     sharedCards_.clear();
     pots_.clear();
@@ -132,6 +140,9 @@ void GameEngine::reset_tournament(int startingMoney) {
     hand_terminal_ = false;
     hand_winner_id_ = -1;
     hand_started_ = false;
+    history_.clear();
+    pot_results_.clear();
+    showdown_seats_.clear();
 }
 
 
@@ -580,20 +591,28 @@ std::vector<Pot> GameEngine::buildSidePotsFromTotal() const {
 }
 
 
-void GameEngine::awardPotToWinners(const Pot& pot, const std::vector<int>& winners) {
-    if (winners.empty()) return;
+std::vector<int> GameEngine::awardPotToWinners(const Pot& pot, const std::vector<int>& winners) {
+    if (winners.empty()) return {};
     int share = pot.amount / (int)winners.size();
     int rem   = pot.amount % (int)winners.size();
 
     for (int id : winners) players_[id].awardChips(share);
     if (rem > 0) players_[winners[0]].awardChips(rem);
+    std::vector<int> shares(winners.size(), share);
+    shares[0] += rem;
+    return shares;
 }
 
 void GameEngine::showdownAndPayout() {
     // If hand ended by folds, pay whole pot to last active player
+    pot_results_.clear();
+    showdown_seats_.clear();
     if (handEndedByFolds()) {
         int winner = lastActivePlayerId();
-        if (winner >= 0) players_[winner].awardChips(pot_);
+        if (winner >= 0) {
+            players_[winner].awardChips(pot_);
+            pot_results_.push_back({pot_, {winner}, {winner}, {pot_}});
+        }
         return;
     }
 
@@ -608,6 +627,7 @@ void GameEngine::showdownAndPayout() {
     ranks.reserve(players_.size());
     for (int id : activate_player_ids_) {
         if (players_[id].hasFolded()) continue;
+        showdown_seats_.push_back(id);
         std::vector<Card> seven;
         seven.reserve(7);
         auto ph = players_[id].getPocketHand();
@@ -643,7 +663,7 @@ void GameEngine::showdownAndPayout() {
             }
         }
 
-        awardPotToWinners(pot, winners);
+        pot_results_.push_back({pot.amount, pot.eligible, winners, awardPotToWinners(pot, winners)});
     }
 }
 
