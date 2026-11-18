@@ -10,8 +10,10 @@
    count, the mean in big blinds per hand and its standard error (sd / sqrt(count)).
    Reference: each class's all-in equity against three random hands (its expected share of the
    pot with five board cards, ties split), EQ_TRIALS seeded deals per class through the engine's
-   evaluator, and the Spearman rank correlation between the two, with a 95% interval from BOOT
-   redraws of every class mean and equity from its standard error.
+   evaluator, and the Spearman rank correlation between the two: over all 169 classes, within the
+   84 highest by equity and within the other 85.
+   Replication: the same HANDS hands on a second deck seed, REP_SEED, reported in the log and written
+   to bench/raw/ (Fig. 1 is drawn from SEED only).
    The button stays on seat 0: the Python binding has no reset_stacks, so the stacks are reset with
    reset_tournament, which puts the button back on seat 0 (the demo's table moves it). With the same
    network in every seat and an input relative to the player and the button, that changes nothing
@@ -51,11 +53,14 @@ AGENT = "mlp-s-seed3"
 # Chosen before any result was seen, and used by nothing else (training 0-3, 11 and
 # 101-104, validation 5000, evaluation 7000, confirmation 9000 and 13000, web replay 20261118).
 SEED, HANDS = 17000, 250_000  # a suited class (4 of 1,326 combinations) gets about 3,000 seat-hands
+# Replication seed, declared before it was run (after review of the first), used by nothing else.
+REP_SEED = 23000
 EQ_SEED, EQ_TRIALS = 17001, 50_000
-BOOT_SEED, BOOT = 17002, 2000
+QUOTED = ("AA", "KK", "QQ", "JJ", "AKs", "AKo", "22", "72o", "K7s", "K2o")  # hands whose ranks the text quotes
 RANKS = "AKQJT98765432"
 IMAGES = ROOT / "images"
 FIG1, FIG2 = IMAGES / "selfplay_result_by_starting_hand", IMAGES / "validation_over_training"
+REP_CSV = ROOT / "bench" / "raw" / f"selfplay_result_by_starting_hand_seed{REP_SEED}.csv"
 FAMILY = {"mlp-s": "#2a78d6", "mlp-l": "#eb6834", "gru": "#1baf7a"}  # colour-blind-safe in this order
 SELECTED = "#0b0b0b"
 plt.rcParams.update({"font.size": 11, "svg.hashsalt": "figures"})
@@ -129,31 +134,32 @@ def spearman(x, y):
 
 
 def compute(jobs):
-    t0 = time.time()
     chunk = 10_000
     with Pool(jobs) as pool:
-        parts = pool.map(self_play, [(f, min(chunk, HANDS - f), SEED) for f in range(0, HANDS, chunk)], chunksize=1)
-        t1 = time.time()
+        t0 = time.time()
         eq = pool.map(equity, list(enumerate(classes())), chunksize=1)
-    rows = [r for p, _ in parts for r in p]
-    counts = np.sum([c for _, c in parts], axis=0)
-    hands = {}
-    for h, _, _, x in rows:
-        hands[h] = hands.get(h, 0) + x
-    assert len(hands) == HANDS and all(v == 0 for v in hands.values())
-    agg = by_class(rows)
-    assert sorted(agg) == sorted(classes()) and sum(n for n, _, _ in agg.values()) == SEATS * HANDS
-    print(f"self-play: {HANDS:,} hands ({SEATS * HANDS:,} seat-hands), deck seed {SEED} x 1,000,003 + hand, "
-          f"{t1 - t0:.0f} s with {jobs} processes; every hand's results sum to zero")
-    print(f"decisions: {counts.sum():,} ({counts.sum() / HANDS:.1f} per hand); actions chosen (fold, check, call, "
-          f"raise 1 bb, raise half pot, raise pot, all-in): {', '.join(f'{x:,} ({100 * x / counts.sum():.1f}%)' for x in counts)}")
-    print(f"equity: {EQ_TRIALS:,} deals per class, seed {EQ_SEED} x 1,000 + class index, {time.time() - t1:.0f} s")
-    with open(FIG1.with_suffix(".csv"), "w", newline="") as f:
-        w = csv.writer(f)
-        w.writerow(["class", "row", "col", "count", "mean_bb_per_hand", "se_bb_per_hand", "equity_vs_3_random", "equity_se"])
-        for c, (e, ese) in zip(classes(), eq):
-            n, m, se = agg[c]
-            w.writerow([c, *cell(c), n, f"{m:.6f}", f"{se:.6f}", f"{e:.6f}", f"{ese:.6f}"])
+        print(f"equity: {EQ_TRIALS:,} deals per class, seed {EQ_SEED} x 1,000 + class index, {time.time() - t0:.0f} s")
+        for seed, path in ((SEED, FIG1.with_suffix(".csv")), (REP_SEED, REP_CSV)):
+            t0 = time.time()
+            parts = pool.map(self_play, [(f, min(chunk, HANDS - f), seed) for f in range(0, HANDS, chunk)], chunksize=1)
+            rows = [r for p, _ in parts for r in p]
+            counts = np.sum([c for _, c in parts], axis=0)
+            hands = {}
+            for h, _, _, x in rows:
+                hands[h] = hands.get(h, 0) + x
+            assert len(hands) == HANDS and all(v == 0 for v in hands.values())
+            agg = by_class(rows)
+            assert sorted(agg) == sorted(classes()) and sum(n for n, _, _ in agg.values()) == SEATS * HANDS
+            print(f"self-play: {HANDS:,} hands ({SEATS * HANDS:,} seat-hands), deck seed {seed} x 1,000,003 + hand, "
+                  f"{time.time() - t0:.0f} s with {jobs} processes; every hand's results sum to zero")
+            print(f"decisions: {counts.sum():,} ({counts.sum() / HANDS:.1f} per hand); actions chosen (fold, check, call, "
+                  f"raise 1 bb, raise half pot, raise pot, all-in): {', '.join(f'{x:,} ({100 * x / counts.sum():.1f}%)' for x in counts)}")
+            with open(path, "w", newline="") as f:
+                w = csv.writer(f)
+                w.writerow(["class", "row", "col", "count", "mean_bb_per_hand", "se_bb_per_hand", "equity_vs_3_random", "equity_se"])
+                for c, (e, ese) in zip(classes(), eq):
+                    n, m, se = agg[c]
+                    w.writerow([c, *cell(c), n, f"{m:.6f}", f"{se:.6f}", f"{e:.6f}", f"{ese:.6f}"])
     with open(FIG2.with_suffix(".csv"), "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["run", "candidate", "seed", "selected", "kept", "hands", "baseline", "bb100", "ci95_lo", "ci95_hi"])
@@ -172,16 +178,17 @@ def read(path):
         return list(csv.DictReader(f))
 
 
-def report_fig1(rows):
+def report_fig1(rows, seed):
+    print(f"--- result by starting hand, deck seed {seed}")
     c = [r["class"] for r in rows]
-    m, se = (np.array([float(r[k]) for r in rows]) for k in ("mean_bb_per_hand", "se_bb_per_hand"))
-    e, ese = (np.array([float(r[k]) for r in rows]) for k in ("equity_vs_3_random", "equity_se"))
+    m, se, e = (np.array([float(r[k]) for r in rows]) for k in ("mean_bb_per_hand", "se_bb_per_hand", "equity_vs_3_random"))
     n = np.array([int(r["count"]) for r in rows])
+    rank_m, rank_e = 1 + np.argsort(np.argsort(-m)), 1 + np.argsort(np.argsort(-e))
     order = np.argsort(-m)
     print(f"seat-hands per class: {n.min():,} to {n.max():,}; standard error {se.min():.3f} to {se.max():.3f} bb per hand")
     print("highest mean (bb per hand, standard error, equity rank of 169): "
-          + "; ".join(f"{c[i]} {m[i]:+.2f} ({se[i]:.2f}, {1 + int(np.sum(e > e[i]))})" for i in order[:10]))
-    print("lowest mean: " + "; ".join(f"{c[i]} {m[i]:+.2f} ({se[i]:.2f}, {1 + int(np.sum(e > e[i]))})" for i in order[::-1][:10]))
+          + "; ".join(f"{c[i]} {m[i]:+.2f} ({se[i]:.2f}, {rank_e[i]})" for i in order[:10]))
+    print("lowest mean: " + "; ".join(f"{c[i]} {m[i]:+.2f} ({se[i]:.2f}, {rank_e[i]})" for i in order[::-1][:10]))
     kind = np.array([0 if x[0] == x[1] else 1 if x.endswith("s") else 2 for x in c])
     for k, name in enumerate(("pairs", "suited", "offsuit")):
         w = n * (kind == k)
@@ -192,18 +199,13 @@ def report_fig1(rows):
     d = np.array([m[suited[x[:2]]] - m[i] for i, x in enumerate(c) if x.endswith("o")])
     print(f"suited minus offsuit, same ranks (78 pairs of classes): mean {d.mean():+.3f} bb per hand, "
           f"suited higher in {int((d > 0).sum())} of 78")
-    rho = spearman(m, e)
-    rng = np.random.default_rng(BOOT_SEED)
-    boot = [spearman(m + se * rng.standard_normal(len(m)), e + ese * rng.standard_normal(len(e))) for _ in range(BOOT)]
-    lo, hi = np.percentile(boot, [2.5, 97.5])
-    print(f"Spearman rank correlation, mean result against all-in equity vs three random hands: {rho:.3f} "
-          f"[{lo:.3f}, {hi:.3f}] (95%, {BOOT:,} redraws from the standard errors, seed {BOOT_SEED})")
-    rank_m, rank_e = 1 + np.argsort(np.argsort(-m)), 1 + np.argsort(np.argsort(-e))
-    gap = rank_e - rank_m
-    for label, idx in (("ranked higher by the agent than by equity", np.argsort(-gap)[:8]),
-                       ("ranked lower by the agent than by equity", np.argsort(gap)[:8])):
-        print(f"{label} (agent rank, equity rank): " + "; ".join(f"{c[i]} ({rank_m[i]}, {rank_e[i]})" for i in idx))
-    return rho, lo, hi
+    top, bottom = rank_e <= len(c) // 2, rank_e > len(c) // 2
+    print(f"Spearman rank correlation, mean result against all-in equity vs three random hands: {spearman(m, e):.3f} "
+          f"over all {len(c)}; {spearman(m[top], e[top]):.3f} within the {top.sum()} highest by equity; "
+          f"{spearman(m[bottom], e[bottom]):.3f} within the other {bottom.sum()}")
+    print(f"of the ten best hands by result, {int(np.sum(rank_e[order[:10]] <= 14))} are in equity's top 14")
+    print("result rank of 169 (mean, equity rank): " + "; ".join(
+        f"{x} {rank_m[c.index(x)]} ({m[c.index(x)]:+.2f}, {rank_e[c.index(x)]})" for x in QUOTED))
 
 
 def report_fig2(rows):
@@ -306,7 +308,8 @@ def main():
     if not a.plot_only:
         compute(a.jobs)
     rows1, rows2 = read(FIG1.with_suffix(".csv")), read(FIG2.with_suffix(".csv"))
-    report_fig1(rows1)
+    report_fig1(rows1, SEED)
+    report_fig1(read(REP_CSV), REP_SEED)
     report_fig2(rows2)
     plot_fig1(rows1)
     plot_fig2(rows2)
