@@ -1,5 +1,6 @@
 // Native tests of Table (web/Table.hpp), the class the JavaScript binding exposes.
 //   test_table <weights/demo>
+#include <algorithm>
 #include <fstream>
 #include <random>
 #include <regex>
@@ -94,6 +95,8 @@ static void format(const agent::Mlp& net) {
 static void hiddenCards(const agent::Mlp& net) {
     Table t(net, 11);
     std::mt19937 rng(5);
+    double smallestGap = 1e9;
+    int agentDecisions = 0;
     int views = 0, leaks = 0, strays = 0, wrongShowdown = 0, showdowns = 0, foldedAgents = 0, resultsBad = 0;
     for (int h = 0; h < 2000; ++h) {
         t.startHand();
@@ -129,12 +132,24 @@ static void hiddenCards(const agent::Mlp& net) {
             }
         };
         check({});
-        while (!t.over()) check(t.toAct() == Table::kVisitor ? t.act(pick(t.view(), rng)) : t.advance());
+        while (!t.over()) {
+            if (t.toAct() != Table::kVisitor) {  // how close the agent's choice is: the two highest legal Q-values
+                const auto d = agent::decide(net, t.engine().getObservation(t.toAct()), true);
+                std::vector<float> legal;
+                for (int a = 0; a < agent::kActions; ++a) if (d.mask[a] == 0.0f) legal.push_back(d.q[a]);
+                std::sort(legal.rbegin(), legal.rend());
+                if (legal.size() > 1) smallestGap = std::min(smallestGap, static_cast<double>(legal[0] - legal[1]));
+                ++agentDecisions;
+            }
+            check(t.toAct() == Table::kVisitor ? t.act(pick(t.view(), rng)) : t.advance());
+        }
         auto v = t.view();
         showdowns += v.result && !v.result->showdown.empty();
         for (int s = 1; s < 4; ++s) foldedAgents += v.seats[s].status == "folded";
     }
     std::printf("hidden cards: %d views over 2,000 hands, %d with a showdown, %d agent folds\n", views, showdowns, foldedAgents);
+    // a gap below the C++-PyTorch difference (8.34e-07 over the parity records) is a choice PyTorch could make otherwise
+    std::printf("agent decisions: %d; smallest gap between the two highest legal Q-values %.3g\n", agentDecisions, smallestGap);
     CHECK(leaks == 0, "%d views showed an agent's hole cards they should not", leaks);
     CHECK(strays == 0, "%d card-like texts in views or moves were not the visitor's, the board's or a showdown seat's", strays);
     CHECK(wrongShowdown == 0, "%d showdown entries were folded seats or the wrong cards", wrongShowdown);

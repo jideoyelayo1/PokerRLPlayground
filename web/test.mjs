@@ -3,7 +3,8 @@
 // module (build/wasm-test/poker_test.mjs: the release sources plus web/test_hooks.cpp) has.
 // 1. every parity record (weights/demo/<run>.parity.jsonl) through the compiled agent: the same
 //    state, mask and chosen action as PyTorch with no_free_fold off and on, Q within 1e-5, and Q
-//    bit-identical to the native build's (replay_driver q);
+//    bit-identical to the native build's (replay_driver q). This shows parity on these records; it does
+//    not guarantee it: in play the top two Q-values can be closer than the C++-PyTorch difference;
 // 2. a seeded replay of HANDS hands with a scripted visitor through the compiled Table, compared
 //    line by line with the same replay through the native replay_driver (deals, every move, results);
 // 3. the replay's totals, pinned, so that a change of behaviour that both builds share shows;
