@@ -640,6 +640,7 @@ node web/test.mjs                    # against PyTorch's parity records and the 
 
 **Known limits.**
 - The agents were measured only against the three baselines, not against people, and always with the button on seat 0 (their input is relative to the button, but a moving button was not measured).
+- They were measured one at a time: one copy of the agent against three copies of a baseline. Three copies of the agent at one table, which is what the demo shows the visitor, were never measured.
 - Hands can be long: the agents re-raise each other by one big blind many times. In the 5,000-hand replay a hand took a median of 12 decisions and up to 160 (159 by the agents); a hand reaching 2,000 decisions, the training loop's cap, would be aborted.
 - The same seed is only known to give the same deals with the same C++ standard library (the engine shuffles with `std::shuffle`); a native build with another one, such as libstdc++, may deal differently (not checked).
 - The engine's simplified rules apply (top of this README): three raise sizes and all-in, and an all-in for less than a full raise reopens the betting for players who have already acted.
