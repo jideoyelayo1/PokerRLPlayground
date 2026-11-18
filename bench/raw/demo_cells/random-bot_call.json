@@ -1,0 +1,14 @@
+{
+ "bb100": -127.8071875,
+ "ci95_lo": -167.2754301719711,
+ "ci95_hi": -88.3389448280289,
+ "sd_bb_per_deal": 40.27371701221541,
+ "deals": 40000,
+ "hands": 160000,
+ "agent": "random-bot",
+ "baseline": "call",
+ "seed": 7000,
+ "wall_s": 187.6,
+ "actions": null,
+ "model_sha256": null
+}
