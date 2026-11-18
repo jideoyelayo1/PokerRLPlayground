@@ -10,7 +10,8 @@
 // 3. the replay's totals, pinned, so that a change of behaviour that both builds share shows;
 // 4. through the binding: no view holds an agent's hole cards unless that seat reached showdown,
 //    refusals change nothing, and arguments of the wrong JavaScript type are refused, not coerced;
-// 5. out of memory: the constructor throws a RangeError, and the module recovers once Tables are deleted.
+// 5. out of memory: the constructor throws a RangeError, and the module recovers once Tables are deleted,
+//    also after a failed construction through the embind class.
 // It also prints the number of decisions per hand, for this visitor and for a calling visitor.
 //
 // Usage, from the repository root: node web/test.mjs [path/to/replay_driver]
@@ -395,6 +396,8 @@ if (calling.status === 0) {
 // 5. out of memory, on a fresh instance of the release module: Tables are made until the 2 GiB
 // memory is full. The constructor must then throw post.js's RangeError (it used to return an object
 // whose every method threw BindingError), and once the Tables are deleted a new one plays a hand.
+// One more construction, through the embind class (which bypasses post.js), fails while memory is
+// full; it must not make that new Table throw (it did, and dropped the Table without deleting it).
 {
   const R = await createModule();
   const live = [];
@@ -406,17 +409,30 @@ if (calling.status === 0) {
   }
   if (!(error instanceof RangeError) || !/out of memory/.test(error.message))
     fail(`out of memory after ${live.length} Tables: ${error?.name} ${error?.message}`);
+  const raw = new R.Table.prototype.constructor(0); // the embind class: Object.getPrototypeOf(table).constructor
+  if (raw.$$) { // embind's handle; a failed construction (a null pointer) has none
+    live.push(raw);
+    fail('with memory full, a construction through the embind class did not fail');
+  }
   for (const t of live) {
     try {
       t.delete();
     } catch {} // the null-pointer objects of the old behaviour
   }
-  const t = new R.Table(1);
-  t.startHand();
-  for (let v = t.view(); !v.over; v = t.view()) v.toAct === v.visitor ? t.act(v.legal[0].action) : t.advance();
-  if (!t.view().result) fail('after the Tables were deleted, a new one did not play a hand');
-  t.delete();
-  console.log(`out of memory: ${live.length} live Tables, then new Table threw ${error?.name} "${error?.message}"; after deleting them a new Table played a hand`);
+  let t;
+  try {
+    t = new R.Table(1);
+  } catch (e) {
+    fail(`after the Tables were deleted, new Table threw ${e?.name} "${e?.message}"`);
+  }
+  if (t) {
+    t.startHand();
+    for (let v = t.view(); !v.over; v = t.view()) v.toAct === v.visitor ? t.act(v.legal[0].action) : t.advance();
+    if (!t.view().result) fail('after the Tables were deleted, a new one did not play a hand');
+    t.delete();
+  }
+  console.log(`out of memory: ${live.length} live Tables, then new Table threw ${error?.name} "${error?.message}", and a construction ` +
+    `through the embind class failed; after deleting them a new Table ${t ? 'played a hand' : 'THREW'}`);
 }
 
 if (failures) {
