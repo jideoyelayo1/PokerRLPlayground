@@ -13,7 +13,7 @@ class DQNAgent:
     def __init__(self, player_id: int, model: nn.Module, state_dim: int, gamma=0.9, device="cpu",
                  memory_size=MAX_MEMORY, batch_size=BATCH_SIZE, lr=LEARNING_RATE,
                  eps_start=1.0, eps_end=0.05, eps_decay_hands=10_000, sequence=False, double=False,
-                 target_update_freq=200):
+                 target_update_freq=200, loss="mse", max_grad_norm=None):
         self.player_id = player_id
         self.model = model.to(device)
         self.gamma = gamma
@@ -39,9 +39,11 @@ class DQNAgent:
         self.target_model = copy.deepcopy(self.model).to(device)
         self.target_model.eval()
         self.batch_size = batch_size
-        self.trainer = QTrainer(self.model, self.target_model, lr=lr, gamma=self.gamma, device=device, double=double)
+        self.trainer = QTrainer(self.model, self.target_model, lr=lr, gamma=self.gamma, device=device, double=double,
+                               loss=loss, max_grad_norm=max_grad_norm)
         self.target_update_freq = target_update_freq
         self.last_loss = None
+        self.last_stats = None  # the last train step's td_abs_mean, td_abs_max, q_abs_max, grad_norm, nonfinite
 
 
     def remember(self, s, a, r, s2, done, mask2=None):
@@ -63,6 +65,7 @@ class DQNAgent:
             batch = self.memory
         states, actions, rewards, next_states, dones, next_masks = zip(*batch)
         loss = self.last_loss = self.trainer.train_step(states, actions, rewards, next_states, dones, next_masks)
+        self.last_stats = self.trainer.last_stats
         if self.n_hands % self.target_update_freq == 0:
             self.target_model.load_state_dict(self.model.state_dict())
         return loss

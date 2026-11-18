@@ -47,8 +47,8 @@ class Target(unittest.TestCase):
         tr.optimizer = torch.optim.SGD(net.parameters(), lr=0.5)  # one exact step: w0 += target * x
         s, s2 = np.array([1.0, 0.0], np.float32), np.array([1.0, 0.0], np.float32)
         tr.train_step([s], [0], [0.0], [s2], [False], [np.array([0, -1e9, 0], np.float32)])
-        # MSE over 3 outputs: grad of Q(s,0) is -2/3 * target; target = max(0, 1) = 1, not 5
-        self.assertAlmostEqual(net.weight[0, 0].item(), 0.5 * 2 / 3 * 1.0, places=6)
+        # loss on the chosen action: grad of Q(s,0) is -2 * target; target = max(0, 1) = 1, not 5
+        self.assertAlmostEqual(net.weight[0, 0].item(), 0.5 * 2 * 1.0, places=6)
 
     def test_double_dqn_values_the_online_networks_choice(self):
         from ReinforcementLearningEnvironment.QTrainer import QTrainer
@@ -61,7 +61,92 @@ class Target(unittest.TestCase):
         s, s2 = np.array([1.0, 0.0], np.float32), np.array([0.0, 1.0], np.float32)
         tr.train_step([s], [0], [0.0], [s2], [False], [np.zeros(3, np.float32)])
         # online picks action 2 at s', target values it at 3 (plain max would use 7)
-        self.assertAlmostEqual(net.weight[0, 0].item(), 0.5 * 2 / 3 * 3.0, places=6)
+        self.assertAlmostEqual(net.weight[0, 0].item(), 0.5 * 2 * 3.0, places=6)
+
+
+class Loss(unittest.TestCase):
+    @staticmethod
+    def batch(n=16, seed=0):
+        rng = np.random.default_rng(seed)
+        return ([rng.normal(size=F).astype(np.float32) for _ in range(n)], rng.integers(0, A, n).tolist(),
+                rng.normal(size=n).tolist(), [rng.normal(size=F).astype(np.float32) for _ in range(n)],
+                (rng.random(n) < 0.3).tolist(), [np.zeros(A, np.float32)] * n)
+
+    def test_loss_is_the_mean_squared_td_error_of_the_chosen_actions(self):
+        from ReinforcementLearningEnvironment.QTrainer import QTrainer
+        torch.manual_seed(0)
+        net, tgt = MLPModel(F, A, hidden=(16,), dropout=0.0), MLPModel(F, A, hidden=(16,), dropout=0.0)
+        tr = QTrainer(net, tgt, lr=1e-3, gamma=0.9)
+        s, a, r, s2, d, m = self.batch()
+        with torch.no_grad():
+            q = net(torch.tensor(np.array(s)))[torch.arange(16), torch.tensor(a)]
+            nxt = tgt(torch.tensor(np.array(s2))).max(dim=1).values
+            y = torch.tensor(r, dtype=torch.float32) + (~torch.tensor(d)).float() * 0.9 * nxt
+        self.assertAlmostEqual(tr.train_step(s, a, r, s2, d, m), ((q - y) ** 2).mean().item(), places=5)
+
+    def test_huber_loss_is_smooth_l1_of_the_chosen_actions(self):
+        from ReinforcementLearningEnvironment.QTrainer import QTrainer
+        torch.manual_seed(0)
+        net, tgt = MLPModel(F, A, hidden=(16,), dropout=0.0), MLPModel(F, A, hidden=(16,), dropout=0.0)
+        tr = QTrainer(net, tgt, lr=1e-3, gamma=0.9, loss="huber")
+        s, a, r, s2, d, m = self.batch()
+        r = (np.array(r) * 5).tolist()  # some residuals past 1, where Huber is linear
+        with torch.no_grad():
+            q = net(torch.tensor(np.array(s)))[torch.arange(16), torch.tensor(a)]
+            nxt = tgt(torch.tensor(np.array(s2))).max(dim=1).values
+            y = torch.tensor(r, dtype=torch.float32) + (~torch.tensor(d)).float() * 0.9 * nxt
+        self.assertAlmostEqual(tr.train_step(s, a, r, s2, d, m), torch.nn.functional.smooth_l1_loss(q, y).item(), places=5)
+
+
+class Stability(unittest.TestCase):
+    @staticmethod
+    def trainer(**kw):
+        from ReinforcementLearningEnvironment.QTrainer import QTrainer
+        torch.manual_seed(0)
+        net = MLPModel(F, A, hidden=(32,), dropout=0.0)
+        return net, QTrainer(net, MLPModel(F, A, hidden=(32,), dropout=0.0), lr=1e-3, gamma=1.0, **kw)
+
+    @staticmethod
+    def extreme(n=32):
+        # a 200-chip pot at 2 chips a big blind, reward_scale 1: terminal rewards of +/-100
+        rng = np.random.default_rng(1)
+        return ([rng.normal(size=F).astype(np.float32) for _ in range(n)], rng.integers(0, A, n).tolist(),
+                [100.0, -100.0] * (n // 2), [np.zeros(F, np.float32)] * n, [True] * n, [np.zeros(A, np.float32)] * n)
+
+    def test_finite_gradients_and_stats_for_extreme_rewards(self):
+        for kw in ({}, {"loss": "huber"}, {"max_grad_norm": 10.0}):
+            net, tr = self.trainer(**kw)
+            self.assertTrue(np.isfinite(tr.train_step(*self.extreme())))
+            self.assertTrue(all(torch.isfinite(p.grad).all() for p in net.parameters()))
+            self.assertEqual(set(tr.last_stats), {"td_abs_mean", "td_abs_max", "q_abs_max", "grad_norm", "nonfinite"})
+            self.assertTrue(all(np.isfinite(v) for v in tr.last_stats.values()))
+            self.assertEqual(tr.last_stats["nonfinite"], 0)
+            self.assertGreater(tr.last_stats["td_abs_max"], 50)
+
+    def test_nonfinite_values_are_counted(self):
+        net, tr = self.trainer()
+        b = self.extreme()
+        tr.train_step(b[0], b[1], [float("nan")] * len(b[2]), *b[3:])
+        self.assertGreater(tr.last_stats["nonfinite"], 0)
+
+    def test_clipping_bounds_the_gradient_norm(self):
+        net, tr = self.trainer(max_grad_norm=1.0)
+        tr.train_step(*self.extreme())
+        norm = torch.sqrt(sum((p.grad ** 2).sum() for p in net.parameters())).item()
+        self.assertGreater(tr.last_stats["grad_norm"], 1.0)  # the norm before clipping
+        self.assertLessEqual(norm, 1.0 + 1e-5)
+        net, tr = self.trainer()  # no clipping by default
+        tr.train_step(*self.extreme())
+        norm = torch.sqrt(sum((p.grad ** 2).sum() for p in net.parameters())).item()
+        self.assertAlmostEqual(norm, tr.last_stats["grad_norm"], places=3)
+
+    def test_agent_exposes_the_stats(self):
+        ag = DQNAgent(0, MLPModel(F, A, hidden=(8,)), F, loss="huber", max_grad_norm=5.0)
+        for _ in range(4):
+            ag.remember(np.zeros(F, np.float32), 1, 1.0, np.zeros(F, np.float32), True)
+        ag.train_long_memory()
+        self.assertEqual(ag.last_stats, ag.trainer.last_stats)
+        self.assertIsNotNone(ag.last_stats)
 
 
 class SharedSeats(unittest.TestCase):
