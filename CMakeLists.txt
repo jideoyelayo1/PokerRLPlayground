@@ -19,5 +19,15 @@ foreach(t test_hand_eval test_betting eval_exhaustive)
   add_test(NAME ${t} COMMAND ${t})
 endforeach()
 
+# The trained agent (encoding, mask, forward pass). No fused multiply-add, so that the native and
+# WebAssembly builds give the same Q-values bit for bit (web/build.sh passes the same flag).
+add_library(poker_agent STATIC PokerEngine/Agent.cpp)
+target_link_libraries(poker_agent PUBLIC poker_core)
+target_compile_options(poker_agent PRIVATE -ffp-contract=off)
+
+add_executable(test_agent PokerEngine/tests/test_agent.cpp)
+target_link_libraries(test_agent poker_agent)
+add_test(NAME test_agent COMMAND test_agent ${CMAKE_SOURCE_DIR}/weights/demo mlp-s-seed3)
+
 add_executable(bench_engine bench/bench_engine.cpp)
 target_link_libraries(bench_engine poker_core)
