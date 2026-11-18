@@ -61,8 +61,10 @@ Fold is treated as not allowed**, i.e. if `mask[1] == 0` set `mask[0] = -1e9` be
 It was decided after the selection, because the selected agent often folds when it could check
 for free; it is off in training and in the pre-registered evaluation, and it does not change
 which network was selected. Measured on new deals (`bench/RESULTS.md` section 6, *After
-selection*), it is better against the calling and tight bots and, at the point estimate, worse
-against the random bot. The demo page decides whether to use it.
+selection*), it is better against the calling and tight bots; against the random bot there is no
+clear effect (−31 [−62, 1] bb/100 in that run, an interval that includes zero, and a weak pairing,
+since the random bot's choices diverge once the two games do). The demo page decides whether to
+use it.
 
 ## Parity records
 

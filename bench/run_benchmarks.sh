@@ -5,8 +5,9 @@
 #   sh bench/run_benchmarks.sh demo       # the demo agents (bench/SELECTION.md): train, evaluate,
 #                                         # select and export (4.8 hours of training with JOBS=6 here,
 #                                         # under heavy load from another job). Runs already in
-#                                         # weights/runs and cells in bench/raw/demo_cells are reused:
-#                                         # delete them, or set NO_CACHE=1, to train/evaluate afresh.
+#                                         # weights/runs are reused: delete weights/runs/<run> to
+#                                         # retrain it. Cells in bench/raw/demo_cells are reused too:
+#                                         # NO_CACHE=1 recomputes the evaluation only (no retraining).
 set -e
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release >/dev/null
 cmake --build build >/dev/null

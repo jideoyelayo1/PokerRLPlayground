@@ -1,4 +1,4 @@
-# commit 2c6cf03 + the no_free_fold option committed with this file, load average before: { 11.13 14.57 14.03 }
+# commit 4aa24d6, load average before: { 12.25 23.07 19.82 }
 # python bench/confirm_demo.py --seed 13000 --deals 40000 --jobs 6 --no-free-fold both --out demo_no_free_fold   (new deals; seed 13000 used nowhere else)
 40,000 duplicate deals per cell from seed 13000. bb/100 [95% CI over deals].
 
@@ -15,4 +15,4 @@ mlp-s-seed3 vs tight, no_free_fold off: 360,413 decisions, 42,360 folds played; 
 mlp-s-seed3 vs random, no_free_fold on: 326,416 decisions, 125,641 folds played; the network chose a fold with check legal 2,681 times (0.8% of decisions)
 mlp-s-seed3 vs call, no_free_fold on: 535,444 decisions, 33,391 folds played; the network chose a fold with check legal 108,424 times (20.2% of decisions)
 mlp-s-seed3 vs tight, no_free_fold on: 385,923 decisions, 23,004 folds played; the network chose a fold with check legal 35,023 times (9.1% of decisions)
-# load average after: { 14.69 15.40 14.50 }
+# load average after: { 31.73 35.46 26.49 }
