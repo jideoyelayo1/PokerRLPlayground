@@ -7,9 +7,11 @@
 //
 // Numbers cross as doubles. Arguments arrive as val and are checked for their JavaScript type, not
 // coerced: act() takes a string, and anything else (a number, null, a String object) is an unknown
-// action; decideObservation() takes a string and a boolean. The only call that throws is the Table
-// constructor, with a TypeError, when the seed is not a whole number from 0 to 2^53 - 1. Built with
-// -fexceptions, so an unexpected C++ exception reaches JavaScript as an exception, not an abort.
+// action; decideObservation() takes a string and a boolean. Missing arguments arrive as undefined
+// and extra ones are ignored (embind). Only the Table constructor throws: a TypeError when the seed
+// is not a whole number from 0 to 2^53 - 1, embind's BindingError when it is given no argument (as
+// for any call on a deleted Table). Built with -fexceptions, so an unexpected C++ exception reaches
+// JavaScript as an exception, not an abort.
 #include "Table.hpp"
 
 #include <emscripten/bind.h>

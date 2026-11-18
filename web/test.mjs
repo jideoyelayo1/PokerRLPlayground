@@ -232,6 +232,12 @@ if (calling.status === 0) {
     if (threw !== 'TypeError') fail(`new Table(${typeof seed} ${String(seed)}) did not throw a TypeError (${threw || 'no exception'})`);
   }
   for (const seed of [0, 2 ** 53 - 1]) new M.Table(seed).delete();
+  try {
+    new M.Table().delete();
+    fail('new Table() did not throw');
+  } catch (e) {
+    if (e?.name !== 'BindingError') fail(`new Table() threw ${e?.name}, expected embind's BindingError`);
+  }
   const o = JSON.parse(readFileSync(`${ROOT}weights/demo/${RUN}.parity.jsonl`, 'utf8').split('\n')[0]).observation;
   const obs = JSON.stringify(o);
   for (const [label, got] of [
