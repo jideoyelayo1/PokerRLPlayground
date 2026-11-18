@@ -1,8 +1,9 @@
-import os
 import torch
 import torch.nn as nn
 
-class TransformerQModel(nn.Module):
+from .checkpoint import Checkpoint
+
+class TransformerQModel(Checkpoint, nn.Module):
     def __init__(self,
         input_size: int= 1,
         num_actions: int=1,
@@ -11,13 +12,20 @@ class TransformerQModel(nn.Module):
         num_layers: int = 3,
         dim_feedforward: int = 512,
         dropout: float = 0.05,
+        max_len: int = 64,
     ):
+        """max_len bounds the sequence length T (the decisions of one player in one hand); the
+        learned position embedding has max_len rows and forward raises beyond it."""
         super().__init__()
+        self.config = dict(input_size=input_size, num_actions=num_actions, d_model=d_model, nhead=nhead,
+                           num_layers=num_layers, dim_feedforward=dim_feedforward, dropout=dropout, max_len=max_len)
 
         self.input_size = input_size
         self.d_model = d_model
+        self.max_len = max_len
 
         self.in_proj = nn.Linear(input_size, d_model)
+        self.pos = nn.Embedding(max_len, d_model)
 
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=d_model,
@@ -28,71 +36,32 @@ class TransformerQModel(nn.Module):
             activation="relu",
             norm_first=True,
         )
-        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers, enable_nested_tensor=False)
 
         self.out = nn.Linear(d_model, num_actions)
 
-    def forward(self, x) -> torch.Tensor:
+    def forward(self, x, lengths=None) -> torch.Tensor:
         # Accept:
         # 1D: (F,) -> (1, 1, F)
         # 2D: (B, F) -> (B, 1, F)
         # 3D: (B, T, F) -> ok
+        # lengths: for a right-padded batch, each sequence's length; pad positions are masked out of
+        # attention and the output is read at each sequence's last real token. Without it, the last token.
         if x.dim() == 1:
             x = x.unsqueeze(0).unsqueeze(1)
         elif x.dim() == 2:
             x = x.unsqueeze(1)
         elif x.dim() != 3:
             raise ValueError(f"TransformerQModel expected 1D/2D/3D input, got {tuple(x.shape)}")
+        B, T, _ = x.shape
+        if T > self.max_len:
+            raise ValueError(f"sequence length {T} exceeds max_len={self.max_len}; build the model with a larger max_len")
 
-        x = self.in_proj(x)              # (B, T, d_model)
-        h = self.encoder(x)              # (B, T, d_model)
-        h_last = h[:, -1, :]             # (B, d_model)
-        q = self.out(h_last)             # (B, num_actions)
-        return q
-    
-    def save(self, file_name: str = "model.pth"):
-        """
-        Save the model's state dictionary to disk.
-
-        The model parameters are saved to the `./model` directory. If the
-        directory does not exist, it is created automatically.
-
-        Args:
-            file_name (str): Name of the file to save the model state to.
-                Defaults to "model.pth".
-        """
-        model_folder_path = "./model"
-        if not os.path.exists(model_folder_path):
-            os.makedirs(model_folder_path)
-
-        file_name = os.path.join(model_folder_path, file_name)
-        torch.save(self.state_dict(), file_name)
-
-        
-    @classmethod
-    def load(cls, file_name: str = "model.pth", device: str = "cpu"):
-        """
-        Load a model from a saved state dictionary.
-
-        This method instantiates the model using the default constructor,
-        loads the saved parameters, moves the model to the specified device,
-        and sets it to evaluation mode.
-
-        Args:
-            file_name (str): Name of the saved model file located in the
-                `./model` directory. Defaults to "model.pth".
-            device (str): Device to load the model onto (e.g. "cpu", "cuda",
-                "cuda:0"). Defaults to "cpu".
-
-        Returns:
-            nn.Module: The loaded model in evaluation mode.
-        """
-        file_path = os.path.join("./model", file_name)
-
-        model = cls()  # calls __init__
-        state_dict = torch.load(file_path, map_location=device)
-        model.load_state_dict(state_dict)
-        model.to(device)
-        model.eval()
-
-        return model
+        x = self.in_proj(x) + self.pos(torch.arange(T, device=x.device))  # (B, T, d_model)
+        if lengths is None:
+            h = self.encoder(x)[:, -1, :]                                  # (B, d_model)
+        else:
+            lengths = lengths.to(x.device)
+            pad = torch.arange(T, device=x.device)[None, :] >= lengths[:, None]  # True at pad positions
+            h = self.encoder(x, src_key_padding_mask=pad)[torch.arange(B, device=x.device), lengths - 1]
+        return self.out(h)                                                 # (B, num_actions)
