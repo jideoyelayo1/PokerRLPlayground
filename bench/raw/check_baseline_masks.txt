@@ -1,6 +1,6 @@
-# commit 828407d + this script, load average { 11.59 18.10 15.00 }
+# commit b2bf69b (dirty: bench/check_baseline_masks.py, committed together with this file), load average { 19.78 27.67 20.96 }
 # python bench/check_baseline_masks.py --deals 2000 --seed 7000   (agent: the selected demo network)
-random: 43,383 bot decisions; old mask differs from the exact one in 19,734 (45.5%)
-call: 105,177 bot decisions; old mask differs from the exact one in 9,669 (9.2%)
-tight: 43,502 bot decisions; old mask differs from the exact one in 14,093 (32.4%)
+random: 43,383 bot decisions; old mask differs from the exact one in 20,004 (46.1%)
+call: 105,177 bot decisions; old mask differs from the exact one in 9,716 (9.2%)
+tight: 43,502 bot decisions; old mask differs from the exact one in 14,112 (32.4%)
   tight now call where it played raise_half: 12 (0.03% of its decisions)

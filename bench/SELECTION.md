@@ -133,7 +133,7 @@ them, for the same reason.
   size. So they behave as written for an exact mask, not as they did in PR #2's measurements, and
   PR #2's win rates are not comparable with these. `python bench/check_baseline_masks.py`
   (`bench/raw/check_baseline_masks.txt`, 2,000 deals against the selected agent): the old mask
-  would have differed from the exact one in 45.5% of the random bot's decisions (so its choices
+  would have differed from the exact one in 46.1% of the random bot's decisions (so its choices
   are drawn from a different set), 9.2% of the calling bot's (whose choices do not change: it
   never raises) and 32.4% of the tight bot's, whose action changes in 12 of 43,502 decisions (it
   now calls where the old fallback made it raise half the pot).

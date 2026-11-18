@@ -25,26 +25,35 @@ import PokerEngine.poker_engine as pe
 from eval_demo import load
 from train_demo import BB, SB, SEATS, STACK
 from winrate import BOTS, greedy_policy, play_hand
-from ReinforcementLearningEnvironment.TrainingEnvironmentVariables import A_RAISE_BB, A_RAISE_HALF, A_RAISE_POT, ACTION_NAME
+from ReinforcementLearningEnvironment.TrainingEnvironmentVariables import (
+    A_ALLIN, A_CALL, A_CHECK, A_FOLD, A_RAISE_BB, A_RAISE_HALF, A_RAISE_POT, ACTION_NAME)
 
 RAISES = (A_RAISE_BB, A_RAISE_HALF, A_RAISE_POT)
 
 
-def old_mask(mask):
+def old_mask(obs, mask):
+    """The mask before the fix: all three sizes legal whenever the old legalActions allowed a raise,
+    which was stack > 0, max raise-to > the current bet and max raise-to >= min raise-to. That can
+    hold when no single size is legal (every size above the stack), so it is rebuilt from the
+    Raise entries' bounds, not from the exact mask."""
     m = mask.copy()
-    if any(mask[i] == 0.0 for i in RAISES):
+    m[list(RAISES)] = -1e9
+    spec = next(x for x in obs.legal if x.type == pe.ActionType.Raise)
+    if obs.stack[obs.viewer_id] > 0 and spec.max_raise_to > obs.to_call and spec.max_raise_to >= spec.min_raise_to:
         m[list(RAISES)] = 0.0
     return m
 
 
 def old_played(choice, mask):
-    """What the old loop played for a choice made on the old mask (step_with_fallback)."""
+    """What the old loop played for a choice made on the old mask (step_with_fallback): the choice
+    if the engine accepts it, else, for a raise, the first accepted size of BB, half pot, pot, else
+    the first accepted of check, call, all-in, fold."""
     if mask[choice] == 0.0:
         return choice
-    for alt in RAISES:
+    for alt in (RAISES if choice in RAISES else ()) + (A_CHECK, A_CALL, A_ALLIN, A_FOLD):
         if mask[alt] == 0.0:
             return alt
-    return choice  # unreachable: the old mask only added raise sizes when some size was legal
+    return A_FOLD
 
 
 def main():
@@ -61,7 +70,7 @@ def main():
 
         def spy(obs, mask, rng, bot=bot, stats=stats):
             stats["decisions"] += 1
-            om = old_mask(mask)
+            om = old_mask(obs, mask)
             stats["mask_differs"] += bool((om != mask).any())
             if bname == "tight":
                 new, old = bot(obs, mask, rng), old_played(bot(obs, om, rng), mask)
