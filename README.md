@@ -560,6 +560,9 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build && ctest -
 
 - `test_hand_eval`: known answers for every hand category and the main tie-breaks.
 - `test_betting`: betting rounds through the `step()` API: every seat acts, every street closes, chips are conserved; the seat order (button, blinds, who acts first and last on each street, the big blind's option) for 2, 3, 4 and 6 seats, and the button's moves as players bust; every action `legalActions` marks legal is accepted and every other one rejected, raise sizes included.
+- `test_hand_result`: what a table view reads from the engine: `reset_stacks` (stacks reset, the button keeps moving), the hand's action history, each pot's winners and shares, the seats that reached showdown.
+- `test_agent`: the C++ agent (`PokerEngine/Agent.hpp`) against every PyTorch parity record in `weights/demo/`.
+- `test_table`: the browser table (`web/Table.hpp`); see *7) The table in WebAssembly*.
 - `eval_exhaustive`: every 5-card and 7-card hand (133,784,560) against an independent reference evaluator and the published category counts (about a minute on 10 threads).
 
 Python tests (training code, and the exported agents in `weights/demo/`), with the extension built:
@@ -615,6 +618,31 @@ agents, history = train_poker_dqn(
     ma_window=MA_WINDOW,
 )
 ```
+
+### 7) The table in WebAssembly (`web/`)
+
+The browser demo's table, compiled to WebAssembly: the engine, `web/Table.hpp` and the selected agent in C++ (`PokerEngine/Agent.hpp`: the state encoding of [`docs/state_encoding.md`](docs/state_encoding.md), the legal mask and the MLP's forward pass), with the weights compiled in. Needs [emsdk](https://github.com/emscripten-core/emsdk) with Emscripten 6.0.13 (CI checks out emsdk at commit `35659964bc2762fffec0d257997fb61475f765b7`, its tag `6.0.13`) and Node. From the repository root:
+
+```bash
+source path/to/emsdk/emsdk_env.sh
+web/build.sh                         # web/dist/poker.mjs, poker.wasm, BUILD.txt, SHA256SUMS
+cmake --build build --target replay_driver
+node web/test.mjs                    # against PyTorch's parity records and the native build
+```
+
+`web/build.sh` calls `em++` directly (C++20, `-O2`, single-threaded, no filesystem, an ES module for browsers and Node) and stops if `weights/demo/<run>.bin` does not have the sha256 in its manifest. With Emscripten 6.0.13 the module is 56,471 bytes of JavaScript and 460,190 of WebAssembly (14,030 and 241,999 gzipped); nothing is fetched at run time. `web/dist/` is not committed: a `v*` tag on a commit on `main` makes CI attach the files to a GitHub Release.
+
+**What it exposes.** `new Table(seed)`, `startHand()`, `act(action)` for the visitor, `advance()` for one agent decision, `view()` and `delete()`; `Table.format()`; `decideObservation(json, noFreeFold)`, the network's decision for one observation. `view()` is the visitor's view: the board, pot, each seat's stack, contributions and status, the button and blinds, whose turn it is, the visitor's own cards and legal actions with their amounts, the hand's log and, at the end, each pot's winners and shares, each seat's result and the cards of the seats that reached showdown (never an agent's cards before that, nor a folded seat's). Refused calls return an error code and change nothing; only the constructor throws (a `TypeError` for a seed that is not a whole number from 0 to 2^53 − 1).
+
+**Format and agents.** The format of the agents' measurements, 4 seats, blinds 1/2 and every stack reset to 200 (100 big blinds) before each hand, with the button moving one seat per hand (in the measurements it stayed on seat 0). The visitor plays seat 0; the other three seats are the saved network `mlp-s-seed3` ([`weights/`](weights/README.md)) with the play-time option `no_free_fold` on (if checking is free, it does not fold). With the rule on, on 40,000 duplicate deals against three copies of each baseline, it won +365 [338, 392] bb/100 against random bots, +357 [340, 375] against calling bots and +27 [23, 32] against tight bots ([`bench/RESULTS.md`](bench/RESULTS.md), section 6, *After selection*). The rule was decided after the agent was selected and is not part of the pre-registered evaluation.
+
+**Tests.** `test_agent` and `web/test.mjs` run every parity record (2,674) through the native and the WebAssembly agent: the same state vector and mask, Q-values within 1e-5 of PyTorch's (largest difference 8.3e-7) and the same action with the rule off and on in every record. `web/test.mjs` also replays 5,000 seeded hands with a scripted visitor through the WebAssembly table and through the native build (`web/replay_driver.cpp`) and requires identical output: the WebAssembly build deals the same cards for a seed as the macOS build (both use libc++'s `std::shuffle`).
+
+**Known limits.**
+- The agents were measured only against the three baselines, not against people, and always with the button on seat 0 (their input is relative to the button, but a moving button was not measured).
+- Hands can be long: the agents re-raise each other by one big blind many times. In the 5,000-hand replay a hand took a median of 12 decisions and up to 160 (159 by the agents); a hand reaching 2,000 decisions, the training loop's cap, would be aborted.
+- The same seed is only known to give the same deals with the same C++ standard library (the engine shuffles with `std::shuffle`); a native build with another one, such as libstdc++, may deal differently (not checked).
+- The engine's simplified rules apply (top of this README): three raise sizes and all-in, and an all-in for less than a full raise reopens the betting for players who have already acted.
 
 ## Results
 

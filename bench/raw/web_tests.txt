@@ -1,0 +1,46 @@
+# commit b8c3582, Apple M1 Pro, Darwin 27.0.0, Apple clang version 21.0.0 (clang-2100.3.34.2), cmake 4.4.0, node v26.5.0 (Homebrew's; emsdk_env.sh leaves it first on PATH); tracked files outside bench/raw as committed
+# load average before: { 4.40 6.63 10.71 }
+# cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build && ctest --test-dir build --output-on-failure
+1/6 Test #1: test_hand_eval ...................   Passed    0.00 sec
+2/6 Test #2: test_betting .....................   Passed    1.84 sec
+3/6 Test #3: test_hand_result .................   Passed    0.55 sec
+4/6 Test #4: eval_exhaustive ..................   Passed   66.96 sec
+5/6 Test #5: test_agent .......................   Passed    0.21 sec
+6/6 Test #6: test_table .......................   Passed    1.13 sec
+100% tests passed out of 6
+
+Total Test time (real) =  70.70 sec
+# ./build/test_hand_result
+hand results, 20000 hands: 6690 fold wins, 13310 showdowns, 7693 with side pots, 949 split pots
+test_hand_result: 250 checks, 0 failures
+# ./build/test_agent weights/demo
+parity: 2674 records; state differs in 0, mask in 0; largest |q - q_torch| 8.34e-07 (tolerance 1e-05, over it in 0); action differs in 0 (no_free_fold off) and 0 (on); the rule changes the action in 65; smallest gap between the two highest legal Q-values 1.53e-05
+test_agent: 5355 checks, 0 failures
+# ./build/test_table weights/demo
+hidden cards: 31546 views over 2,000 hands, 1083 with a showdown, 3894 agent folds
+refusals: 14216 out of turn, 1015 illegal, 3545 unknown, 709 advance on the visitor's turn, 300 after the hand
+test_table: 24767 checks, 0 failures
+# web/build.sh
+emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.13 (e13ee988ce3d87a738dd8f3661d02223308c412a)
+source commit: b8c358290f6c726660aa0f7c2dd1bcfbbdd92fd4
+weights: weights/demo/mlp-s-seed3.bin, sha256 c6d70e3c0b18b79c72218d5a1f814a782562552effc6dca1b40c95504aafa8d4 (as in weights/demo/mlp-s-seed3.json)
+command: em++ -std=c++20 -O2 -fexceptions -ffp-contract=off -Wno-c23-extensions -I PokerEngine -I web -DPOKER_MANIFEST="../weights/demo/mlp-s-seed3.json" -DPOKER_WEIGHTS="../weights/demo/mlp-s-seed3.bin" -lembind -sMODULARIZE -sEXPORT_ES6 -sENVIRONMENT=web,node -sALLOW_MEMORY_GROWTH -sFILESYSTEM=0 web/poker_wasm.cpp PokerEngine/Agent.cpp PokerEngine/GameEngine.cpp PokerEngine/Player.cpp -o web/dist/poker.mjs
+poker.mjs: 56471 bytes (gzip -9: 14030 bytes)
+poker.wasm: 460190 bytes (gzip -9: 241999 bytes)
+# node web/test.mjs
+parity: 2674 records; same action as PyTorch, rule off and on, in 2674; largest |q - q_torch| 8.34e-7 (tolerance 0.00001); Q-values bit-identical to the native build's in 2674
+replay: 5000 hands from seed 20261118, visitor mulberry32(1) uniform over its legal actions; 81088 lines, identical to the native driver's; 7.2 s in WebAssembly
+  showdowns 2635, aborted 0; chips won per seat -67335 34648 15452 17235
+  actions, all seats: {"call":17547,"raise_bb":24873,"fold":11940,"raise_half":1866,"allin":3272,"check":8526,"raise_pot":3064}
+  actions, visitor: {"call":1509,"raise_half":1617,"allin":2241,"raise_bb":1903,"fold":2163,"raise_pot":1942,"check":644}
+  decisions per hand, all seats: min 3, median 12, mean 14.2, 90th percentile 21, 99th 95, max 160
+  decisions per hand, agents: min 2, median 9, mean 11.8, 90th percentile 17, 99th 94, max 159
+a calling visitor (native driver, same deals): decisions per hand, all seats: min 4, median 16, mean 20.6, 90th percentile 29, 99th 121, max 161
+  agents: min 3, median 10, mean 13.8, 90th percentile 20, 99th 83, max 113; aborted 0
+binding: 2968 out-of-turn and 1490 illegal actions refused with the view unchanged; wrong argument types refused
+PASS: parity records, replay identical to the native build, totals as pinned, hidden cards and refusals as expected
+# load average after: { 11.02 9.25 11.38 }
+# web/dist/SHA256SUMS
+6353c1249dd39d68a44c8c86870beaf34bbe604bc3c307a7251d31fa81e18d90  poker.mjs
+90c57aad9d0e9617fc8ec59a77f146d8dd0f5d87751f85ad00b31e3c71963a90  poker.wasm
+24304a7471168e986c01f8072cb307fcc913083a432794976ced524ba39c29c9  BUILD.txt
