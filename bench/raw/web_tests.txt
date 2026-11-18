@@ -1,17 +1,17 @@
-# commit 09a6696, Apple M1 Pro, Darwin 27.0.0, Apple clang version 21.0.0 (clang-2100.3.34.2), cmake 4.4.0, node v26.5.0
+# commit 9a4a878, Apple M1 Pro, Darwin 27.0.0, Apple clang version 21.0.0 (clang-2100.3.34.2), cmake 4.4.0, node v26.5.0
 # sh bench/web_tests.sh; paths are shown relative to the repository
-# load average before: { 5.87 5.80 8.40 }
+# load average before: { 19.89 38.44 30.62 }
 # cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build && ctest --test-dir build --output-on-failure
 1/7 Test #1: test_hand_eval ...................   Passed    0.00 sec
-2/7 Test #2: test_betting .....................   Passed    1.91 sec
-3/7 Test #3: test_hand_result .................   Passed    0.61 sec
-4/7 Test #4: eval_exhaustive ..................   Passed   92.95 sec
+2/7 Test #2: test_betting .....................   Passed    1.88 sec
+3/7 Test #3: test_hand_result .................   Passed    0.82 sec
+4/7 Test #4: eval_exhaustive ..................   Passed  234.04 sec
 5/7 Test #5: test_json ........................   Passed    0.00 sec
-6/7 Test #6: test_agent .......................   Passed    0.24 sec
-7/7 Test #7: test_table .......................   Passed    2.46 sec
+6/7 Test #6: test_agent .......................   Passed    0.21 sec
+7/7 Test #7: test_table .......................   Passed    2.72 sec
 100% tests passed out of 7
 
-Total Test time (real) =  98.17 sec
+Total Test time (real) = 239.68 sec
 # ./build/test_json
 test_json: 28 checks, 0 failures
 # ./build/test_hand_result
@@ -28,15 +28,15 @@ internal errors: 50 forced, then 20 of 20 hands played to a result
 test_table: 30005 checks, 0 failures
 # web/build.sh
 emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.13 (e13ee988ce3d87a738dd8f3661d02223308c412a)
-source commit: 09a6696ac98d22f640167889ecd28f5b6dea09b7
+source commit: 9a4a8781ea9bfbe4de5dba4222b6eeb3f6b47ecf
 weights: weights/demo/mlp-s-seed3.bin, sha256 c6d70e3c0b18b79c72218d5a1f814a782562552effc6dca1b40c95504aafa8d4 (as in weights/demo/mlp-s-seed3.json)
 command: em++ -std=c++20 -O2 -fexceptions -ffp-contract=off -Wno-c23-extensions -I PokerEngine -I web -DPOKER_MANIFEST="../weights/demo/mlp-s-seed3.json" -DPOKER_WEIGHTS="../weights/demo/mlp-s-seed3.bin" -lembind -sMODULARIZE -sEXPORT_ES6 -sENVIRONMENT=web,node -sALLOW_MEMORY_GROWTH -sFILESYSTEM=0 --post-js web/post.js web/poker_wasm.cpp PokerEngine/Agent.cpp PokerEngine/GameEngine.cpp PokerEngine/Player.cpp -o web/dist/poker.mjs
-poker.mjs: 56484 bytes (gzip -9: 14152 bytes)
+poker.mjs: 56505 bytes (gzip -9: 14155 bytes)
 poker.wasm: 452901 bytes (gzip -9: 239835 bytes)
 # node web/test.mjs
 parity: 2674 records; same action as PyTorch, rule off and on, in 2674; largest |q - q_torch| 8.34e-7 (tolerance 0.00001); Q-values bit-identical to the native build's in 2674
 refusals: 100,000 each of refused constructions, calls before a hand, calls during a hand (startHand, advance, unknown and illegal act) on both modules, and refused observations on the test module; stack pointer 244400 before, 244400 after
-replay: 5000 hands from seed 20261118, visitor mulberry32(1) uniform over its legal actions; 81088 lines, identical to the native driver's; 8.2 s in WebAssembly
+replay: 5000 hands from seed 20261118, visitor mulberry32(1) uniform over its legal actions; 81088 lines, identical to the native driver's; 84.3 s in WebAssembly
   showdowns 2635, aborted 0; chips won per seat -67335 34648 15452 17235
   actions, all seats: {"call":17547,"raise_bb":24873,"fold":11940,"raise_half":1866,"allin":3272,"check":8526,"raise_pot":3064}
   actions, visitor: {"call":1509,"raise_half":1617,"allin":2241,"raise_bb":1903,"fold":2163,"raise_pot":1942,"check":644}
@@ -46,10 +46,10 @@ a calling visitor (native driver, same deals): decisions per hand, all seats: mi
   agents: min 3, median 10, mean 13.8, 90th percentile 20, 99th 83, max 113; aborted 0
 internal errors: 20 forced through the test seam, each { ok: false, error: 'internal_error', message, over: true, toAct: -1 }; the table played on
 binding: 2968 out-of-turn and 1490 illegal actions refused with the view unchanged; wrong argument types refused
-out of memory: 704734 live Tables, then new Table threw RangeError "Table: out of memory; delete() Tables that are no longer used and try again"; after deleting them a new Table played a hand
+out of memory: 704734 live Tables, then new Table threw RangeError "Table: out of memory; delete() Tables that are no longer used and try again", and a construction through the embind class failed; after deleting them a new Table played a hand
 PASS: parity records, replay identical to the native build, totals as pinned, hidden cards and refusals as expected
-# load average after: { 13.60 10.09 9.82 }
+# load average after: { 48.29 48.05 35.87 }
 # web/dist/SHA256SUMS
-c6451fb9a47e108163f921e4330791fbf12f93b9adde798c7cd83df56bb03ae9  poker.mjs
+3886c845045aac58a8c2724f2a3228846262a2f4f6bc74481b0f08cc05c65acb  poker.mjs
 a9f2467ac4d9b74463c67bc23be6c96944b7e3fd28cae8b5514048c62d560a03  poker.wasm
-7343d585406b9f78c358daa8ed27717d04cce102565b41c7fce872e428728782  BUILD.txt
+8992e17d6bdd0453c2517f83182fc9b3119cbf8b6afaec2d316e970d66ef8455  BUILD.txt
