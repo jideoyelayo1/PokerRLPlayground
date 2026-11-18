@@ -6,8 +6,11 @@ plays greedily in the demo format (4 seats, stacks 200, blinds 1/2, reset every 
 three copies of each baseline, with bench/winrate.py's duplicate deals: EVAL_DEALS deals from
 EVAL_SEED, each played 4 times with the agent in every seat. The random bot in the agent's seat
 is the control. Writes bench/raw/demo_eval.json (every cell) and bench/raw/demo_table.md.
+A cell already in bench/raw/demo_cells/ with the same model.pt, deals and seed is reused, so on a
+clone with the committed cells nothing is recomputed; --no-cache recomputes (and rewrites) every
+cell.
 
-    python bench/eval_demo.py --jobs 5
+    python bench/eval_demo.py --jobs 5 [--no-cache]
 """
 import argparse
 import hashlib
@@ -42,10 +45,10 @@ def load(run):
 
 
 def cell(job):
-    run, bname, deals = job
+    run, bname, deals, no_cache = job
     path = CELLS / f"{run}_{bname}.json"
     sha = None if run == "random-bot" else hashlib.sha256((RUNS / run / "model.pt").read_bytes()).hexdigest()
-    if path.exists():
+    if path.exists() and not no_cache:
         c = json.loads(path.read_text())
         if (c.get("model_sha256"), c["deals"], c["seed"]) == (sha, deals, EVAL_SEED):
             return c
@@ -88,9 +91,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--jobs", type=int, default=1)
     ap.add_argument("--deals", type=int, default=EVAL_DEALS)
+    ap.add_argument("--no-cache", action="store_true", help="recompute every cell")
     a = ap.parse_args()
     runs = sorted(p.parent.name for p in RUNS.glob("*/run.json"))
-    jobs = [(r, b, a.deals) for r in runs + ["random-bot"] for b in BOTS]
+    jobs = [(r, b, a.deals, a.no_cache) for r in runs + ["random-bot"] for b in BOTS]
     t0 = time.time()
     with Pool(a.jobs) as pool:
         cells = pool.map(cell, jobs, chunksize=1)

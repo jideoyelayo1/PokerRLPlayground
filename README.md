@@ -578,7 +578,7 @@ The agents for the browser demo (4 seats, 100 big blinds, stacks reset every han
 JOBS=6 sh bench/run_benchmarks.sh demo
 ```
 
-It runs `bench/train_demo.py --all` (every candidate and seed in [`bench/SELECTION.md`](bench/SELECTION.md) whose `weights/runs/<run>/run.json` is not there yet, `JOBS` at a time), `bench/eval_demo.py` (evaluation and the selection rule), `bench/confirm_demo.py` (the selected agents again, on fresh deals), `bench/export_weights.py` and the Python tests. The weights, their format and how to play one decision with them: [`weights/README.md`](weights/README.md). The state vector: [`docs/state_encoding.md`](docs/state_encoding.md). Results: [`bench/RESULTS.md`](bench/RESULTS.md), section 6.
+It runs `bench/train_demo.py --all` (every candidate and seed in [`bench/SELECTION.md`](bench/SELECTION.md) whose `weights/runs/<run>/run.json` is not there yet, `JOBS` at a time), `bench/eval_demo.py` (evaluation and the selection rule), `bench/confirm_demo.py` (the selected agents again, on fresh deals), `bench/export_weights.py` and the Python tests. On a clone, the committed runs (`weights/runs/`) and evaluation cells (`bench/raw/demo_cells/`) are reused, so nothing is retrained or re-evaluated: delete `weights/runs/<run>/` to retrain a run, and run with `NO_CACHE=1` (or `python bench/eval_demo.py --no-cache`) to recompute every evaluation cell. The weights, their format and how to play one decision with them: [`weights/README.md`](weights/README.md). The state vector: [`docs/state_encoding.md`](docs/state_encoding.md). Results: [`bench/RESULTS.md`](bench/RESULTS.md), section 6.
 
 ### 6) Run training / experiments (Jupyter)
 
