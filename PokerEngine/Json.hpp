@@ -26,11 +26,12 @@ struct Json {
     }
     const Json& operator[](size_t i) const { return array.at(i); }
     size_t size() const { return type == Type::Object ? object.size() : array.size(); }
-    // A whole number that fits an int; anything else (true, 1.5, "1") throws.
+    // A whole number that fits an int (true and false read as 1 and 0); anything else (1.5, "1",
+    // NaN, infinity, 1e300) throws. The range is checked before the cast, which is undefined outside it.
     int integer() const {
         if (type == Type::Bool) return boolean;
-        if (type != Type::Number || number != static_cast<double>(static_cast<long long>(number)) ||
-            number < -2147483648.0 || number > 2147483647.0)
+        if (type != Type::Number || !(number >= -2147483648.0 && number <= 2147483647.0) ||
+            number != static_cast<double>(static_cast<int>(number)))
             throw std::runtime_error("JSON: not an integer");
         return static_cast<int>(number);
     }
