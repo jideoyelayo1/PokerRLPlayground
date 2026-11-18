@@ -70,16 +70,26 @@ One JSON object per line:
 
 | field | content |
 |---|---|
-| `baseline` | the baseline the agent was playing (three copies of it) |
-| `hand` | hand number within that baseline's evaluation play |
+| `baseline` | the baseline at the table |
+| `agents` | 1: the agent in one seat, three copies of the baseline (the evaluation's setting); 3: three copies of the agent and one baseline, which stands in for the visitor (the demo's setting) |
+| `hand` | hand number within that (agents, baseline) play |
 | `observation` | the raw `Observation` at the decision: every field, cards as `[rank, suit]` (rank 2–14, suit 1 hearts, 2 diamonds, 3 clubs, 4 spades; `[0, 0]` empty), `legal` as a list of `{type, raise_size, raise_to, call_amount, min_raise_to, max_raise_to, allowed}` with `type` 0 fold, 1 check, 2 call, 3 raise, 4 all-in and `raise_size` 0 big blind, 1 half pot, 2 pot |
 | `state` | `encode_observation(observation)`, 151 float32 values |
 | `history` | GRU only: the earlier decisions of the same seat in the same hand, oldest first, each `{observation, state}`; the network input is the `history` states followed by `state`. Empty for an MLP |
 | `mask` | the legal mask (7 values) |
 | `q` | the PyTorch network's output (7 float32 values) |
 | `action` | the action index played, `argmax(q + mask)` |
-| `action_no_free_fold` | the action with the play-time option `no_free_fold`: `argmax(q + mask′)`, where `mask′` is `mask` with fold set to −1e9 if check is legal (differs from `action` in 47 of the 1,213 records against the baselines) |
+| `action_no_free_fold` | the action with the play-time option `no_free_fold`: `argmax(q + mask′)`, where `mask′` is `mask` with fold set to −1e9 if check is legal (differs from `action` in 47 of the 1,213 records with `agents` 1 and 18 of the 1,461 with `agents` 3) |
+
+`mlp-s-seed3.parity.jsonl` has 2,674 records: 1,213 with `agents` 1 (about 400 per baseline, from
+the first evaluation deals) and 1,461 with `agents` 3 (from the same deals, the baseline taking
+each seat in turn). The `agents` 3 records cover the demo's own situation and short stacks within
+a hand: 135 of them are decisions with the agent's stack under 50 big blinds, against 12 with
+`agents` 1. Every street is covered.
 
 Every float is printed so that it parses back to the same float32. Recomputing `q` with another
 BLAS or another implementation of the same arithmetic can differ in the last bits; the test
-allows 1e-5.
+allows 1e-5. **A parity test must also require the same chosen action, not only close Q-values:**
+the smallest gap between the two highest legal entries of `q + mask` is 1.5e-5 (1.9e-5 among the
+`agents` 1 records), and 9 records have a gap under 1e-4, so a last-bit difference can change the
+argmax.

@@ -113,27 +113,33 @@ def forward_doc(cls):
 
 
 def parity(run, model, seq, n):
-    """Decision points from evaluation play: the first deals of the evaluation seed, against each
-    baseline in turn, every decision of the agent, until n are recorded (n/3 per baseline)."""
+    """Decision points from evaluation play, from the first deals of the evaluation seed, every
+    decision of the agent until n/3 per baseline are recorded: first with the agent in one seat
+    and three copies of a baseline (agents=1), then with three copies of the agent and one
+    baseline (agents=3, the demo's setting: the baseline stands in for the visitor), the baseline
+    taking each seat in turn."""
     rows = []
-    for bname, bot in BOTS.items():
-        rec = []
-        pol = greedy_policy(model, seq, record=rec)
-        g = pe.GameEngine(SEATS, STACK, BB, SB)
-        rng = random.Random(EVAL_SEED)
-        d = 0
-        while len(rec) < n // len(BOTS):
-            for seat in range(SEATS):
-                g.seed(EVAL_SEED * 1_000_003 + d)  # as winrate.evaluate
-                play_hand(g, [pol if i == seat else bot for i in range(SEATS)], rng, STACK)
-            d += 1
-        for r in rec:
-            *prev, cur = r["observations"]
-            x = r["input"] if seq else r["input"][None]
-            rows.append({"baseline": bname, "hand": r["hand"], "observation": obs_dict(cur), "state": f32(x[-1]),
-                         "history": [{"observation": obs_dict(o), "state": f32(s)} for o, s in zip(prev, x[:-1])] if seq else [],
-                         "mask": f32(r["mask"]), "q": f32(r["q"]), "action": r["action"],
-                         "action_no_free_fold": r["action_no_free_fold"]})
+    for agents in (1, 3):
+        for bname, bot in BOTS.items():
+            rec = []
+            pol = greedy_policy(model, seq, record=rec)
+            g = pe.GameEngine(SEATS, STACK, BB, SB)
+            rng = random.Random(EVAL_SEED)
+            d = 0
+            while len(rec) < n // len(BOTS):
+                for seat in range(SEATS):
+                    g.seed(EVAL_SEED * 1_000_003 + d)  # as winrate.evaluate
+                    pols = [pol if (i == seat) == (agents == 1) else bot for i in range(SEATS)]
+                    play_hand(g, pols, rng, STACK)
+                d += 1
+            for r in rec:
+                *prev, cur = r["observations"]
+                x = r["input"] if seq else r["input"][None]
+                rows.append({"baseline": bname, "agents": agents, "hand": r["hand"], "observation": obs_dict(cur),
+                             "state": f32(x[-1]),
+                             "history": [{"observation": obs_dict(o), "state": f32(s)} for o, s in zip(prev, x[:-1])] if seq else [],
+                             "mask": f32(r["mask"]), "q": f32(r["q"]), "action": r["action"],
+                             "action_no_free_fold": r["action_no_free_fold"]})
     with open(DEMO / f"{run}.parity.jsonl", "w") as f:
         for row in rows:
             f.write(json.dumps(row) + "\n")
