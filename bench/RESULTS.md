@@ -1,7 +1,7 @@
 # Measurements
 
 Every number here comes from a command in this repository. Raw output is in `bench/raw/`.
-Re-run: `sh bench/run_benchmarks.sh` (tests and throughput), `sh bench/run_benchmarks.sh winrate` (the 2,000-hand training and win rate of section 5) `sh bench/run_benchmarks.sh demo` (the demo agents, section 6) and `sh bench/run_benchmarks.sh figures` (the README's figures, section 7).
+Re-run: `sh bench/run_benchmarks.sh` (tests and throughput), `sh bench/run_benchmarks.sh winrate` (the 2,000-hand training and win rate of section 5), `sh bench/run_benchmarks.sh demo` (the demo agents, section 6) and `sh bench/run_benchmarks.sh figures` (the README's figures, section 7).
 
 **Code measured.** Section 6 (the demo agents) and the checks in section 2c were measured on this branch (`train/demo-agents`), after the training-loop fixes listed in 2c; each raw file names its commit. Sections 1, 3, 4 and 5 were measured on commit 2a3e3df, which gives the engine the standard hold'em seat order (section 2a), with one run of `sh bench/run_benchmarks.sh winrate`; section 5 is superseded by section 6 (it describes the training loop before those fixes, at 5,000-big-blind stacks). The numbers in earlier versions of this file (in the git history, up to commit 2c79230) were measured with the engine's old, non-standard seat order, and are not comparable cell for cell. Sections 2 and 2b describe faults found and fixed on older code (2b's check was run again on 2a3e3df); the seed-2 rerun in section 4 was not repeated. Section 7 was measured on `bench/regenerate-figures`; its raw file names its commit.
 
