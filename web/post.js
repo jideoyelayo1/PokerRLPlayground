@@ -17,9 +17,13 @@
     if (networkError) throw new Error(`Table: the network did not load: ${networkError}`);
     if (typeof seed !== 'number' || !Number.isSafeInteger(seed) || seed < 0)
       throw new TypeError('Table: the seed must be a whole number from 0 to 2^53 - 1');
+    // cleared first: a failed construction through the embind class (below), which this check
+    // bypasses, leaves it set, and the next Table would be dropped with a spurious RangeError
+    constructionFailed();
     const table = new Raw(seed);
     // out of memory: the C++ constructor returned a null pointer, and every method of that object
-    // would throw embind's BindingError
+    // would throw embind's BindingError (only that sets the flag, cleared just above: a Table that was
+    // built is never dropped here)
     if (constructionFailed())
       throw new RangeError('Table: out of memory; delete() Tables that are no longer used and try again');
     return table;

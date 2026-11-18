@@ -191,8 +191,8 @@ val format() {
 
 }  // namespace
 
-// Set when the constructor could not allocate a Table and returned a null pointer; web/post.js reads
-// and clears it (_constructionFailed) after each construction and throws its own error.
+// Set when the constructor could not allocate a Table and returned a null pointer; web/post.js clears
+// it (_constructionFailed) before each construction and reads it after, and throws its own error.
 bool constructionFailed = false;
 
 // Only once _networkError() is empty, which web/post.js checks before any Table is made.
