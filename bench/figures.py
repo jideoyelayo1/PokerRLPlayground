@@ -48,7 +48,7 @@ from train_demo import RUNS, SEATS, STACK
 from winrate import BOTS, greedy_policy, play_hand
 
 AGENT = "mlp-s-seed3"
-# Chosen before any of these hands were played, and used by nothing else (training 0-3, 11 and
+# Chosen before any result was seen, and used by nothing else (training 0-3, 11 and
 # 101-104, validation 5000, evaluation 7000, confirmation 9000 and 13000, web replay 20261118).
 SEED, HANDS = 17000, 250_000  # a suited class (4 of 1,326 combinations) gets about 3,000 seat-hands
 EQ_SEED, EQ_TRIALS = 17001, 50_000
