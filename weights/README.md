@@ -1,7 +1,7 @@
 # Trained agents
 
 Trained by `bench/train_demo.py` under the rules in [`bench/SELECTION.md`](../bench/SELECTION.md),
-evaluated by `bench/eval_demo.py` (results in [`bench/RESULTS.md`](../bench/RESULTS.md), section 7),
+evaluated by `bench/eval_demo.py` (results in [`bench/RESULTS.md`](../bench/RESULTS.md), section 6),
 exported by `bench/export_weights.py`.
 
 ## Layout
