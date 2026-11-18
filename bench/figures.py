@@ -257,7 +257,7 @@ def plot_fig1(rows):
 
 def plot_fig2(rows):
     fig, axes = plt.subplots(1, 3, figsize=(12, 5.2), sharex=True)
-    runs = sorted({r["run"] for r in rows}, key=lambda x: x == AGENT)  # the selected run drawn last
+    runs = sorted({r["run"] for r in rows}, key=lambda x: (x == AGENT, x))  # a total order; the selected run last
     for ax, b in zip(axes, BOTS):
         for run in runs:
             pts = [r for r in rows if r["run"] == run and r["baseline"] == b]
