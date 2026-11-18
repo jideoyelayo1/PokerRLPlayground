@@ -121,8 +121,10 @@ def main():
     for r in runs:
         m = metas[r]
         last = json.loads((RUNS / r / "log.jsonl").read_text().splitlines()[-1])
-        lines.append(f"| {r} | {m['hands']:,} | {m['wall_s'] / 60:.0f} min | {m['cpu_s'] / 3600:.2f} h | "
-                     f"{m['hands'] / m['wall_s']:.0f} | {last.get('decisions_per_hand', float('nan')):.1f} | "
+        done = m.get("hands_trained", m["hands"])  # a run stopped at the time budget trained fewer
+        lines.append(f"| {r} | {done:,}{' of ' + format(m['hands'], ',') + ' (stopped)' if m.get('stopped') else ''} | "
+                     f"{m['wall_s'] / 60:.0f} min | {m['cpu_s'] / 3600:.2f} h | "
+                     f"{done / m['wall_s']:.0f} | {last.get('decisions_per_hand', float('nan')):.1f} | "
                      f"{m['kept_checkpoint_hands']:,} | {m['kept_val_score']:,.0f} |")
     lines += ["", "Seats: " + (f"{seats[0]} in all three (clearly best)" if clearly else ", ".join(seats)) + ".",
               "Beats each baseline (lower end of the 95% interval above 0): "
