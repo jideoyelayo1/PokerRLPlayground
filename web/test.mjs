@@ -1,4 +1,6 @@
-// Tests of the WebAssembly module (web/dist, from web/build.sh), with Node built-ins only:
+// Tests of the WebAssembly module (web/dist, from web/build.sh), with Node built-ins only. Sections
+// 2-4 run against the release module itself; section 1 needs decideObservation, which only the test
+// module (build/wasm-test/poker_test.mjs: the release sources plus web/test_hooks.cpp) has.
 // 1. every parity record (weights/demo/<run>.parity.jsonl) through the compiled agent: the same
 //    state, mask and chosen action as PyTorch with no_free_fold off and on, Q within 1e-5, and Q
 //    bit-identical to the native build's (replay_driver q);
@@ -15,6 +17,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import createModule from './dist/poker.mjs';
+import createTestModule from '../build/wasm-test/poker_test.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const driver = process.argv[2] ?? `${ROOT}build/replay_driver`;
@@ -28,7 +31,9 @@ let failures = 0;
 const fail = (message) => {
   if (++failures <= 20) console.error(message);
 };
-const M = await createModule();
+const M = await createModule(); // the release module
+const T = await createTestModule(); // the test module
+if ('decideObservation' in M) fail('the release module must not have decideObservation');
 
 // 1. parity records
 {
@@ -38,8 +43,8 @@ const M = await createModule();
   let matched = 0;
   for (const [i, line] of lines.entries()) {
     const r = JSON.parse(line);
-    const off = M.decideObservation(JSON.stringify(r.observation), false);
-    const on = M.decideObservation(JSON.stringify(r.observation), true);
+    const off = T.decideObservation(JSON.stringify(r.observation), false);
+    const on = T.decideObservation(JSON.stringify(r.observation), true);
     if (!off.ok || !on.ok) {
       fail(`record ${i}: ${off.error ?? on.error}`);
       continue;
@@ -62,7 +67,7 @@ const M = await createModule();
   const nativeQ = spawnSync(driver, [`${ROOT}weights/demo`, 'q'], { encoding: 'utf8', maxBuffer: 1 << 28 }).stdout.trimEnd().split('\n');
   let identical = 0;
   for (const [i, line] of lines.entries())
-    identical += M.decideObservation(JSON.stringify(JSON.parse(line).observation), false).q.map(bits).join(' ') === nativeQ[i];
+    identical += T.decideObservation(JSON.stringify(JSON.parse(line).observation), false).q.map(bits).join(' ') === nativeQ[i];
   if (identical !== lines.length) fail(`Q-values bit-identical to the native build's in ${identical} of ${lines.length} records`);
   console.log(`parity: ${lines.length} records; same action as PyTorch, rule off and on, in ${matched}; largest |q - q_torch| ${worst.toPrecision(3)} (tolerance ${TOLERANCE}); ` +
     `Q-values bit-identical to the native build's in ${identical}`);
@@ -254,16 +259,24 @@ if (calling.status === 0) {
   const o = JSON.parse(readFileSync(`${ROOT}weights/demo/${RUN}.parity.jsonl`, 'utf8').split('\n')[0]).observation;
   const obs = JSON.stringify(o);
   for (const [label, got] of [
-    ['decideObservation(object)', M.decideObservation(o, false)],
-    ['decideObservation(json, "true")', M.decideObservation(obs, 'true')],
-    ['decideObservation(json, 1)', M.decideObservation(obs, 1)],
-    ['decideObservation("{}")', M.decideObservation('{}', false)],
-    ['decideObservation("[")', M.decideObservation('[', false)],
-    ['decideObservation(viewer out of range)', M.decideObservation(JSON.stringify({ ...o, viewer_id: 9 }), false)],
-    ['decideObservation(bad card)', M.decideObservation(JSON.stringify({ ...o, hole: [[99, 1], [8, 4]] }), false)],
-    ['decideObservation(5 seats)', M.decideObservation(JSON.stringify({ ...o, stack: [...o.stack, 200] }), false)],
+    ['decideObservation(object)', T.decideObservation(o, false)],
+    ['decideObservation(json, "true")', T.decideObservation(obs, 'true')],
+    ['decideObservation(json, 1)', T.decideObservation(obs, 1)],
+    ['decideObservation("{}")', T.decideObservation('{}', false)],
+    ['decideObservation("[")', T.decideObservation('[', false)],
+    ['decideObservation(viewer out of range)', T.decideObservation(JSON.stringify({ ...o, viewer_id: 9 }), false)],
+    ['decideObservation(bad card)', T.decideObservation(JSON.stringify({ ...o, hole: [[99, 1], [8, 4]] }), false)],
+    ['decideObservation(5 seats)', T.decideObservation(JSON.stringify({ ...o, stack: [...o.stack, 200] }), false)],
+    ['decideObservation(900 nested arrays)', T.decideObservation('['.repeat(900), false)],
+    ['decideObservation(100,000 nested arrays)', T.decideObservation('['.repeat(100000), false)],
   ])
     if (got.ok !== false || typeof got.error !== 'string') fail(`${label}: ${JSON.stringify(got)}, expected a refusal`);
+  // the test module still works after those refusals
+  const after = new T.Table(3);
+  after.startHand();
+  while (!after.view().over) after.view().toAct === 0 ? after.act(after.view().legal[0].action) : after.advance();
+  if (!after.view().result) fail('the test module could not play a hand after the refused observations');
+  after.delete();
   console.log(`binding: ${outOfTurn} out-of-turn and ${illegal} illegal actions refused with the view unchanged; wrong argument types refused`);
 }
 

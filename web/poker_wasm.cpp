@@ -1,5 +1,5 @@
-// Embind binding: exposes Table (web/Table.hpp) and one agent decision to JavaScript, with plain
-// objects and arrays out.
+// Embind binding: exposes Table (web/Table.hpp) to JavaScript, with plain objects and arrays out.
+// The test build adds web/test_hooks.cpp; the release module has nothing else.
 //
 // The network is compiled into the module: web/build.sh embeds weights/demo/<run>.json and <run>.bin
 // (POKER_MANIFEST, POKER_WEIGHTS) after checking the binary's sha256 against the manifest, so
@@ -7,7 +7,7 @@
 //
 // Numbers cross as doubles. Arguments arrive as val and are checked for their JavaScript type, not
 // coerced: act() takes a string, and anything else (a number, null, a String object) is an unknown
-// action; decideObservation() takes a string and a boolean. Missing arguments arrive as undefined
+// action. Missing arguments arrive as undefined
 // and extra ones are ignored (embind). Only the Table constructor throws: a TypeError when the seed
 // is not a whole number from 0 to 2^53 - 1, embind's BindingError when it is given no argument (as
 // for any call on a deleted Table). Built with -fexceptions, so an unexpected C++ exception reaches
@@ -29,13 +29,6 @@ const unsigned char kManifest[] = {
 const unsigned char kWeights[] = {
 #embed POKER_WEIGHTS
 };
-
-const agent::Mlp& network() {
-    static const agent::Mlp net = agent::Mlp::fromManifest(
-        std::string(reinterpret_cast<const char*>(kManifest), sizeof kManifest),
-        std::string(reinterpret_cast<const char*>(kWeights), sizeof kWeights));
-    return net;
-}
 
 template <class T>
 val array(const std::vector<T>& xs) {
@@ -138,33 +131,6 @@ uint64_t seedOf(const val& seed) {
     return static_cast<uint64_t>(x);
 }
 
-val failure(const std::string& error) {
-    val o = val::object();
-    o.set("ok", false);
-    o.set("error", error);
-    return o;
-}
-
-// One decision of the network for an observation in the parity records' format (weights/README.md):
-// the state vector, the mask (after no_free_fold if asked), the Q-values and the action index.
-val decideObservation(val json, val noFreeFold) {
-    if (!json.isString()) return failure("the observation must be a JSON string");
-    if (noFreeFold.typeOf().as<std::string>() != "boolean") return failure("noFreeFold must be a boolean");
-    try {
-        const auto d = agent::decide(network(), agent::observationFromJson(Json::parse(json.as<std::string>())), noFreeFold.as<bool>());
-        val o = val::object();
-        o.set("ok", true);
-        o.set("state", array(d.state));
-        o.set("mask", array(std::vector<float>(d.mask.begin(), d.mask.end())));
-        o.set("q", array(d.q));
-        o.set("action", d.action);
-        o.set("actionName", std::string(agent::kActionNames[d.action]));
-        return o;
-    } catch (const std::exception& e) {
-        return failure(e.what());
-    }
-}
-
 val format() {
     val o = val::object();
     o.set("seats", Table::kSeats);
@@ -179,11 +145,18 @@ val format() {
 
 }  // namespace
 
+const agent::Mlp& demoNetwork() {
+    static const agent::Mlp net = agent::Mlp::fromManifest(
+        std::string(reinterpret_cast<const char*>(kManifest), sizeof kManifest),
+        std::string(reinterpret_cast<const char*>(kWeights), sizeof kWeights));
+    return net;
+}
+
 EMSCRIPTEN_BINDINGS(poker) {
     using emscripten::optional_override;
 
     emscripten::class_<Table>("Table")
-        .constructor(optional_override([](val seed) { return new Table(network(), seedOf(seed)); }), emscripten::allow_raw_pointers())
+        .constructor(optional_override([](val seed) { return new Table(demoNetwork(), seedOf(seed)); }), emscripten::allow_raw_pointers())
         .class_function("format", &format)
         .function("startHand", &Table::startHand)
         .function("act", optional_override([](Table& t, val action) {
@@ -192,5 +165,4 @@ EMSCRIPTEN_BINDINGS(poker) {
         .function("advance", optional_override([](Table& t) { return moveToJs(t.advance()); }))
         .function("view", optional_override([](const Table& t) { return viewToJs(t.view()); }));
 
-    emscripten::function("decideObservation", &decideObservation);
 }

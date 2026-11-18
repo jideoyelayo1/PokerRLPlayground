@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Builds the WebAssembly module into web/dist/: poker.mjs (ES module factory) and poker.wasm, with
-# the selected network (weights/demo/seats.json) compiled in, plus BUILD.txt and SHA256SUMS.
+# the selected network (weights/demo/seats.json) compiled in, plus BUILD.txt and SHA256SUMS. Also
+# builds the test module, build/wasm-test/poker_test.mjs: the same plus web/test_hooks.cpp, for
+# web/test.mjs only; it is not released.
 # Needs em++ on PATH (emsdk: source emsdk_env.sh) and node. It calls em++ directly, as OrderbookSim's
 # web/build.sh does. Fails if the weights' sha256 differs from their manifest's.
 set -euo pipefail
@@ -29,8 +31,10 @@ echo "$version"
 flags=(-std=c++20 -O2 -fexceptions -ffp-contract=off -Wno-c23-extensions -I PokerEngine -I web
        "-DPOKER_MANIFEST=\"../$manifest\"" "-DPOKER_WEIGHTS=\"../$bin\""
        -lembind -sMODULARIZE -sEXPORT_ES6 -sENVIRONMENT=web,node -sALLOW_MEMORY_GROWTH -sFILESYSTEM=0)
-em++ "${flags[@]}" web/poker_wasm.cpp PokerEngine/Agent.cpp PokerEngine/GameEngine.cpp PokerEngine/Player.cpp \
-    -o web/dist/poker.mjs
+sources=(web/poker_wasm.cpp PokerEngine/Agent.cpp PokerEngine/GameEngine.cpp PokerEngine/Player.cpp)
+em++ "${flags[@]}" "${sources[@]}" -o web/dist/poker.mjs
+mkdir -p build/wasm-test
+em++ "${flags[@]}" "${sources[@]}" web/test_hooks.cpp -o build/wasm-test/poker_test.mjs
 
 commit=$(git rev-parse HEAD)
 git status --porcelain -- PokerEngine web weights | grep -q . && commit="$commit (dirty: the sources or weights differ from it)"
@@ -39,7 +43,7 @@ size() { printf '%s: %s bytes (gzip -9: %s bytes)\n' "$1" "$(wc -c < "web/dist/$
     echo "$version"
     echo "source commit: $commit"
     echo "weights: $bin, sha256 $got (as in $manifest)"
-    echo "command: em++ ${flags[*]} web/poker_wasm.cpp PokerEngine/Agent.cpp PokerEngine/GameEngine.cpp PokerEngine/Player.cpp -o web/dist/poker.mjs"
+    echo "command: em++ ${flags[*]} ${sources[*]} -o web/dist/poker.mjs"
     size poker.mjs
     size poker.wasm
 } > web/dist/BUILD.txt
