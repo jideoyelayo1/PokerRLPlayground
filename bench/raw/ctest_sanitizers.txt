@@ -1,0 +1,23 @@
+# commit 6b8733e (the code is the same at 742bcd9: later commits change only README.md and bench/raw), Apple M1 Pro, Darwin 27.0.0, Apple clang version 21.0.0 (clang-2100.3.34.2); machine shared with other jobs
+# cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined" && cmake --build build-asan && ctest --test-dir build-asan --output-on-failure
+# paths are shown relative to the repository (the repository's absolute path is stripped, as bench/ctest_sanitizers.sh now does)
+Test project build-asan
+    Start 1: test_hand_eval
+1/7 Test #1: test_hand_eval ...................   Passed    0.05 sec
+    Start 2: test_betting
+2/7 Test #2: test_betting .....................   Passed   38.34 sec
+    Start 3: test_hand_result
+3/7 Test #3: test_hand_result .................   Passed   20.82 sec
+    Start 4: eval_exhaustive
+4/7 Test #4: eval_exhaustive ..................   Passed  3508.86 sec
+    Start 5: test_json
+5/7 Test #5: test_json ........................   Passed    0.15 sec
+    Start 6: test_agent
+6/7 Test #6: test_agent .......................   Passed    4.49 sec
+    Start 7: test_table
+7/7 Test #7: test_table .......................   Passed   55.99 sec
+
+100% tests passed out of 7
+
+Total Test time (real) = 3628.72 sec
+ctest --test-dir build-asan --output-on-failure  22283.71s user 48.37s system 615% cpu 1:00:28.77 total
