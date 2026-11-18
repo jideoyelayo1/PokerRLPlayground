@@ -233,7 +233,7 @@ def plot_fig1(rows):
     lim = np.nanmax(np.abs(grid))
     se = [float(r["se_bb_per_hand"]) for r in rows]
     fig = plt.figure(figsize=(12, 11.4))
-    ax = fig.add_axes([0.03, 0.135, 0.84, 0.78])
+    ax = fig.add_axes([0.03, 0.15, 0.84, 0.77])
     im = ax.imshow(grid, cmap="RdBu", vmin=-lim, vmax=lim)  # linear, symmetric about zero
     for r in rows:
         i, j, v = int(r["row"]), int(r["col"]), float(r["mean_bb_per_hand"])
@@ -245,12 +245,13 @@ def plot_fig1(rows):
     cb = fig.colorbar(im, cax=fig.add_axes([0.875, 0.2, 0.018, 0.65]))
     cb.set_label("mean result, big blinds per hand (blinds and folded hands included)")
     fig.suptitle("Self-play result by starting hand: mlp-s seed 3 in all four seats", y=0.975, fontsize=14)
-    fig.text(0.05, 0.02,
-             "Pairs on the diagonal, suited hands above it, offsuit below. Four copies of the selected network, greedy, with the\n"
-             "play-time rule no_free_fold on, as in the demo: 4 seats, blinds 1/2, stacks 200 (100 big blinds) reset every hand;\n"
-             f"button on seat 0 (the demo moves it). {HANDS:,} hands ({SEATS * HANDS:,} seat-hands), deck seed {SEED}; "
-             f"standard error {min(se):.2f} to {max(se):.2f} bb per hand.\n"
-             "Self-play against copies of itself: not a measure of strength against other opponents.",
+    fig.text(0.05, 0.015,
+             "Pairs on the diagonal, suited hands above it, offsuit below. Four copies of the selected network, greedy, with the play-time\n"
+             "rule no_free_fold on, as in the demo: 4 seats, blinds 1/2, stacks 200 (100 big blinds) reset every hand; button on seat 0\n"
+             f"(the demo moves it). {HANDS:,} hands ({SEATS * HANDS:,} seat-hands), deck seed {SEED}; standard error "
+             f"{min(se):.2f} to {max(se):.2f} bb per hand.\n"
+             f"Colour is linear to \u00b1{lim:.0f}, so the pale cells' detail is in their printed numbers. Self-play against copies of itself: not a\n"
+             "measure of strength against other opponents.",
              fontsize=10.5, color="#52514e", va="bottom")
     save(fig, FIG1)
 
