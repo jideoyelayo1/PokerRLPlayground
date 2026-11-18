@@ -1,4 +1,4 @@
-"""The README's two figures, from the current code (bench/RESULTS.md, section 8).
+"""The README's two figures, from the current code (bench/RESULTS.md, section 7).
 
 1. Result by starting hand (images/selfplay_result_by_starting_hand.*). The selected agent
    (mlp-s seed 3, weights/runs/mlp-s-seed3/model.pt, the same tensors as weights/demo) in all four
@@ -146,7 +146,7 @@ def compute(jobs):
     print(f"self-play: {HANDS:,} hands ({SEATS * HANDS:,} seat-hands), deck seed {SEED} x 1,000,003 + hand, "
           f"{t1 - t0:.0f} s with {jobs} processes; every hand's results sum to zero")
     print(f"decisions: {counts.sum():,} ({counts.sum() / HANDS:.1f} per hand); actions chosen (fold, check, call, "
-          f"raise 1 bb, raise half pot, raise pot, all-in): {', '.join(f'{x:,}' for x in counts)}")
+          f"raise 1 bb, raise half pot, raise pot, all-in): {', '.join(f'{x:,} ({100 * x / counts.sum():.1f}%)' for x in counts)}")
     print(f"equity: {EQ_TRIALS:,} deals per class, seed {EQ_SEED} x 1,000 + class index, {time.time() - t1:.0f} s")
     with open(FIG1.with_suffix(".csv"), "w", newline="") as f:
         w = csv.writer(f)
@@ -186,6 +186,8 @@ def report_fig1(rows):
     for k, name in enumerate(("pairs", "suited", "offsuit")):
         w = n * (kind == k)
         print(f"{name}: {int((kind == k).sum())} classes, {w.sum():,} seat-hands, mean {np.sum(w * m) / w.sum():+.3f} bb per hand")
+    pos = [c[i] for i in np.flatnonzero(m > 0)]
+    print(f"positive mean: {len(pos)} of {len(c)} classes ({', '.join(pos)}); the lowest mean is {m.min():+.2f}")
     suited = {x[:2]: i for i, x in enumerate(c) if x.endswith("s")}
     d = np.array([m[suited[x[:2]]] - m[i] for i, x in enumerate(c) if x.endswith("o")])
     print(f"suited minus offsuit, same ranks (78 pairs of classes): mean {d.mean():+.3f} bb per hand, "
@@ -204,14 +206,35 @@ def report_fig1(rows):
     return rho, lo, hi
 
 
+def report_fig2(rows):
+    runs = sorted({r["run"] for r in rows})
+    for b in BOTS:
+        pts = {run: [r for r in rows if r["run"] == run and r["baseline"] == b] for run in runs}
+        first, last = ([float(p[k]["bb100"]) for p in pts.values()] for k in (0, -1))
+        sel = {int(r["hands"]): r for r in pts[AGENT]}
+        print(f"vs {b}: first checkpoint {min(first):+,.0f} to {max(first):+,.0f} bb/100 over the {len(runs)} runs, "
+              f"last {min(last):+,.0f} to {max(last):+,.0f}; {AGENT}: "
+              + ", ".join(f"{float(r['bb100']):+,.0f} [{float(r['ci95_lo']):+,.0f}, {float(r['ci95_hi']):+,.0f}] at {h:,}"
+                          + (" (kept)" if r["kept"] == "1" else "") for h, r in sorted(sel.items())))
+    half = [(float(r["ci95_hi"]) - float(r["ci95_lo"])) / 2 for r in rows if r["run"] == AGENT]
+    print(f"{AGENT}'s 95% intervals: +/-{min(half):.0f} to +/-{max(half):.0f} bb/100")
+    score = {}
+    for r in rows:
+        k = (r["run"], int(r["hands"]))
+        score[k] = min(score.get(k, float("inf")), float(r["ci95_lo"]))
+    print("checkpoints whose 95% interval is above zero against all three baselines: "
+          + ("; ".join(f"{run} at {h:,}" for (run, h), v in sorted(score.items()) if v > 0) or "none"))
+
+
 def plot_fig1(rows):
     grid = np.full((13, 13), np.nan)
     for r in rows:
         grid[int(r["row"]), int(r["col"])] = float(r["mean_bb_per_hand"])
     lim = np.nanmax(np.abs(grid))
     se = [float(r["se_bb_per_hand"]) for r in rows]
-    fig, ax = plt.subplots(figsize=(12, 11.4))
-    im = ax.imshow(grid, cmap="RdBu", vmin=-lim, vmax=lim)
+    fig = plt.figure(figsize=(12, 11.4))
+    ax = fig.add_axes([0.03, 0.135, 0.84, 0.78])
+    im = ax.imshow(grid, cmap="RdBu", vmin=-lim, vmax=lim)  # linear, symmetric about zero
     for r in rows:
         i, j, v = int(r["row"]), int(r["col"]), float(r["mean_bb_per_hand"])
         ax.text(j, i, f"{r['class']}\n{v:+.2f}", ha="center", va="center", fontsize=9.5,
@@ -219,16 +242,16 @@ def plot_fig1(rows):
     ax.set_xticks(range(13), list(RANKS)); ax.set_yticks(range(13), list(RANKS))
     ax.tick_params(top=True, labeltop=True, bottom=False, labelbottom=False, length=0)
     ax.set_frame_on(False)
-    cb = fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
+    cb = fig.colorbar(im, cax=fig.add_axes([0.875, 0.2, 0.018, 0.65]))
     cb.set_label("mean result, big blinds per hand (blinds and folded hands included)")
-    ax.set_title("Self-play result by starting hand: mlp-s seed 3 in all four seats", pad=34, fontsize=14)
-    fig.text(0.06, 0.035,
-             "Pairs on the diagonal, suited hands above it, offsuit below. Four copies of the selected network, greedy, "
-             "play-time rule no_free_fold on\n(as in the demo): 4 seats, blinds 1/2, stacks 200 (100 big blinds) reset "
-             f"every hand. {HANDS:,} hands ({SEATS * HANDS:,} seat-hands), deck seed {SEED}; standard error "
-             f"{min(se):.2f}-{max(se):.2f} bb\nper hand (CSV). Self-play against itself: not a measure of strength "
-             "against other opponents.", fontsize=10, color="#52514e", va="bottom")
-    fig.subplots_adjust(left=0.06, right=0.98, top=0.92, bottom=0.11)
+    fig.suptitle("Self-play result by starting hand: mlp-s seed 3 in all four seats", y=0.975, fontsize=14)
+    fig.text(0.05, 0.02,
+             "Pairs on the diagonal, suited hands above it, offsuit below. Four copies of the selected network, greedy, with the\n"
+             "play-time rule no_free_fold on, as in the demo: 4 seats, blinds 1/2, stacks 200 (100 big blinds) reset every hand;\n"
+             f"button on seat 0 (the demo moves it). {HANDS:,} hands ({SEATS * HANDS:,} seat-hands), deck seed {SEED}; "
+             f"standard error {min(se):.2f} to {max(se):.2f} bb per hand.\n"
+             "Self-play against copies of itself: not a measure of strength against other opponents.",
+             fontsize=10.5, color="#52514e", va="bottom")
     save(fig, FIG1)
 
 
@@ -247,7 +270,7 @@ def plot_fig2(rows):
                 ax.plot(x[k], y[k], "o", ms=12, mfc="none", mec=SELECTED, mew=2, zorder=4)
             else:
                 ax.plot(x, y, color=FAMILY[pts[0]["candidate"]], lw=1.3, marker="o", ms=3, alpha=0.85)
-        ax.axhline(0, color="#8a8984", lw=1, ls="--", zorder=0)
+        ax.axhline(0, color="#52514e", lw=0.9, ls="--", zorder=1)
         ax.set_title(f"vs {b} bots", fontsize=12)
         ax.set_xlabel("training hands")
         ax.xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: f"{v / 1000:.0f}k" if v else "0"))
@@ -283,6 +306,7 @@ def main():
         compute(a.jobs)
     rows1, rows2 = read(FIG1.with_suffix(".csv")), read(FIG2.with_suffix(".csv"))
     report_fig1(rows1)
+    report_fig2(rows2)
     plot_fig1(rows1)
     plot_fig2(rows2)
 
