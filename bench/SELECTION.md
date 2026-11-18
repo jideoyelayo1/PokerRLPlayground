@@ -65,7 +65,9 @@ random bot in the agent's seat is the control.
 - **40,000 duplicate deals** (160,000 hands) per candidate and baseline, from seed 7000 (deck seed
   7000 × 1,000,003 + deal number, the random bot's choices from `random.Random(7000)`).
 - These deals are used only here: not in training (whose deals follow from seeds 1–3), not for
-  validation (seed 5000), not for choosing checkpoints.
+  validation (seed 5000), not for choosing checkpoints. (Added after the runs: the smoke test
+  disclosed under *Budget* played pilot networks on the first 200–300 of them, and the parity
+  records for the next stage are recorded from the selected agent's play on the first of them.)
 - bb/100 = 100 × the mean deal score; 95% interval = mean ± 1.96 × sd / √40,000 over deals.
 
 ## Rule
