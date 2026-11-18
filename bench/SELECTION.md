@@ -58,8 +58,9 @@ network. The evaluation deals are not used for this.
 
 `bench/winrate.py`'s method, unchanged: a deal is played 4 times with the same cards, the agent
 taking each seat once and three copies of one baseline in the other seats; the deal's score is the
-agent's mean result over the 4. Baselines `random`, `call` and `tight`, unchanged; the random bot
-in the agent's seat is the control.
+agent's mean result over the 4. Baselines `random`, `call` and `tight`, unchanged (their code; a
+note added after the runs, under *Records*, says how the exact mask changes what they do); the
+random bot in the agent's seat is the control.
 
 - **40,000 duplicate deals** (160,000 hands) per candidate and baseline, from seed 7000 (deck seed
   7000 × 1,000,003 + deal number, the random bot's choices from `random.Random(7000)`).
@@ -125,3 +126,12 @@ them, for the same reason.
   cell files' modification times on this machine (`bench/raw/demo_cells_times.txt`); the cells
   computed then have no `computed_utc` or `commit` field, since neither is recoverable from a
   committed record. Cells computed from now on record both.
+- **Baselines and the exact mask** (a clarification added after the runs). The baselines' code is
+  unchanged, but each chooses from the legal mask it is given, and the mask is now exact per raise
+  size. So they behave as written for an exact mask, not as they did in PR #2's measurements, and
+  PR #2's win rates are not comparable with these. `python bench/check_baseline_masks.py`
+  (`bench/raw/check_baseline_masks.txt`, 2,000 deals against the selected agent): the old mask
+  would have differed from the exact one in 45.5% of the random bot's decisions (so its choices
+  are drawn from a different set), 9.2% of the calling bot's (whose choices do not change: it
+  never raises) and 32.4% of the tight bot's, whose action changes in 12 of 43,502 decisions (it
+  now calls where the old fallback made it raise half the pot).

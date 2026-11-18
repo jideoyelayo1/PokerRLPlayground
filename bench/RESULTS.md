@@ -126,7 +126,7 @@ Seeded training therefore repeated only until the first timeout. The timeout is 
 
 ## 5. Win rate against fixed baselines (superseded: 2,000 hands, the training loop before section 2c)
 
-Superseded by section 6. This table describes the training loop as it was before the fixes in section 2c, the README's four networks trained together for 2,000 hands at 5,000-big-blind stacks; it is kept as a record of that code.
+Superseded by section 6. This table describes the training loop as it was before the fixes in section 2c, the README's four networks trained together for 2,000 hands at 5,000-big-blind stacks; it is kept as a record of that code. Its baselines chose from the old, inexact mask, so they did not behave exactly as section 6's do, and the two sets of win rates are not comparable.
 
 `python bench/winrate.py --seeds 1 2 3 --train-hands 2000 --eval-deals 1000`, then `python bench/summarise_winrate.py` ([table](raw/winrate_table.md), [per-seed JSON](raw/), [training logs](raw/)).
 
@@ -169,7 +169,7 @@ The agents for the browser demo, chosen under the rules in [`SELECTION.md`](SELE
 
 **Candidates.** `mlp-s`: MLP 151-128-128-7 (36,871 parameters, 0.14 MB). `mlp-l`: MLP 151-512-512-256-7 (473,607, 1.81 MB). `gru`: one GRU layer of 128 over the seat's own decisions in the hand so far, then a linear layer (108,807, 0.42 MB). Seeds 1–3 each. Budget 400,000 hands for the MLPs and 150,000 for the GRU (in the pilots a GRU hand cost about 15 times an MLP hand; in these runs about 7 times an `mlp-s` hand). Each run kept the checkpoint (one every tenth of the run) that scored best on the validation deals (1,000 duplicate deals from seed 5000).
 
-**Evaluation.** Every kept network against three copies of each baseline, greedy, on 40,000 duplicate deals (160,000 hands) from seed 7000, which no training, validation or checkpoint choice used (`SELECTION.md` discloses a smoke test of the scripts on their first 300 deals with pilot networks). bb/100 [95% interval over deals]. Score: the lowest, over the three baselines, of the interval's lower end. Raw: [demo_table.md](raw/demo_table.md), [demo_eval.json](raw/demo_eval.json), one file per cell in [demo_cells/](raw/demo_cells/), log [demo_eval.log](raw/demo_eval.log).
+**Evaluation.** Every kept network against three copies of each baseline, greedy, on 40,000 duplicate deals (160,000 hands) from seed 7000, which no training, validation or checkpoint choice used (`SELECTION.md` discloses a smoke test of the scripts on their first 300 deals with pilot networks). bb/100 [95% interval over deals]. Score: the lowest, over the three baselines, of the interval's lower end. The baselines' code is unchanged, but they choose from the now exact mask, so they behave as written for an exact mask: against the selected agent the old mask would have differed in 45.5% of the random bot's decisions and changed the tight bot's action in 12 of 43,502 ([raw](raw/check_baseline_masks.txt)). Section 5's win rates (and PR #2's) are not comparable with these. Raw: [demo_table.md](raw/demo_table.md), [demo_eval.json](raw/demo_eval.json), one file per cell in [demo_cells/](raw/demo_cells/), log [demo_eval.log](raw/demo_eval.log).
 
 | run | parameters | kept checkpoint (hands) | vs random | vs call | vs tight | score (worst lower bound) | rank |
 |---|---:|---:|---:|---:|---:|---:|---:|
