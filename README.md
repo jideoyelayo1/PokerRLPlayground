@@ -644,7 +644,7 @@ node web/test.mjs                    # against PyTorch's parity records and the 
 - Hands can be long: the agents re-raise each other by one big blind many times. In the 5,000-hand replay a hand took a median of 12 decisions and up to 160 (159 by the agents); a hand reaching 2,000 decisions, the training loop's cap, would be aborted.
 - The same seed is only known to give the same deals with the same C++ standard library (the engine shuffles with `std::shuffle`); a native build with another one, such as libstdc++, may deal differently (not checked).
 - The engine's simplified rules apply (top of this README): three raise sizes and all-in, and an all-in for less than a full raise reopens the betting for players who have already acted.
-- Cards are hidden from the view only, not from the page: the whole deal is in the module's memory, where anyone inspecting the page (a debugger, the browser's developer tools) can read the agents' cards, and the seed together with the visitor's actions replays every deal. Nothing is at stake: no money, no accounts, no scores kept anywhere.
+- Cards are hidden from the view only, not from the page: the whole deal is in the module's memory, where anyone inspecting the page (a debugger, the browser's developer tools) can read the agents' cards, and the seed together with the visitor's actions replays every deal. Nothing is at stake: no money and no accounts.
 - The seed is a JavaScript number, so 53 bits of it are honoured (whole numbers up to 2^53 − 1); the engine's generator takes 64, but widening the argument would need BigInt and is not worth it for a demo.
 
 ## Results
