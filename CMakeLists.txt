@@ -29,5 +29,12 @@ add_executable(test_agent PokerEngine/tests/test_agent.cpp)
 target_link_libraries(test_agent poker_agent)
 add_test(NAME test_agent COMMAND test_agent ${CMAKE_SOURCE_DIR}/weights/demo mlp-s-seed3)
 
+# The demo's table (web/Table.hpp), the class behind the WebAssembly binding, and the native side
+# of web/test.mjs's replay.
+add_executable(test_table web/test_table.cpp)
+target_include_directories(test_table PRIVATE web)
+target_link_libraries(test_table poker_agent)
+add_test(NAME test_table COMMAND test_table ${CMAKE_SOURCE_DIR}/weights/demo)
+
 add_executable(bench_engine bench/bench_engine.cpp)
 target_link_libraries(bench_engine poker_core)
