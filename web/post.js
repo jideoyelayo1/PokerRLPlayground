@@ -17,8 +17,10 @@
       throw new TypeError('Table: the seed must be a whole number from 0 to 2^53 - 1');
     return new Raw(seed);
   }
-  // The embind class stays reachable as Object.getPrototypeOf(table).constructor; it does not throw
-  // from C++ either (a non-number is refused by embind's JavaScript; any other number is clamped).
+  // The embind class stays reachable as Object.getPrototypeOf(table).constructor. It does not throw
+  // either: at -O2 embind's JavaScript converts any argument to a number, as Number() would ('5'
+  // plays seed 5, true seed 1, [3] seed 3), and the C++ side truncates a fraction and turns anything
+  // outside 0 to 2^53 - 1 ({}, null, undefined, NaN, negatives, infinities, 2^60) into seed 0.
   Table.prototype = Raw.prototype;
   Table.format = Raw.format;
   Module['Table'] = Table;
