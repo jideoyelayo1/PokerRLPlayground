@@ -64,7 +64,7 @@ class Export(unittest.TestCase):
         for path in MANIFESTS:
             run = json.loads(path.read_text())["run"]
             model, seq, _ = load(run)
-            rows = [json.loads(line) for line in open(DEMO / f"{run}.parity.jsonl")]
+            rows = [json.loads(line) for line in (DEMO / f"{run}.parity.jsonl").read_text().splitlines()]
             self.assertGreaterEqual(len(rows), 1000)
             for r in rows:
                 steps = r["history"] + [{"observation": r["observation"], "state": r["state"]}]
