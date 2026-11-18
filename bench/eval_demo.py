@@ -10,6 +10,7 @@ is the control. Writes bench/raw/demo_eval.json (every cell) and bench/raw/demo_
     python bench/eval_demo.py --jobs 5
 """
 import argparse
+import hashlib
 import json
 import os
 import statistics
@@ -29,6 +30,7 @@ from winrate import BOTS, bot_random, evaluate, greedy_policy
 
 EVAL_SEED, EVAL_DEALS = 7000, 40_000
 RAW = ROOT / "bench" / "raw"
+CELLS = RAW / "demo_cells"  # one file per cell; reused while the run's model.pt, the deals and the seed match
 T95 = {1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776}
 
 
@@ -41,6 +43,12 @@ def load(run):
 
 def cell(job):
     run, bname, deals = job
+    path = CELLS / f"{run}_{bname}.json"
+    sha = None if run == "random-bot" else hashlib.sha256((RUNS / run / "model.pt").read_bytes()).hexdigest()
+    if path.exists():
+        c = json.loads(path.read_text())
+        if (c.get("model_sha256"), c["deals"], c["seed"]) == (sha, deals, EVAL_SEED):
+            return c
     torch.set_num_threads(1)
     t0 = time.time()
     if run == "random-bot":
@@ -51,8 +59,11 @@ def cell(job):
     with torch.no_grad():
         r = evaluate(pol, BOTS[bname], deals, EVAL_SEED, stack=STACK)
     r.update({"agent": run, "baseline": bname, "seed": EVAL_SEED, "wall_s": round(time.time() - t0, 1),
-              "actions": getattr(pol, "counts", None)})
-    return {k: float(v) if isinstance(v, np.floating) else v for k, v in r.items()}
+              "actions": getattr(pol, "counts", None), "model_sha256": sha})
+    r = {k: float(v) if isinstance(v, np.floating) else v for k, v in r.items()}
+    CELLS.mkdir(exist_ok=True)
+    path.write_text(json.dumps(r, indent=1) + "\n")
+    return r
 
 
 def fmt(c):
