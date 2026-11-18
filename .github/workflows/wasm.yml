@@ -1,11 +1,12 @@
 # Native tests (ctest, the exhaustive evaluator included), the WebAssembly build (web/build.sh) and
-# its tests (web/test.mjs) on every pull request. A v* tag on a commit that is on main also publishes
-# poker.mjs, poker.wasm, BUILD.txt and SHA256SUMS as a release.
+# its tests (web/test.mjs) on every pull request and every push to main. A v* tag on a commit that
+# is on main also publishes poker.mjs, poker.wasm, BUILD.txt and SHA256SUMS as a release.
 name: WebAssembly
 
 on:
   pull_request:
   push:
+    branches: [main]
     tags: ['v*']
 
 permissions:
