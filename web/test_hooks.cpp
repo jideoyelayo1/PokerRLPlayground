@@ -1,17 +1,20 @@
 // Test hooks, linked only into the test build of the module (web/build.sh writes it to
 // build/wasm-test/poker_test.mjs), never into the release module in web/dist:
 // decideObservation(json, noFreeFold), the network's decision for one observation in the parity
-// records' format (weights/README.md), which web/test.mjs runs over every record; stackPointer().
+// records' format (weights/README.md), which web/test.mjs runs over every record; stackPointer();
+// playUnchecked(table, action), Table's test seam. build.sh compiles the test module with
+// POKER_TEST_HOOKS, which adds that seam to Table.
 #include <emscripten/bind.h>
 #include <emscripten/stack.h>
 
 #include <string>
 
-#include "Agent.hpp"
+#include "Table.hpp"
 
 using emscripten::val;
 
-const agent::Mlp& demoNetwork();  // web/poker_wasm.cpp
+const agent::Mlp& demoNetwork();     // web/poker_wasm.cpp
+val moveToJs(const TableMove& m);   // web/poker_wasm.cpp
 
 namespace {
 
@@ -53,6 +56,8 @@ val decideObservation(val json, val noFreeFold) {
 
 EMSCRIPTEN_BINDINGS(poker_test) {
     emscripten::function("decideObservation", &decideObservation);
+    // Table::playUnchecked (POKER_TEST_HOOKS): an unchecked action, to make the engine throw in play()
+    emscripten::function("playUnchecked", emscripten::optional_override([](Table& t, int action) { return moveToJs(t.playUnchecked(action)); }));
     // the current stack pointer, so web/test.mjs can check that refused calls leave it where it was
     emscripten::function("stackPointer", emscripten::optional_override([] { return static_cast<double>(emscripten_stack_get_current()); }));
 }

@@ -223,6 +223,41 @@ static void legalAmounts(const agent::Mlp& net) {
     CHECK(checked > 0 && wrong == 0, "%d of %d visitor actions put in other amounts than the view listed", wrong, checked);
 }
 
+// Through the test seam Table::playUnchecked, an illegal action makes the engine throw inside
+// play(): the result is the documented refusal (internal_error with a message), the hand is
+// aborted with nothing paid, and the table then plays full hands as usual.
+static void internalError(const agent::Mlp& net) {
+    Table t(net, 19);
+    std::mt19937 rng(8);
+    int forced = 0, badShape = 0, notAborted = 0, played = 0;
+    for (int h = 0; h < 50; ++h) {
+        CHECK(t.startHand().ok, "startHand after an aborted hand");
+        while (!t.over()) {
+            const auto mask = agent::legalMask(t.engine().getObservation(t.toAct()));
+            int bad = -1;
+            for (int a = 0; a < agent::kActions && bad < 0; ++a) if (mask[a] != 0.0f) bad = a;
+            if (bad >= 0) {
+                const TableMove m = t.playUnchecked(bad);
+                ++forced;
+                badShape += m.ok || m.error != "internal_error" || m.message.empty() || !m.over || m.toAct != -1;
+                const auto v = t.view();
+                notAborted += !v.over || !v.aborted || v.result.has_value() || !t.act("fold").error.size();
+                break;
+            }
+            t.toAct() == Table::kVisitor ? t.act(pick(t.view(), rng)) : t.advance();
+        }
+    }
+    for (int h = 0; h < 20; ++h) {
+        CHECK(t.startHand().ok, "startHand after the forced errors");
+        while (!t.over()) t.toAct() == Table::kVisitor ? t.act(pick(t.view(), rng)) : t.advance();
+        played += t.view().result.has_value();
+    }
+    std::printf("internal errors: %d forced, then %d of 20 hands played to a result\n", forced, played);
+    CHECK(forced > 0 && badShape == 0, "%d of %d forced errors had another shape than internal_error with a message", badShape, forced);
+    CHECK(notAborted == 0, "%d forced errors did not abort the hand cleanly", notAborted);
+    CHECK(played == 20, "the table plays on after the forced errors");
+}
+
 int main(int argc, char** argv) {
     const std::string dir = argc > 1 ? argv[1] : "weights/demo";
     const agent::Mlp net = agent::Mlp::fromManifest(slurp(dir + "/mlp-s-seed3.json"), slurp(dir + "/mlp-s-seed3.bin"));
@@ -231,5 +266,6 @@ int main(int argc, char** argv) {
     hiddenCards(net);
     refusals(net);
     legalAmounts(net);
+    internalError(net);
     return finish("test_table");
 }

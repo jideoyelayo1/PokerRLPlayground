@@ -113,11 +113,15 @@ val viewToJs(const TableView& v) {
     return o;
 }
 
+}  // namespace
+
+// Not static: web/test_hooks.cpp uses it too.
 val moveToJs(const TableMove& m) {
     val o = val::object();
     o.set("ok", m.ok);
     if (!m.ok) {
         o.set("error", m.error);
+        if (!m.message.empty()) o.set("message", m.message);
     } else if (m.seat >= 0) {  // a move; startHand() reports only ok, over and toAct
         o.set("seat", m.seat);
         o.set("action", m.action);
@@ -128,6 +132,8 @@ val moveToJs(const TableMove& m) {
     o.set("toAct", m.toAct);
     return o;
 }
+
+namespace {
 
 val internalError(const char* what) {
     val o = val::object();

@@ -38,7 +38,7 @@ flags=(-std=c++20 -O2 -fexceptions -ffp-contract=off -Wno-c23-extensions -I Poke
        --post-js web/post.js)
 sources=(web/poker_wasm.cpp PokerEngine/Agent.cpp PokerEngine/GameEngine.cpp PokerEngine/Player.cpp)
 em++ "${flags[@]}" "${sources[@]}" -o web/dist/poker.mjs
-em++ "${flags[@]}" "${sources[@]}" web/test_hooks.cpp -o build/wasm-test/poker_test.mjs
+em++ "${flags[@]}" -DPOKER_TEST_HOOKS "${sources[@]}" web/test_hooks.cpp -o build/wasm-test/poker_test.mjs
 
 built=$(git rev-parse HEAD)
 commit=${SOURCE_COMMIT:-$built}

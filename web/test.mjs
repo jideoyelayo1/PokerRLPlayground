@@ -34,7 +34,8 @@ const fail = (message) => {
 };
 const M = await createModule(); // the release module
 const T = await createTestModule(); // the test module
-if ('decideObservation' in M) fail('the release module must not have decideObservation');
+for (const hook of ['decideObservation', 'stackPointer', 'playUnchecked'])
+  if (hook in M) fail(`the release module must not have the test hook ${hook}`);
 
 // 1. parity records
 {
@@ -331,6 +332,36 @@ if (calling.status === 0) {
     ['decideObservation(100,000 nested arrays)', T.decideObservation('['.repeat(100000), false)],
   ])
     if (got.ok !== false || typeof got.error !== 'string') fail(`${label}: ${JSON.stringify(got)}, expected a refusal`);
+  // Table's test seam: an unchecked illegal action makes the engine throw inside play(); the
+  // result has the documented shape, the hand is aborted, and the table plays on
+  {
+    const t = new T.Table(19);
+    const names = T.Table.format().actions;
+    let forced = 0;
+    for (let h = 0; h < 20; h++) {
+      t.startHand();
+      for (let v = t.view(); !v.over; v = t.view()) {
+        const bad = v.toAct === v.visitor ? names.find((a) => !v.legal.some((l) => l.action === a)) : undefined;
+        if (bad === undefined) {
+          v.toAct === v.visitor ? t.act(v.legal[0].action) : t.advance();
+          continue;
+        }
+        const r = T.playUnchecked(t, names.indexOf(bad));
+        forced++;
+        if (Object.keys(r).sort().join() !== 'error,message,ok,over,toAct' || r.ok !== false || r.error !== 'internal_error' ||
+            typeof r.message !== 'string' || !r.message || r.over !== true || r.toAct !== -1)
+          fail(`forced internal error: ${JSON.stringify(r)}`);
+        const after = t.view();
+        if (!after.over || !after.aborted || after.result !== null) fail('a forced internal error did not abort the hand');
+        break;
+      }
+    }
+    t.startHand();
+    for (let v = t.view(); !v.over; v = t.view()) v.toAct === v.visitor ? t.act(v.legal[0].action) : t.advance();
+    if (!forced || !t.view().result) fail(`forced internal errors: ${forced}, then no hand played to a result`);
+    console.log(`internal errors: ${forced} forced through the test seam, each { ok: false, error: 'internal_error', message, over: true, toAct: -1 }; the table played on`);
+    t.delete();
+  }
   // the test module still works after those refusals
   const after = new T.Table(3);
   after.startHand();
