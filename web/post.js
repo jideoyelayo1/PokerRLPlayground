@@ -9,13 +9,20 @@
 {
   const Raw = Module['Table'];
   const networkError = Module['_networkError']();
+  const constructionFailed = Module['_constructionFailed'];
   delete Module['_networkError'];
+  delete Module['_constructionFailed'];
   function Table(seed) {
     if (!new.target) throw new TypeError("Table: use 'new Table(seed)'");
     if (networkError) throw new Error(`Table: the network did not load: ${networkError}`);
     if (typeof seed !== 'number' || !Number.isSafeInteger(seed) || seed < 0)
       throw new TypeError('Table: the seed must be a whole number from 0 to 2^53 - 1');
-    return new Raw(seed);
+    const table = new Raw(seed);
+    // out of memory: the C++ constructor returned a null pointer, and every method of that object
+    // would throw embind's BindingError
+    if (constructionFailed())
+      throw new RangeError('Table: out of memory; delete() Tables that are no longer used and try again');
+    return table;
   }
   // The embind class stays reachable as Object.getPrototypeOf(table).constructor. It does not throw
   // either: at -O2 embind's JavaScript converts any argument to a number, as Number() would ('5'

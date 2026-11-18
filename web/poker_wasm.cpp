@@ -23,6 +23,7 @@
 
 #include <optional>
 #include <string>
+#include <utility>
 
 using emscripten::val;
 
@@ -190,6 +191,10 @@ val format() {
 
 }  // namespace
 
+// Set when the constructor could not allocate a Table and returned a null pointer; web/post.js reads
+// and clears it (_constructionFailed) after each construction and throws its own error.
+bool constructionFailed = false;
+
 // Only once _networkError() is empty, which web/post.js checks before any Table is made.
 const agent::Mlp& demoNetwork() { return *network().net; }
 
@@ -202,7 +207,8 @@ EMSCRIPTEN_BINDINGS(poker) {
         .constructor(optional_override([](double seed) -> Table* {
             try {
                 return new Table(demoNetwork(), seed >= 0 && seed <= 9007199254740991.0 ? static_cast<uint64_t>(seed) : 0);
-            } catch (...) {  // out of memory, the only way here: a null pointer rather than a throw (untested)
+            } catch (...) {  // out of memory, the only way here: a null pointer rather than a throw
+                constructionFailed = true;
                 return nullptr;
             }
         }), emscripten::allow_raw_pointers())
@@ -214,5 +220,6 @@ EMSCRIPTEN_BINDINGS(poker) {
         .function("advance", optional_override([](Table& t) { return guarded([&] { return moveToJs(t.advance()); }); }))
         .function("view", optional_override([](const Table& t) { return guarded([&] { return viewToJs(t.view()); }); }));
     emscripten::function("_networkError", optional_override([] { return network().error; }));
+    emscripten::function("_constructionFailed", optional_override([] { return std::exchange(constructionFailed, false); }));
 
 }

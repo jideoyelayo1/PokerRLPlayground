@@ -9,7 +9,8 @@
 //    line by line with the same replay through the native replay_driver (deals, every move, results);
 // 3. the replay's totals, pinned, so that a change of behaviour that both builds share shows;
 // 4. through the binding: no view holds an agent's hole cards unless that seat reached showdown,
-//    refusals change nothing, and arguments of the wrong JavaScript type are refused, not coerced.
+//    refusals change nothing, and arguments of the wrong JavaScript type are refused, not coerced;
+// 5. out of memory: the constructor throws a RangeError, and the module recovers once Tables are deleted.
 // It also prints the number of decisions per hand, for this visitor and for a calling visitor.
 //
 // Usage, from the repository root: node web/test.mjs [path/to/replay_driver]
@@ -369,6 +370,33 @@ if (calling.status === 0) {
   if (!after.view().result) fail('the test module could not play a hand after the refused observations');
   after.delete();
   console.log(`binding: ${outOfTurn} out-of-turn and ${illegal} illegal actions refused with the view unchanged; wrong argument types refused`);
+}
+
+// 5. out of memory, on a fresh instance of the release module: Tables are made until the 2 GiB
+// memory is full. The constructor must then throw post.js's RangeError (it used to return an object
+// whose every method threw BindingError), and once the Tables are deleted a new one plays a hand.
+{
+  const R = await createModule();
+  const live = [];
+  let error;
+  try {
+    while (live.length < 2e6) live.push(new R.Table(live.length)); // 2 GiB holds about 705,000
+  } catch (e) {
+    error = e;
+  }
+  if (!(error instanceof RangeError) || !/out of memory/.test(error.message))
+    fail(`out of memory after ${live.length} Tables: ${error?.name} ${error?.message}`);
+  for (const t of live) {
+    try {
+      t.delete();
+    } catch {} // the null-pointer objects of the old behaviour
+  }
+  const t = new R.Table(1);
+  t.startHand();
+  for (let v = t.view(); !v.over; v = t.view()) v.toAct === v.visitor ? t.act(v.legal[0].action) : t.advance();
+  if (!t.view().result) fail('after the Tables were deleted, a new one did not play a hand');
+  t.delete();
+  console.log(`out of memory: ${live.length} live Tables, then new Table threw ${error?.name} "${error?.message}"; after deleting them a new Table played a hand`);
 }
 
 if (failures) {
