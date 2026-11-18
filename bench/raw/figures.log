@@ -1,11 +1,11 @@
-# commit 0c23dac
+# commit fd73ae0
 # Apple M1 Pro, Darwin 27.0.0, Apple clang version 21.0.0 (clang-2100.3.34.2)
-# load average before: { 2.76 5.31 12.47 }
+# load average before: { 3.26 5.26 9.05 }
 # python bench/figures.py --jobs 4
-equity: 50,000 deals per class, seed 17001 x 1,000 + class index, 57 s
-self-play: 250,000 hands (1,000,000 seat-hands), deck seed 17000 x 1,000,003 + hand, 197 s with 4 processes; every hand's results sum to zero
+equity: 50,000 deals per class, seed 17001 x 1,000 + class index, 59 s
+self-play: 250,000 hands (1,000,000 seat-hands), deck seed 17000 x 1,000,003 + hand, 198 s with 4 processes; every hand's results sum to zero
 decisions: 6,714,050 (26.9 per hand); actions chosen (fold, check, call, raise 1 bb, raise half pot, raise pot, all-in): 480,299 (7.2%), 969,075 (14.4%), 1,428,079 (21.3%), 3,692,383 (55.0%), 19,942 (0.3%), 72,740 (1.1%), 51,532 (0.8%)
-self-play: 250,000 hands (1,000,000 seat-hands), deck seed 23000 x 1,000,003 + hand, 215 s with 4 processes; every hand's results sum to zero
+self-play: 250,000 hands (1,000,000 seat-hands), deck seed 23000 x 1,000,003 + hand, 214 s with 4 processes; every hand's results sum to zero
 decisions: 6,696,895 (26.8 per hand); actions chosen (fold, check, call, raise 1 bb, raise half pot, raise pot, all-in): 480,346 (7.2%), 969,141 (14.5%), 1,428,757 (21.3%), 3,674,808 (54.9%), 19,632 (0.3%), 72,693 (1.1%), 51,518 (0.8%)
 --- result by starting hand, deck seed 17000
 seat-hands per class: 2,880 to 9,333; standard error 0.080 to 1.106 bb per hand
@@ -15,6 +15,7 @@ pairs: 13 classes, 58,793 seat-hands, mean +9.326 bb per hand
 suited: 78 classes, 234,961 seat-hands, mean -0.079 bb per hand
 offsuit: 78 classes, 706,246 seat-hands, mean -0.750 bb per hand
 positive mean: 42 of 169 classes (AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, AKo, KK, KQs, KJs, KTs, K9s, K6s, AQo, KQo, QQ, QJs, QTs, AJo, KJo, QJo, JJ, ATo, TT, A9o, 99, A8o, 88, A7o, 77, A6o, 66, 55, 44, 33); the lowest mean is -3.14
+negative mean: 127 classes, 6 of them within one standard error of zero
 suited minus offsuit, same ranks (78 pairs of classes): mean +0.670 bb per hand, suited higher in 60 of 78
 Spearman rank correlation, mean result against all-in equity vs three random hands: 0.615 over all 169; 0.830 within the 84 highest by equity; -0.082 within the other 85
 of the ten best hands by result, 10 are in equity's top 14
@@ -27,6 +28,7 @@ pairs: 13 classes, 58,590 seat-hands, mean +9.235 bb per hand
 suited: 78 classes, 235,869 seat-hands, mean -0.158 bb per hand
 offsuit: 78 classes, 705,541 seat-hands, mean -0.714 bb per hand
 positive mean: 42 of 169 classes (AA, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A2s, AKo, KK, KQs, KJs, KTs, K7s, AQo, KQo, QQ, QJs, QTs, Q9s, AJo, KJo, QJo, JJ, JTs, ATo, KTo, TT, A9o, 99, A8o, 88, A7o, 77, A6o, 66, 55, 44, A3o); the lowest mean is -3.84
+negative mean: 127 classes, 16 of them within one standard error of zero
 suited minus offsuit, same ranks (78 pairs of classes): mean +0.556 bb per hand, suited higher in 60 of 78
 Spearman rank correlation, mean result against all-in equity vs three random hands: 0.646 over all 169; 0.851 within the 84 highest by equity; -0.091 within the other 85
 of the ten best hands by result, 10 are in equity's top 14
@@ -36,4 +38,4 @@ vs call: first checkpoint +84 to +581 bb/100 over the 9 runs, last +79 to +525; 
 vs tight: first checkpoint -803 to -275 bb/100 over the 9 runs, last -274 to -3; mlp-s-seed3: -446 [-583, -308] at 40,000, -14 [-103, +75] at 80,000, -78 [-141, -15] at 120,000, +9 [-37, +56] at 160,000, -34 [-94, +27] at 200,000, +39 [-12, +91] at 240,000, +12 [-18, +42] at 280,000, +27 [+4, +51] at 320,000 (kept), +33 [-4, +70] at 360,000, -3 [-27, +21] at 400,000
 mlp-s-seed3's 95% intervals: +/-23 to +/-269 bb/100
 checkpoints whose 95% interval is above zero against all three baselines: mlp-s-seed3 at 320,000
-# load average after: { 6.89 7.36 10.52 }
+# load average after: { 9.47 9.61 9.65 }
