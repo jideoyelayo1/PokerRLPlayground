@@ -195,6 +195,7 @@ def report_fig1(rows, seed):
         print(f"{name}: {int((kind == k).sum())} classes, {w.sum():,} seat-hands, mean {np.sum(w * m) / w.sum():+.3f} bb per hand")
     pos = [c[i] for i in np.flatnonzero(m > 0)]
     print(f"positive mean: {len(pos)} of {len(c)} classes ({', '.join(pos)}); the lowest mean is {m.min():+.2f}")
+    print(f"negative mean: {int(np.sum(m < 0))} classes, {int(np.sum((m < 0) & (-m < se)))} of them within one standard error of zero")
     suited = {x[:2]: i for i, x in enumerate(c) if x.endswith("s")}
     d = np.array([m[suited[x[:2]]] - m[i] for i, x in enumerate(c) if x.endswith("o")])
     print(f"suited minus offsuit, same ranks (78 pairs of classes): mean {d.mean():+.3f} bb per hand, "
