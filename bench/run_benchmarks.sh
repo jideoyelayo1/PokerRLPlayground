@@ -29,6 +29,7 @@ if [ "$1" = demo ]; then
 fi
 
 ctest --test-dir build --output-on-failure -E eval_exhaustive
+{ rev; ./build/test_betting; } > bench/raw/test_legal_actions.txt
 { rev; ./build/eval_exhaustive; } > bench/raw/eval_exhaustive.txt
 { machine; echo "# ./build/bench_engine 200000 7, CMake Release (-O3 -DNDEBUG), single thread"; ./build/bench_engine 200000 7; after; } > bench/raw/bench_engine.txt
 { machine; echo "# python bench/bench_binding.py --hands 20000 --runs 7 (extension built by setup.py: -O3)"; python bench/bench_binding.py --hands 20000 --runs 7; after; } > bench/raw/bench_binding.txt

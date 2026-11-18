@@ -1,5 +1,7 @@
+# commit 97135c6
+# ./build/test_betting
 legal actions, stacks 200: 19697 decisions; raise sizes allowed/not (BB, half pot, pot): 7675/12022, 8993/10704, 12370/7327; decisions where the old mask marked a rejected size legal: 9412
 legal actions, stacks 40: 18800 decisions; raise sizes allowed/not (BB, half pot, pot): 7745/11055, 7081/11719, 9957/8843; decisions where the old mask marked a rejected size legal: 8300
 rotation, 4 seats: button busted 248, small blind busted 550, big blind busted 283, went heads-up 758, first seat after the button folded 35 / all-in 16 times
 rotation, 6 seats: button busted 60, small blind busted 97, big blind busted 96, went heads-up 89, first seat after the button folded 76 / all-in 2 times
-test_betting: 255 checks, 0 failures
+test_betting: 274 checks, 0 failures
