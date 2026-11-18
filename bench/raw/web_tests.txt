@@ -1,15 +1,18 @@
-# commit b8c3582, Apple M1 Pro, Darwin 27.0.0, Apple clang version 21.0.0 (clang-2100.3.34.2), cmake 4.4.0, node v26.5.0 (Homebrew's; emsdk_env.sh leaves it first on PATH); tracked files outside bench/raw as committed
-# load average before: { 4.40 6.63 10.71 }
+# commit d39fe4e, Apple M1 Pro, Darwin 27.0.0, Apple clang version 21.0.0 (clang-2100.3.34.2), cmake 4.4.0, node v26.5.0 (Homebrew's; emsdk_env.sh leaves it first on PATH); a sanitizer build ran alongside, so timings are slow
+# load average before: { 59.20 48.02 32.76 }
 # cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build && ctest --test-dir build --output-on-failure
-1/6 Test #1: test_hand_eval ...................   Passed    0.00 sec
-2/6 Test #2: test_betting .....................   Passed    1.84 sec
-3/6 Test #3: test_hand_result .................   Passed    0.55 sec
-4/6 Test #4: eval_exhaustive ..................   Passed   66.96 sec
-5/6 Test #5: test_agent .......................   Passed    0.21 sec
-6/6 Test #6: test_table .......................   Passed    1.13 sec
-100% tests passed out of 6
+1/7 Test #1: test_hand_eval ...................   Passed    0.01 sec
+2/7 Test #2: test_betting .....................   Passed    2.56 sec
+3/7 Test #3: test_hand_result .................   Passed    0.65 sec
+4/7 Test #4: eval_exhaustive ..................   Passed  126.04 sec
+5/7 Test #5: test_json ........................   Passed    0.01 sec
+6/7 Test #6: test_agent .......................   Passed    0.22 sec
+7/7 Test #7: test_table .......................   Passed    2.95 sec
+100% tests passed out of 7
 
-Total Test time (real) =  70.70 sec
+Total Test time (real) = 132.45 sec
+# ./build/test_json
+test_json: 28 checks, 0 failures
 # ./build/test_hand_result
 hand results, 20000 hands: 6690 fold wins, 13310 showdowns, 7693 with side pots, 949 split pots
 test_hand_result: 250 checks, 0 failures
@@ -18,18 +21,20 @@ parity: 2674 records; state differs in 0, mask in 0; largest |q - q_torch| 8.34e
 test_agent: 5355 checks, 0 failures
 # ./build/test_table weights/demo
 hidden cards: 31546 views over 2,000 hands, 1083 with a showdown, 3894 agent folds
-refusals: 14216 out of turn, 1015 illegal, 3545 unknown, 709 advance on the visitor's turn, 300 after the hand
-test_table: 24767 checks, 0 failures
+agent decisions: 24773; smallest gap between the two highest legal Q-values 3.14e-06
+refusals: 14216 out of turn, 1015 illegal, 3545 unknown, 709 advance on the visitor's turn, 300 after the hand, 4263 startHand during a hand
+test_table: 29932 checks, 0 failures
 # web/build.sh
 emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.13 (e13ee988ce3d87a738dd8f3661d02223308c412a)
-source commit: b8c358290f6c726660aa0f7c2dd1bcfbbdd92fd4
+source commit: d39fe4e195fce837667f13f542117a2759232e22
 weights: weights/demo/mlp-s-seed3.bin, sha256 c6d70e3c0b18b79c72218d5a1f814a782562552effc6dca1b40c95504aafa8d4 (as in weights/demo/mlp-s-seed3.json)
-command: em++ -std=c++20 -O2 -fexceptions -ffp-contract=off -Wno-c23-extensions -I PokerEngine -I web -DPOKER_MANIFEST="../weights/demo/mlp-s-seed3.json" -DPOKER_WEIGHTS="../weights/demo/mlp-s-seed3.bin" -lembind -sMODULARIZE -sEXPORT_ES6 -sENVIRONMENT=web,node -sALLOW_MEMORY_GROWTH -sFILESYSTEM=0 web/poker_wasm.cpp PokerEngine/Agent.cpp PokerEngine/GameEngine.cpp PokerEngine/Player.cpp -o web/dist/poker.mjs
-poker.mjs: 56471 bytes (gzip -9: 14030 bytes)
-poker.wasm: 460190 bytes (gzip -9: 241999 bytes)
+command: em++ -std=c++20 -O2 -fexceptions -ffp-contract=off -Wno-c23-extensions -I PokerEngine -I web -DPOKER_MANIFEST="../weights/demo/mlp-s-seed3.json" -DPOKER_WEIGHTS="../weights/demo/mlp-s-seed3.bin" -lembind -sMODULARIZE -sEXPORT_ES6 -sENVIRONMENT=web,node -sALLOW_MEMORY_GROWTH -sFILESYSTEM=0 --post-js web/post.js web/poker_wasm.cpp PokerEngine/Agent.cpp PokerEngine/GameEngine.cpp PokerEngine/Player.cpp -o web/dist/poker.mjs
+poker.mjs: 56250 bytes (gzip -9: 14069 bytes)
+poker.wasm: 452113 bytes (gzip -9: 239642 bytes)
 # node web/test.mjs
 parity: 2674 records; same action as PyTorch, rule off and on, in 2674; largest |q - q_torch| 8.34e-7 (tolerance 0.00001); Q-values bit-identical to the native build's in 2674
-replay: 5000 hands from seed 20261118, visitor mulberry32(1) uniform over its legal actions; 81088 lines, identical to the native driver's; 7.2 s in WebAssembly
+refusals: 100,000 each of refused constructions, calls before a hand, calls during a hand (startHand, advance, unknown and illegal act) on both modules, and refused observations on the test module; stack pointer 244352 before, 244352 after
+replay: 5000 hands from seed 20261118, visitor mulberry32(1) uniform over its legal actions; 81088 lines, identical to the native driver's; 13.3 s in WebAssembly
   showdowns 2635, aborted 0; chips won per seat -67335 34648 15452 17235
   actions, all seats: {"call":17547,"raise_bb":24873,"fold":11940,"raise_half":1866,"allin":3272,"check":8526,"raise_pot":3064}
   actions, visitor: {"call":1509,"raise_half":1617,"allin":2241,"raise_bb":1903,"fold":2163,"raise_pot":1942,"check":644}
@@ -39,8 +44,8 @@ a calling visitor (native driver, same deals): decisions per hand, all seats: mi
   agents: min 3, median 10, mean 13.8, 90th percentile 20, 99th 83, max 113; aborted 0
 binding: 2968 out-of-turn and 1490 illegal actions refused with the view unchanged; wrong argument types refused
 PASS: parity records, replay identical to the native build, totals as pinned, hidden cards and refusals as expected
-# load average after: { 11.02 9.25 11.38 }
+# load average after: { 50.80 51.67 37.37 }
 # web/dist/SHA256SUMS
-6353c1249dd39d68a44c8c86870beaf34bbe604bc3c307a7251d31fa81e18d90  poker.mjs
-90c57aad9d0e9617fc8ec59a77f146d8dd0f5d87751f85ad00b31e3c71963a90  poker.wasm
-24304a7471168e986c01f8072cb307fcc913083a432794976ced524ba39c29c9  BUILD.txt
+ff8dbf3553ea88a5a98b384a6b3ae5829c99d59ba334b0113d541e4e80c193ce  poker.mjs
+f68aa19a7cdcd7b320dad39e1fbc2bd262f60025ee104de5852166d225f96521  poker.wasm
+99de87db5ac7d6ca88480b9da62598a9cd798c7691154e1166808f09da076788  BUILD.txt
