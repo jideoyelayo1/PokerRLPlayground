@@ -1,0 +1,54 @@
+{
+ "candidate": "gru",
+ "architecture": {
+  "cls": "GRUModel",
+  "kwargs": {
+   "hidden_dim": 128,
+   "layer_dim": 1,
+   "dropout": 0.0
+  },
+  "sequence": true,
+  "hands": 150000
+ },
+ "seed": 3,
+ "hands": 150000,
+ "agent": {
+  "gamma": 1.0,
+  "lr": 0.0001,
+  "batch_size": 256,
+  "memory_size": 100000,
+  "eps_start": 1.0,
+  "eps_end": 0.05,
+  "double": true,
+  "target_update_freq": 200,
+  "eps_decay_hands": 30000,
+  "sequence": true
+ },
+ "reward_scale": 0.01,
+ "format": {
+  "seats": 4,
+  "stack": 200,
+  "blinds": [
+   1,
+   2
+  ],
+  "reset_stacks": true
+ },
+ "validation": {
+  "seed": 5000,
+  "deals": 1000,
+  "every_hands": 15000
+ },
+ "kept_checkpoint_hands": 150000,
+ "kept_val_score": -73.67954802904654,
+ "wall_s": 16990.1,
+ "cpu_s": 9011.6,
+ "torch_threads": 1,
+ "aborted_hands": 0,
+ "commit": "50dd90ca341f3fdf247f2ece126ec4a4fd6dc450",
+ "dirty": false,
+ "python": "3.14.6",
+ "torch": "2.9.1",
+ "numpy": "2.4.1",
+ "parameters": 108807
+}
