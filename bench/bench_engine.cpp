@@ -38,7 +38,7 @@ static double runStep(int hands, uint64_t seed, Policy pol, long& decisions) {
         while (!g.hand_terminal()) {
             int p = g.currentPlayerSafe();
             auto o = g.getObservation(p);
-            stepWithFallback(g, p, o, choose(pol, o, rng));
+            g.step(choose(pol, o, rng), p);
             ++decisions;
         }
     }

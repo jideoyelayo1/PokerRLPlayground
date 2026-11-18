@@ -30,9 +30,10 @@ from ReinforcementLearningEnvironment.TrainingEnvironmentVariables import N_ACTI
 
 random.seed(0); np.random.seed(0); torch.manual_seed(0)
 helper.CSV_PATH = str(Path(tempfile.mkdtemp()) / "log.csv")
-models = [MLPModel(input_features=146, output_features=N_ACTIONS, hidden=(512, 1024, 2048, 1024, 512)),
-          LSTMModel(input_dim=146, output_dim=N_ACTIONS), GRUModel(input_dim=146, output_dim=N_ACTIONS),
-          TransformerQModel(input_size=146, num_actions=N_ACTIONS)]
+f = 151  # encode_observation length for 4 seats
+models = [MLPModel(input_features=f, output_features=N_ACTIONS, hidden=(512, 1024, 2048, 1024, 512)),
+          LSTMModel(input_dim=f, output_dim=N_ACTIONS), GRUModel(input_dim=f, output_dim=N_ACTIONS),
+          TransformerQModel(input_size=f, num_actions=N_ACTIONS)]
 _, hist = train_poker_dqn(models, 4, 10000, 2, 1, max_hands=hands, device="cpu", ma_window=5)
 rows = list(csv.DictReader(open(helper.CSV_PATH)))
 per_hand = Counter(r["hand_id"] for r in rows)

@@ -17,7 +17,8 @@ class LSTMModel(nn.Module):
         )
         self.fc = nn.Linear(hidden_dim, output_dim)
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor, lengths=None):
+        # lengths: as in GRUModel.forward, for right-padded batches
         # Accepts:
         # 1D: (F,) -> (1, 1, F)
         # 2D: (B, F) -> (B, 1, F)
@@ -29,8 +30,12 @@ class LSTMModel(nn.Module):
         elif x.dim() != 3:
             raise ValueError(f"LSTMModel expected 1D/2D/3D input, got {tuple(x.shape)}")
 
-        out, _ = self.lstm(x)          # out: (B, T, H)
-        out = out[:, -1, :]            # last timestep: (B, H)
+        if lengths is not None:  # packed, as in GRUModel: final hidden state of the last layer
+            packed = nn.utils.rnn.pack_padded_sequence(x, lengths.cpu(), batch_first=True, enforce_sorted=False)
+            out = self.lstm(packed)[1][0][-1]  # (B, H)
+        else:
+            out, _ = self.lstm(x)          # out: (B, T, H)
+            out = out[:, -1, :]            # last timestep: (B, H)
         out = self.fc(out)             # (B, output_dim)
         return out
     

@@ -99,13 +99,16 @@ PYBIND11_MODULE(poker_engine, m) {
         .def_readwrite("call_amount", &ActionSpec::call_amount)
         .def_readwrite("min_raise_to", &ActionSpec::min_raise_to)
         .def_readwrite("max_raise_to", &ActionSpec::max_raise_to)
-        .def_readwrite("allowed", &ActionSpec::allowed);
+        .def_readwrite("allowed", &ActionSpec::allowed)
+        .def_readwrite("raise_size", &ActionSpec::raise_size)
+        .def_readwrite("raise_to", &ActionSpec::raise_to);
 
     py::class_<Observation>(m, "Observation")
         .def(py::init<>())
         .def_readwrite("viewer_id", &Observation::viewer_id)
         .def_readwrite("street", &Observation::street)
         .def_readwrite("current_player_id", &Observation::current_player_id)
+        .def_readwrite("button", &Observation::button)
         .def_readwrite("hand_in_progress", &Observation::hand_in_progress)
         .def_readwrite("terminal", &Observation::terminal)
         .def_readwrite("winner_id", &Observation::winner_id)
@@ -224,10 +227,7 @@ PYBIND11_MODULE(poker_engine, m) {
         // FIX: do NOT bind &GameEngine::isAllowed (your C++ doesn't define it as a real class static right now)
         .def_static("isAllowed",
             [](const std::vector<ActionSpec>& legal, ActionType t) {
-                for (const auto& a : legal) {
-                    if (a.type == t) return a.allowed;
-                }
-                return false;
+                return GameEngine::isAllowed(legal, t);  // any allowed entry of type t
             },
             py::arg("legal"),
             py::arg("type"));

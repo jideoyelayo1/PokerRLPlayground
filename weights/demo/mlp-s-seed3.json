@@ -1,0 +1,123 @@
+{
+ "run": "mlp-s-seed3",
+ "file": "mlp-s-seed3.bin",
+ "dtype": "float32",
+ "byte_order": "little",
+ "layout": "C order (row-major)",
+ "bytes": 147484,
+ "parameters": 36871,
+ "sha256": "c6d70e3c0b18b79c72218d5a1f814a782562552effc6dca1b40c95504aafa8d4",
+ "tensors": [
+  {
+   "name": "net.0.weight",
+   "shape": [
+    128,
+    151
+   ],
+   "offset": 0,
+   "nbytes": 77312
+  },
+  {
+   "name": "net.0.bias",
+   "shape": [
+    128
+   ],
+   "offset": 77312,
+   "nbytes": 512
+  },
+  {
+   "name": "net.3.weight",
+   "shape": [
+    128,
+    128
+   ],
+   "offset": 77824,
+   "nbytes": 65536
+  },
+  {
+   "name": "net.3.bias",
+   "shape": [
+    128
+   ],
+   "offset": 143360,
+   "nbytes": 512
+  },
+  {
+   "name": "net.6.weight",
+   "shape": [
+    7,
+    128
+   ],
+   "offset": 143872,
+   "nbytes": 3584
+  },
+  {
+   "name": "net.6.bias",
+   "shape": [
+    7
+   ],
+   "offset": 147456,
+   "nbytes": 28
+  }
+ ],
+ "architecture": {
+  "class": "MLPModel",
+  "hidden": [
+   128,
+   128
+  ],
+  "dropout": 0.0,
+  "input_dim": 151,
+  "output_dim": 7,
+  "sequence_input": false
+ },
+ "forward": "net.0 Linear, ReLU, (Dropout p=0: identity), net.3 Linear, ReLU, ... last Linear: y = x W^T + b for each Linear (weight shape [out, in]); ReLU after every Linear but the last",
+ "input": "docs/state_encoding.md (151 float32 values for 4 seats; a sequence model gets one per own decision this hand)",
+ "output": "Q-value per action index, in units of 100 big blinds; play argmax(q + legal mask), ties to the lowest index",
+ "play_time_options": {
+  "no_free_fold": {
+   "rule": "if Check is allowed, Fold is treated as not allowed (set the mask's fold entry to -1e9 before the argmax)",
+   "default": false,
+   "status": "decided after the selection; off in training and in the pre-registered evaluation; measured on fresh deals in bench/RESULTS.md section 6, 'After selection'"
+  }
+ },
+ "actions": {
+  "0": "fold",
+  "1": "check",
+  "2": "call",
+  "3": "raise_bb",
+  "4": "raise_half",
+  "5": "raise_pot",
+  "6": "allin"
+ },
+ "format": {
+  "seats": 4,
+  "stack": 200,
+  "blinds": [
+   1,
+   2
+  ]
+ },
+ "training": {
+  "seed": 3,
+  "hands": 400000,
+  "agent": {
+   "gamma": 1.0,
+   "lr": 0.0001,
+   "batch_size": 256,
+   "memory_size": 100000,
+   "eps_start": 1.0,
+   "eps_end": 0.05,
+   "double": true,
+   "target_update_freq": 200,
+   "eps_decay_hands": 80000,
+   "sequence": false
+  },
+  "reward_scale": 0.01,
+  "commit": "73e3e73ad3adad698c74ec230d1695761f3180aa",
+  "dirty": false,
+  "kept_checkpoint_hands": 320000,
+  "torch": "2.9.1",
+  "python": "3.14.6"
+ }
+}

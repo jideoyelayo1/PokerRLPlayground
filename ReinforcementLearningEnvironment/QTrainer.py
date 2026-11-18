@@ -5,8 +5,10 @@ import torch.optim as optim
 import numpy as np
 
 class QTrainer:
-    def __init__(self, model: nn.Module, target_model: nn.Module, lr: float, gamma: float, device="cpu"):
+    def __init__(self, model: nn.Module, target_model: nn.Module, lr: float, gamma: float, device="cpu", double=False):
         self.gamma = gamma
+        # Double DQN: the online network picks the next action, the target network values it
+        self.double = double
         self.model = model
         self.target_model = target_model
         self.device = device
@@ -45,25 +47,38 @@ class QTrainer:
 
         return y  # (B, N_ACTIONS)
 
-    def train_step(self, states, actions, rewards, next_states, dones):
-        states = torch.tensor(np.array(states), dtype=torch.float32, device=self.device)
-        next_states = torch.tensor(np.array(next_states), dtype=torch.float32, device=self.device)
+    def _batch(self, xs):
+        """States as a (B, F) tensor; sequences of states ((T_i, F) arrays) as (B, max T_i, F),
+        right-padded with zeros, plus the lengths T_i."""
+        if np.ndim(xs[0]) == 1:
+            return torch.tensor(np.array(xs), dtype=torch.float32, device=self.device), None
+        lengths = [len(x) for x in xs]
+        out = np.zeros((len(xs), max(lengths), xs[0].shape[1]), dtype=np.float32)
+        for i, x in enumerate(xs):
+            out[i, :len(x)] = x
+        return torch.tensor(out, device=self.device), torch.tensor(lengths, device=self.device)
+
+    @staticmethod
+    def _q(net, x, lengths):
+        return net(x) if lengths is None else net(x, lengths)
+
+    def train_step(self, states, actions, rewards, next_states, dones, next_masks=None):
+        states, lengths = self._batch(states)
+        next_states, next_lengths = self._batch(next_states)
         actions = torch.tensor(np.array(actions), dtype=torch.int64, device=self.device)
         rewards = torch.tensor(np.array(rewards), dtype=torch.float32, device=self.device)
         dones = torch.tensor(np.array(dones), dtype=torch.bool, device=self.device)
 
-        if states.dim() == 1:
-            states = states.unsqueeze(0)
-            next_states = next_states.unsqueeze(0)
-            actions = actions.unsqueeze(0)
-            rewards = rewards.unsqueeze(0)
-            dones = dones.unsqueeze(0)
-
-        pred = self.model(states)  # (B, N_ACTIONS)
+        pred = self._q(self.model, states, lengths)  # (B, N_ACTIONS)
 
         with torch.no_grad():
-            next_q = self.target_model(next_states)       # (B, N_ACTIONS)
-            max_next_q = next_q.max(dim=1).values         # (B,)
+            next_q = self._q(self.target_model, next_states, next_lengths)  # (B, N_ACTIONS)
+            m = 0.0 if next_masks is None else torch.tensor(np.array(next_masks), dtype=torch.float32, device=self.device)
+            if self.double:
+                pick = (self._q(self.model, next_states, next_lengths) + m).argmax(dim=1, keepdim=True)
+                max_next_q = next_q.gather(1, pick).squeeze(1)  # (B,)
+            else:
+                max_next_q = (next_q + m).max(dim=1).values  # (B,); max over the legal actions at s' only
             target_q = rewards + (~dones).float() * self.gamma * max_next_q
 
         target = pred.clone().detach()
@@ -73,3 +88,4 @@ class QTrainer:
         loss = self.criterion(pred, target)
         loss.backward()
         self.optimizer.step()
+        return loss.item()

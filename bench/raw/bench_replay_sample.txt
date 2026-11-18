@@ -1,0 +1,6 @@
+# commit 61ea7c8, Apple M1 Pro, Python 3.14.6, load average { 23.73 13.13 11.80 }
+# python bench/bench_replay_sample.py 100000 1000000
+n=100,000: deque 3.19 ms per 1,024-sample draw (mean of 20)
+n=100,000: list 0.43 ms per 1,024-sample draw (mean of 20)
+n=1,000,000: deque 326.59 ms per 1,024-sample draw (mean of 20)
+n=1,000,000: list 0.50 ms per 1,024-sample draw (mean of 20)

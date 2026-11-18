@@ -13,11 +13,31 @@ add_library(poker_core STATIC PokerEngine/GameEngine.cpp PokerEngine/Player.cpp)
 target_include_directories(poker_core PUBLIC PokerEngine)
 
 enable_testing()
-foreach(t test_hand_eval test_betting eval_exhaustive)
+foreach(t test_hand_eval test_betting test_hand_result eval_exhaustive)
   add_executable(${t} PokerEngine/tests/${t}.cpp)
   target_link_libraries(${t} poker_core Threads::Threads)
   add_test(NAME ${t} COMMAND ${t})
 endforeach()
+
+# The trained agent (encoding, mask, forward pass). No fused multiply-add, so that the native and
+# WebAssembly builds give the same Q-values bit for bit (web/build.sh passes the same flag).
+add_library(poker_agent STATIC PokerEngine/Agent.cpp)
+target_link_libraries(poker_agent PUBLIC poker_core)
+target_compile_options(poker_agent PRIVATE -ffp-contract=off)
+
+add_executable(test_agent PokerEngine/tests/test_agent.cpp)
+target_link_libraries(test_agent poker_agent)
+add_test(NAME test_agent COMMAND test_agent ${CMAKE_SOURCE_DIR}/weights/demo mlp-s-seed3)
+
+# The demo's table (web/Table.hpp), the class behind the WebAssembly binding, and the native side
+# of web/test.mjs's replay.
+add_executable(test_table web/test_table.cpp)
+target_include_directories(test_table PRIVATE web)
+target_link_libraries(test_table poker_agent)
+add_test(NAME test_table COMMAND test_table ${CMAKE_SOURCE_DIR}/weights/demo)
+add_executable(replay_driver web/replay_driver.cpp)
+target_include_directories(replay_driver PRIVATE web)
+target_link_libraries(replay_driver poker_agent)
 
 add_executable(bench_engine bench/bench_engine.cpp)
 target_link_libraries(bench_engine poker_core)

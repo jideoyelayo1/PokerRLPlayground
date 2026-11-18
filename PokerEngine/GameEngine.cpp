@@ -21,6 +21,9 @@ void GameEngine::start_hand() {
     hand_terminal_ = false;
     hand_winner_id_ = -1;
     hand_started_ = true;
+    history_.clear();
+    pot_results_.clear();
+    showdown_seats_.clear();
 
     resetPlayersForNewHandAliveOnly();
     dealOutCardsToPlayersAliveOnly();
@@ -57,7 +60,9 @@ Observation GameEngine::step(const Action& a, int viewerId) {
 
     // Apply single action by current player
     int acting_id = *current_betting_player_;
+    int street = streetInt(), before = P(acting_id).streetContrib();
     applyAction(acting_id, a);
+    history_.push_back({acting_id, street, a, P(acting_id).streetContrib() - before, P(acting_id).streetContrib()});
 
     // If hand ended by folds immediately
     if (handEndedByFolds()) {
@@ -107,6 +112,12 @@ Observation GameEngine::step(const Action& a, int viewerId) {
 }
 
 void GameEngine::reset_tournament(int startingMoney) {
+    reset_stacks(startingMoney);
+    // the next hand puts the button on the first seat again
+    button_ = -1;
+}
+
+void GameEngine::reset_stacks(int startingMoney) {
     // reset all players to startingMoney
     for (auto& p : players_) {
         p.resetForNewHand();
@@ -120,9 +131,6 @@ void GameEngine::reset_tournament(int startingMoney) {
     for (int i = 0; i < numPlayers_; ++i) activate_player_ids_.push_back(i);
     current_betting_player_ = activate_player_ids_.begin();  // clear() freed the node it pointed to
 
-    // the next hand puts the button on the first seat again
-    button_ = -1;
-
     // reset hand state
     sharedCards_.clear();
     pots_.clear();
@@ -132,6 +140,9 @@ void GameEngine::reset_tournament(int startingMoney) {
     hand_terminal_ = false;
     hand_winner_id_ = -1;
     hand_started_ = false;
+    history_.clear();
+    pot_results_.clear();
+    showdown_seats_.clear();
 }
 
 
@@ -580,20 +591,28 @@ std::vector<Pot> GameEngine::buildSidePotsFromTotal() const {
 }
 
 
-void GameEngine::awardPotToWinners(const Pot& pot, const std::vector<int>& winners) {
-    if (winners.empty()) return;
+std::vector<int> GameEngine::awardPotToWinners(const Pot& pot, const std::vector<int>& winners) {
+    if (winners.empty()) return {};
     int share = pot.amount / (int)winners.size();
     int rem   = pot.amount % (int)winners.size();
 
     for (int id : winners) players_[id].awardChips(share);
     if (rem > 0) players_[winners[0]].awardChips(rem);
+    std::vector<int> shares(winners.size(), share);
+    shares[0] += rem;
+    return shares;
 }
 
 void GameEngine::showdownAndPayout() {
     // If hand ended by folds, pay whole pot to last active player
+    pot_results_.clear();
+    showdown_seats_.clear();
     if (handEndedByFolds()) {
         int winner = lastActivePlayerId();
-        if (winner >= 0) players_[winner].awardChips(pot_);
+        if (winner >= 0) {
+            players_[winner].awardChips(pot_);
+            pot_results_.push_back({pot_, {winner}, {winner}, {pot_}});
+        }
         return;
     }
 
@@ -608,6 +627,7 @@ void GameEngine::showdownAndPayout() {
     ranks.reserve(players_.size());
     for (int id : activate_player_ids_) {
         if (players_[id].hasFolded()) continue;
+        showdown_seats_.push_back(id);
         std::vector<Card> seven;
         seven.reserve(7);
         auto ph = players_[id].getPocketHand();
@@ -643,7 +663,7 @@ void GameEngine::showdownAndPayout() {
             }
         }
 
-        awardPotToWinners(pot, winners);
+        pot_results_.push_back({pot.amount, pot.eligible, winners, awardPotToWinners(pot, winners)});
     }
 }
 
@@ -769,30 +789,21 @@ std::vector<ActionSpec> GameEngine::legalActions(int playerId) const {
     // If can't act, nothing is legal
     if (!canActNow(playerId)) return out;
 
-    const auto& p = players_[playerId];
     int need = playerToCall(playerId);
     int max_to = maxRaiseTo(playerId);
+    int min_to = to_call_ + min_raise_;  // NLH minimum "raise-to"
 
-    // Fold always allowed if you can act
-    out.push_back(ActionSpec{ActionType::Fold, need, 0, 0, true});
+    // Legality comes from isActionLegal, the check applyAction makes, so a listed action is
+    // accepted exactly when it is marked allowed (for the player to act; step() always acts for
+    // the current player). Call when need > stack is a call all-in.
+    for (ActionType t : {ActionType::Fold, ActionType::Check, ActionType::Call, ActionType::AllIn})
+        out.push_back(ActionSpec{t, need, 0, 0, isActionLegal(playerId, Action{t})});
 
-    // Check only if need==0
-    out.push_back(ActionSpec{ActionType::Check, need, 0, 0, (need == 0)});
-
-    // Call allowed if need>0 and you have >0 chips (if you have 0 you'd be all-in already)
-    // We still allow "call" when need>0; amount is min(need, stack) at execution, but legality is "you can call all-in".
-    bool can_call = (need > 0) && (p.getMoney() > 0);
-    out.push_back(ActionSpec{ActionType::Call, need, 0, 0, can_call});
-
-    // All-in allowed if you have >0 chips
-    bool can_allin = (p.getMoney() > 0);
-    out.push_back(ActionSpec{ActionType::AllIn, need, 0, 0, can_allin});
-
-    // Raise: only if you have chips and your max_to > to_call_ (i.e., can increase price)
-    // Minimum "raise-to" is to_call_ + min_raise_ (NLH)
-    int min_to = to_call_ + min_raise_;
-    bool can_raise = (p.getMoney() > 0) && (max_to > to_call_) && (max_to >= min_to);
-    out.push_back(ActionSpec{ActionType::Raise, need, min_to, max_to, can_raise});
+    // One entry per raise size: a size is legal only if its raise-to is within [min_to, max_to].
+    for (RaiseSize sz : {RaiseSize::BB, RaiseSize::HalfPot, RaiseSize::Pot})
+        out.push_back(ActionSpec{ActionType::Raise, need, min_to, max_to,
+                                 isActionLegal(playerId, Action{ActionType::Raise, sz}), sz,
+                                 computeRaiseTo(playerId, sz)});
 
     return out;
 }
@@ -802,6 +813,7 @@ Observation GameEngine::getObservation(int viewerId) const {
     o.viewer_id = viewerId;
 
     o.street = static_cast<int>(street_);
+    o.button = button_;
     o.pot_total = pot_;
     o.to_call = to_call_;
     o.min_raise = min_raise_;
@@ -848,8 +860,9 @@ Observation GameEngine::getObservation(int viewerId) const {
     return o;
 }
 
+// True if any entry of type t is allowed (for Raise: any of the three sizes).
 bool GameEngine::isAllowed(const std::vector<ActionSpec>& legal, ActionType t) {
-    for (const auto& a : legal) if (a.type == t) return a.allowed;
+    for (const auto& a : legal) if (a.type == t && a.allowed) return true;
     return false;
 }
 

@@ -29,6 +29,24 @@ struct Action {
     RaiseSize raiseSize{RaiseSize::BB}; // only used if type==Raise
 };
 
+// One action applied by step() in the current hand (GameEngine::handHistory).
+struct ActionRecord {
+    int seat = -1;
+    int street = 0;          // 0 preflop .. 3 river, when the action was taken
+    Action action{};
+    int chips = 0;           // chips the action put in
+    int street_contrib = 0;  // the seat's street contribution after it
+};
+
+// One pot at the end of a hand (GameEngine::potResults): what it held, who could win it, who won
+// it and what each winner received (an odd chip goes to the first winner, the lowest seat).
+struct PotResult {
+    int amount = 0;
+    std::vector<int> eligible;
+    std::vector<int> winners;
+    std::vector<int> shares;  // shares[k] chips to winners[k]
+};
+
 enum class Suits {
     Empty = 0,
     Hearts,
@@ -52,12 +70,18 @@ class Card{
         Card(Suits s, Ranks r) : suit(s), rank(r) {}
 };
 
+// legalActions lists Fold, Check, Call, AllIn, then one Raise per RaiseSize (BB, HalfPot, Pot).
+// For the player to act, `allowed` is exactly whether step() accepts that action, raise size
+// included. step(a, viewer) always acts for the current player, whatever viewer is, and the
+// legal list of a seat that is not to act is judged as if it were (against the current bets).
 struct ActionSpec {
     ActionType type{};
     int call_amount = 0;      // chips needed to call (0 => check)
     int min_raise_to = 0;     // for Raise: minimum "raise-to" street contribution
     int max_raise_to = 0;     // for Raise: maximum "raise-to" (all-in)
     bool allowed = false;
+    RaiseSize raise_size{RaiseSize::BB};  // for Raise: the size this entry is for
+    int raise_to = 0;         // for Raise: the street contribution this size raises to
 };
 
 struct Observation {
@@ -65,6 +89,7 @@ struct Observation {
 
     int street = 0;
     int current_player_id = -1;
+    int button = -1;                // seat with the dealer button; -1 before the first hand after a reset
 
     // Hand / episode flags
     bool hand_in_progress = false;

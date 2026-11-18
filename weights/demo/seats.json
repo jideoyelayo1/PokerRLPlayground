@@ -1,0 +1,15 @@
+{
+ "seats": [
+  "mlp-s-seed3",
+  "mlp-s-seed3",
+  "mlp-s-seed3"
+ ],
+ "one_network_in_all_seats": true,
+ "agents": {
+  "mlp-s-seed3": {
+   "bytes": 147484,
+   "parameters": 36871,
+   "sha256": "c6d70e3c0b18b79c72218d5a1f814a782562552effc6dca1b40c95504aafa8d4"
+  }
+ }
+}

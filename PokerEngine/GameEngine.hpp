@@ -25,6 +25,12 @@ class GameEngine{
         int  hand_winner_id_ = -1;
         bool hand_started_ = false;
 
+        // The current hand, for a table view: actions applied by step(), and at its end each pot's
+        // winners and the seats that reached showdown. Cleared when a hand starts or stacks reset.
+        std::vector<ActionRecord> history_;
+        std::vector<PotResult> pot_results_;
+        std::vector<int> showdown_seats_;
+
 
         Card emptyCard() const { return Card(); } // suit/rank Empty by default
 
@@ -152,7 +158,7 @@ class GameEngine{
             return (a.cat == b.cat) && (a.kickers == b.kickers);
         }
 
-        void awardPotToWinners(const Pot& pot, const std::vector<int>& winners);
+        std::vector<int> awardPotToWinners(const Pot& pot, const std::vector<int>& winners);  // the chips each got
 
         void showdownAndPayout();
 
@@ -199,10 +205,19 @@ class GameEngine{
 
         static HandRank bestHandOf7(const std::vector<Card>& seven);
 
-        void reset_tournament(int startingMoney);   // resets stacks + alive list
+        void reset_tournament(int startingMoney);   // resets stacks + alive list; the next button is seat 0
+        void reset_stacks(int startingMoney);       // the same, but the button keeps moving from where it was
         void start_hand();                          // starts a new hand (posts blinds, deals, sets current player)
         bool hand_terminal() const { return hand_terminal_; }
         int  winner_id() const { return hand_winner_id_; }
+
+        // The actions step() applied in the current hand, in order.
+        const std::vector<ActionRecord>& handHistory() const { return history_; }
+        // Set when a hand ends: each pot with its winners and shares (one pot, to the last player
+        // in, when the hand ended by folds), and the seats that reached showdown (not folded when
+        // the hand ended without a fold win; empty after a fold win).
+        const std::vector<PotResult>& potResults() const { return pot_results_; }
+        const std::vector<int>& showdownSeats() const { return showdown_seats_; }
 
         // Single-step advance: apply exactly ONE action for current player.
         // Returns Observation for `viewerId` (usually the same as the next player who will act).

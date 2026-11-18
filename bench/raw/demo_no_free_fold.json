@@ -1,0 +1,179 @@
+{
+ "seed": 13000,
+ "deals": 40000,
+ "wall_s": 225.8,
+ "load_average": [
+  31.72998046875,
+  35.45751953125,
+  26.48828125
+ ],
+ "cells": [
+  {
+   "bb100": 395.913125,
+   "ci95_lo": 369.3276432539374,
+   "ci95_hi": 422.4986067460626,
+   "sd_bb_per_deal": 27.128042598023058,
+   "deals": 40000,
+   "hands": 160000,
+   "agent": "mlp-s-seed3",
+   "baseline": "random",
+   "seed": 13000,
+   "no_free_fold": false,
+   "actions": [
+    125761,
+    17990,
+    117848,
+    37544,
+    1712,
+    9984,
+    13512
+   ],
+   "free_folds": 2476,
+   "computed_utc": "2026-11-18T06:33:53Z",
+   "commit": "4aa24d6c59fa255dcb6089cb4f4011329526345f"
+  },
+  {
+   "bb100": 315.17218749999995,
+   "ci95_lo": 297.6852158647401,
+   "ci95_hi": 332.65915913525987,
+   "sd_bb_per_deal": 17.84384860740809,
+   "deals": 40000,
+   "hands": 160000,
+   "agent": "mlp-s-seed3",
+   "baseline": "call",
+   "seed": 13000,
+   "no_free_fold": false,
+   "actions": [
+    86584,
+    187393,
+    48777,
+    108682,
+    4600,
+    16233,
+    4778
+   ],
+   "free_folds": 53193,
+   "computed_utc": "2026-11-18T06:35:06Z",
+   "commit": "4aa24d6c59fa255dcb6089cb4f4011329526345f"
+  },
+  {
+   "bb100": 16.5315625,
+   "ci95_lo": 11.93947662352192,
+   "ci95_hi": 21.12364837647808,
+   "sd_bb_per_deal": 4.685801914773551,
+   "deals": 40000,
+   "hands": 160000,
+   "agent": "mlp-s-seed3",
+   "baseline": "tight",
+   "seed": 13000,
+   "no_free_fold": false,
+   "actions": [
+    42360,
+    123155,
+    70487,
+    116593,
+    761,
+    5878,
+    1179
+   ],
+   "free_folds": 19356,
+   "computed_utc": "2026-11-18T06:34:16Z",
+   "commit": "4aa24d6c59fa255dcb6089cb4f4011329526345f"
+  },
+  {
+   "bb100": 364.99031249999996,
+   "ci95_lo": 338.4524401560192,
+   "ci95_hi": 391.52818484398074,
+   "sd_bb_per_deal": 27.07946157549058,
+   "deals": 40000,
+   "hands": 160000,
+   "agent": "mlp-s-seed3",
+   "baseline": "random",
+   "seed": 13000,
+   "no_free_fold": true,
+   "actions": [
+    125641,
+    20401,
+    117880,
+    37544,
+    1740,
+    9970,
+    13240
+   ],
+   "free_folds": 2681,
+   "computed_utc": "2026-11-18T06:33:53Z",
+   "commit": "4aa24d6c59fa255dcb6089cb4f4011329526345f"
+  },
+  {
+   "bb100": 357.22749999999996,
+   "ci95_lo": 339.56106952443565,
+   "ci95_hi": 374.89393047556433,
+   "sd_bb_per_deal": 18.026969873024836,
+   "deals": 40000,
+   "hands": 160000,
+   "agent": "mlp-s-seed3",
+   "baseline": "call",
+   "seed": 13000,
+   "no_free_fold": true,
+   "actions": [
+    33391,
+    316692,
+    48777,
+    109773,
+    4661,
+    17171,
+    4979
+   ],
+   "free_folds": 108424,
+   "computed_utc": "2026-11-18T06:35:17Z",
+   "commit": "4aa24d6c59fa255dcb6089cb4f4011329526345f"
+  },
+  {
+   "bb100": 27.225937500000004,
+   "ci95_lo": 22.603399127447794,
+   "ci95_hi": 31.84847587255221,
+   "sd_bb_per_deal": 4.716875890359395,
+   "deals": 40000,
+   "hands": 160000,
+   "agent": "mlp-s-seed3",
+   "baseline": "tight",
+   "seed": 13000,
+   "no_free_fold": true,
+   "actions": [
+    23004,
+    167512,
+    70487,
+    117015,
+    767,
+    5942,
+    1196
+   ],
+   "free_folds": 35023,
+   "computed_utc": "2026-11-18T06:34:23Z",
+   "commit": "4aa24d6c59fa255dcb6089cb4f4011329526345f"
+  }
+ ],
+ "paired_on_minus_off": [
+  {
+   "agent": "mlp-s-seed3",
+   "baseline": "random",
+   "on_minus_off_bb100": -30.922812500000003,
+   "ci95_lo": -62.39899165836007,
+   "ci95_hi": 0.5533666583600716
+  },
+  {
+   "agent": "mlp-s-seed3",
+   "baseline": "call",
+   "on_minus_off_bb100": 42.0553125,
+   "ci95_lo": 38.253009180655226,
+   "ci95_hi": 45.85761581934478
+  },
+  {
+   "agent": "mlp-s-seed3",
+   "baseline": "tight",
+   "on_minus_off_bb100": 10.694375,
+   "ci95_lo": 9.719755910503764,
+   "ci95_hi": 11.668994089496238
+  }
+ ]
+}

@@ -1,7 +1,7 @@
 import PokerEngine.poker_engine as pe
 from ReinforcementLearningEnvironment.Agent import DQNAgent
 from ReinforcementLearningEnvironment.helper import (
-    legal_mask_from_obs, step_with_fallback, moving_average,
+    legal_mask_from_obs, action_index_to_engine_action, moving_average,
     encode_observation, pocket_key, append_hand_rows
     )
 from ReinforcementLearningEnvironment.TrainingEnvironmentVariables import (
@@ -12,7 +12,7 @@ from ReinforcementLearningEnvironment.TrainingEnvironmentVariables import (
     )
 
 from tqdm.auto import tqdm
-import time
+from array import array
 import random
 import numpy as np
 
@@ -28,7 +28,24 @@ def train_poker_dqn(
     device="cpu",
     ma_window: int = 200,
     seed=None,
+    reset_stacks: bool = False,
+    agent_kwargs=None,
+    reward_scale: float = 1.0,
+    log_csv: bool = True,
+    on_hand_end=None,
 ):
+    """Self-play DQN training. reset_stacks=True resets every stack to starting_stack before each
+    hand (a cash game, as the demo is played; the button then always starts on seat 0); otherwise the
+    stacks carry over and the tournament is reset when fewer than two players have chips.
+
+    One DQNAgent per model (agent_kwargs are passed to each). With fewer models than seats, seat i
+    is played by agent i % len(models): one model plays every seat, learning from all of them.
+
+    The terminal reward is the seat's result in big blinds times reward_scale.
+
+    log_csv=False skips the per-player-per-hand CSV (CSV_PATH), which grows by about 300 bytes a
+    hand. on_hand_end(hands_played, agents), if given, is called after each hand's updates (for
+    checkpoints and progress logs in long runs)."""
 
     g = pe.GameEngine(n_players, starting_stack, big_blind, small_blind)
     if seed is not None:
@@ -42,12 +59,13 @@ def train_poker_dqn(
     state_dim = encode_observation(tmp_obs, big_blind=big_blind).shape[0]
     g.reset_tournament(starting_stack)  # discard probe hand
 
-    agents = [DQNAgent(i, models[i], state_dim=state_dim, device=device)
-              for i in range(n_players)]
+    agents = [DQNAgent(i, m, state_dim=state_dim, device=device, **(agent_kwargs or {}))
+              for i, m in enumerate(models)]
+    seat_agent = [agents[i % len(agents)] for i in range(n_players)]
 
     history = {
-        "hand": [],
-        "delta_bb": {i: [] for i in range(n_players)},
+        "hand": array("l"),  # compact: a long run logs millions of values
+        "delta_bb": {i: array("f") for i in range(n_players)},
         "ma_bb":    {i: [] for i in range(n_players)},
         "resets":   [],
         "aborted":  [],
@@ -56,13 +74,14 @@ def train_poker_dqn(
     hands_played = 0
     pbar = tqdm(total=max_hands)
 
-    HAND_TIMEOUT_SEC = 2.0
-    MAX_STEPS_PER_HAND = 2000
+    MAX_STEPS_PER_HAND = 2000  # no wall-clock limit: it made seeded runs depend on machine load
 
     while hands_played < max_hands:
 
         # Reset tournament if needed
-        if g.alivePlayers() < 2:
+        if reset_stacks:
+            g.reset_tournament(starting_stack)
+        elif g.alivePlayers() < 2:
             history["resets"].append(hands_played)
             g.reset_tournament(starting_stack)
 
@@ -97,15 +116,24 @@ def train_poker_dqn(
             for i in range(n_players)
         }
 
-        t0 = time.time()
         steps = 0
         hand_aborted = False
+        # Each seat's last decision (state, action), stored once its outcome is known: at the
+        # seat's next decision (reward 0, next state = that decision's state) or at the end of the
+        # hand (reward = the seat's result for the hand, done). So every seat that acted learns
+        # its result, not only the one whose action ends the hand.
+        pending = {}
+        seq = {}  # sequence agents: each seat's encoded states at its decisions in this hand
+
+        def store(i, s_next, r, d, mask_next=None):
+            s_prev, a_prev = pending.pop(i)
+            seat_agent[i].remember(s_prev, a_prev, r, s_next, d, mask_next)
 
         while not g.hand_terminal():
             steps += 1
 
-            if steps > MAX_STEPS_PER_HAND or (time.time() - t0) > HAND_TIMEOUT_SEC:
-                hand_aborted = "steps" if steps > MAX_STEPS_PER_HAND else "timeout"
+            if steps > MAX_STEPS_PER_HAND:
+                hand_aborted = "steps"
                 break
 
             acting = g.currentPlayerSafe()
@@ -115,36 +143,32 @@ def train_poker_dqn(
 
             obs = g.getObservation(acting)
             s = encode_observation(obs, big_blind=big_blind)
-
+            if seat_agent[acting].sequence:
+                seq.setdefault(acting, []).append(s)
+                s = np.stack(seq[acting])  # (decisions so far, F), this one last
             mask = legal_mask_from_obs(obs)
+            if acting in pending:
+                store(acting, s, 0.0, False, mask)
+
             legal_idxs = np.where(mask == 0.0)[0]
             if len(legal_idxs) == 0:
                 hand_aborted = "no legal action"
                 break
-            
-            a_idx = agents[acting].select_action(s, mask)
+
+            a_idx = seat_agent[acting].select_action(s, mask)
             if mask[a_idx] != 0.0:
                 a_idx = int(random.choice(legal_idxs))
 
             try:
-                a_idx, done = step_with_fallback(g, acting, a_idx, obs)
+                g.step(action_index_to_engine_action(a_idx), acting)  # the mask is exact: no fallback
             except Exception as e:
                 hand_aborted = f"error: {e}"
                 break
 
-            # Record fold street using the *executed* action (after fallback)
             if a_idx == A_FOLD and hand_actions[acting]["exit_street"] is None:
                 hand_actions[acting]["exit_street"] = int(obs.street)
 
-            obs2 = g.getObservation(acting)
-            s2 = encode_observation(obs2, big_blind=big_blind)
-
-            reward = 0.0
-            if done:
-                reward = float(obs2.stack[acting] - stacks_start[acting]) / bb
-
-            agents[acting].train_short_memory(s, a_idx, reward, s2, done)
-            agents[acting].remember(s, a_idx, reward, s2, done)
+            pending[acting] = (s, a_idx)
 
             if hand_actions[acting]["first_action"] is None:
                 hand_actions[acting]["first_action"] = a_idx
@@ -159,12 +183,6 @@ def train_poker_dqn(
 
             if a_idx == A_FOLD:
                 hand_actions[acting]["folded"] = True
-
-            if done:
-                for i in range(n_players):
-                    if i != acting:
-                        r_i = float(obs2.stack[i] - stacks_start[i]) / bb
-                        agents[i].remember(None, 0, r_i, None, True)
 
         if hand_aborted:
             history["aborted"].append((hands_played, hand_aborted))
@@ -184,8 +202,12 @@ def train_poker_dqn(
         stacks_end = list(obs_end.stack[:n_players])
         assert sum(stacks_end) == sum(stacks_start), "chips not conserved"
 
+        # Terminal transition for every seat that acted; the next state is unused when done.
+        for i in list(pending):
+            store(i, pending[i][0], float(stacks_end[i] - stacks_start[i]) / bb * reward_scale, True)
+
         rows = []
-        for i in range(n_players):
+        for i in range(n_players if log_csv else 0):
             pkey = pockets[i]
             if pkey is None:
                 continue
@@ -222,7 +244,8 @@ def train_poker_dqn(
                 "aggressive": int(hand_actions[i]["raises_made"] > 0),
             })
 
-        append_hand_rows(rows)
+        if log_csv:
+            append_hand_rows(rows)
 
         history["hand"].append(hands_played)
         for i in range(n_players):
@@ -235,6 +258,8 @@ def train_poker_dqn(
 
         hands_played += 1
         pbar.update(1)
+        if on_hand_end is not None:
+            on_hand_end(hands_played, agents)
 
     pbar.close()
 

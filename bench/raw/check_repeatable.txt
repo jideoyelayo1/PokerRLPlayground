@@ -1,0 +1,22 @@
+# commit 73e3e73, Apple M1 Pro, load average { 324.49 351.92 354.97 }
+# python bench/rerun_training.py --seed 2 --train-hands 2000 --log a.csv
+seed 2: 2000 hands in 3895 s, torch threads 8, aborted [], tournament resets 291
+sha256 of the four trained networks' weights: b50b74c9871af27a67859165df4a1f1190d22a1cf37a813b7bbf05d1e9b5d17f
+# python bench/rerun_training.py --seed 2 --train-hands 2000 --log b.csv --compare a.csv
+seed 2: 2000 hands in 3444 s, torch threads 8, aborted [], tournament resets 291
+sha256 of the four trained networks' weights: b50b74c9871af27a67859165df4a1f1190d22a1cf37a813b7bbf05d1e9b5d17f
+training log rows: a.csv 5129, b.csv 5129; identical apart from run_id
+# python bench/train_demo.py --candidate mlp-s --seed 11 --hands 20000 --checkpoints 2 --out mlp-s_a
+mlp-s seed 11: 10000 hands, 109.7 s, val score -202 (best -202 at 10000)
+mlp-s seed 11: 20000 hands, 262.0 s, val score -152 (best -152 at 20000)
+# python bench/train_demo.py --candidate mlp-s --seed 11 --hands 20000 --checkpoints 2 --out mlp-s_b
+mlp-s seed 11: 10000 hands, 107.5 s, val score -202 (best -202 at 10000)
+mlp-s seed 11: 20000 hands, 244.3 s, val score -152 (best -152 at 20000)
+mlp-s: checkpoint logs identical apart from timings; kept weights identical
+# python bench/train_demo.py --candidate gru --seed 11 --hands 4000 --checkpoints 2 --out gru_a
+gru seed 11: 2000 hands, 125.8 s, val score -697 (best -697 at 2000)
+gru seed 11: 4000 hands, 314.3 s, val score -284 (best -284 at 4000)
+# python bench/train_demo.py --candidate gru --seed 11 --hands 4000 --checkpoints 2 --out gru_b
+gru seed 11: 2000 hands, 124.9 s, val score -697 (best -697 at 2000)
+gru seed 11: 4000 hands, 307.6 s, val score -284 (best -284 at 4000)
+gru: checkpoint logs identical apart from timings; kept weights identical

@@ -1,0 +1,33 @@
+# Modification times (UTC) of the evaluation cell files, as written by bench/eval_demo.py on this machine; listed on 2026-11-18T05:52Z with
+# TZ=UTC stat -f '%Sm %N' -t '%Y-%m-%dT%H:%M:%SZ' bench/raw/demo_cells/*.json | sort
+# (the files were not rewritten after these times; git checkout of a fresh clone does not keep them)
+2026-11-18T02:59:33Z bench/raw/demo_cells/mlp-l-seed2_random.json
+2026-11-18T02:59:42Z bench/raw/demo_cells/mlp-l-seed2_tight.json
+2026-11-18T02:59:43Z bench/raw/demo_cells/mlp-l-seed1_random.json
+2026-11-18T03:00:01Z bench/raw/demo_cells/mlp-l-seed1_tight.json
+2026-11-18T03:03:15Z bench/raw/demo_cells/mlp-s-seed1_random.json
+2026-11-18T03:03:29Z bench/raw/demo_cells/mlp-l-seed2_call.json
+2026-11-18T03:03:45Z bench/raw/demo_cells/mlp-l-seed1_call.json
+2026-11-18T03:04:51Z bench/raw/demo_cells/mlp-l-seed3_random.json
+2026-11-18T03:05:05Z bench/raw/demo_cells/mlp-l-seed3_tight.json
+2026-11-18T03:07:03Z bench/raw/demo_cells/mlp-s-seed2_random.json
+2026-11-18T03:07:38Z bench/raw/demo_cells/mlp-s-seed1_tight.json
+2026-11-18T03:08:47Z bench/raw/demo_cells/mlp-l-seed3_call.json
+2026-11-18T03:09:27Z bench/raw/demo_cells/mlp-s-seed2_tight.json
+2026-11-18T03:09:33Z bench/raw/demo_cells/mlp-s-seed1_call.json
+2026-11-18T03:10:34Z bench/raw/demo_cells/mlp-s-seed3_random.json
+2026-11-18T03:10:55Z bench/raw/demo_cells/random-bot_random.json
+2026-11-18T03:11:23Z bench/raw/demo_cells/mlp-s-seed2_call.json
+2026-11-18T03:12:08Z bench/raw/demo_cells/random-bot_tight.json
+2026-11-18T03:12:41Z bench/raw/demo_cells/random-bot_call.json
+2026-11-18T03:13:03Z bench/raw/demo_cells/mlp-s-seed3_tight.json
+2026-11-18T03:14:07Z bench/raw/demo_cells/mlp-s-seed3_call.json
+2026-11-18T04:21:48Z bench/raw/demo_cells/gru-seed2_tight.json
+2026-11-18T04:21:53Z bench/raw/demo_cells/gru-seed2_random.json
+2026-11-18T04:23:27Z bench/raw/demo_cells/gru-seed2_call.json
+2026-11-18T04:42:52Z bench/raw/demo_cells/gru-seed3_random.json
+2026-11-18T04:42:54Z bench/raw/demo_cells/gru-seed3_tight.json
+2026-11-18T04:42:58Z bench/raw/demo_cells/gru-seed1_random.json
+2026-11-18T04:43:07Z bench/raw/demo_cells/gru-seed1_tight.json
+2026-11-18T04:44:12Z bench/raw/demo_cells/gru-seed3_call.json
+2026-11-18T04:44:27Z bench/raw/demo_cells/gru-seed1_call.json

@@ -1,0 +1,8 @@
+# commit 0322e80, load average before: { 15.30 31.56 38.99 }
+# python bench/confirm_demo.py --seed 9000 --deals 40000 --jobs 3
+Fresh deals: 40,000 duplicate deals per cell from seed 9000. bb/100 [95% CI over deals].
+
+| run | vs random | vs call | vs tight |
+|---|---:|---:|---:|
+| mlp-s-seed3 | 372 [345, 398] | 332 [314, 350] | 18 [14, 23] |
+# load average after: { 10.63 24.29 35.04 }

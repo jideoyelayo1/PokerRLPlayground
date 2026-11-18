@@ -39,7 +39,7 @@ from Models.GRUModel import GRUModel
 from Models.LSTMModel import LSTMModel
 from Models.MLPModel import MLPModel
 from Models.TransformerQModel import TransformerQModel
-from ReinforcementLearningEnvironment.helper import encode_observation, legal_mask_from_obs, step_with_fallback
+from ReinforcementLearningEnvironment.helper import action_index_to_engine_action, encode_observation, legal_mask_from_obs, no_free_fold
 from ReinforcementLearningEnvironment.Poker import train_poker_dqn
 from ReinforcementLearningEnvironment.TrainingEnvironmentVariables import (
     A_CALL, A_CHECK, A_FOLD, A_RAISE_POT, N_ACTIONS)
@@ -49,7 +49,7 @@ ARCH = ["MLP", "LSTM", "GRU", "Transformer"]
 
 
 def readme_models():
-    f = 146  # encode_observation length for 4 seats
+    f = 151  # encode_observation length for 4 seats
     return [MLPModel(input_features=f, output_features=N_ACTIONS, hidden=(512, 1024, 2048, 1024, 512)),
             LSTMModel(input_dim=f, output_dim=N_ACTIONS),
             GRUModel(input_dim=f, output_dim=N_ACTIONS),
@@ -97,16 +97,56 @@ def bot_tight(obs, mask, rng):
 BOTS = {"random": bot_random, "call": bot_call, "tight": bot_tight}
 
 
-def agent_policy(agent):
+def greedy_policy(model, sequence=False, record=None, free_fold_rule=False):
+    """A trained network's play: argmax of its Q-values plus the legal mask. A sequence model sees
+    the player's encoded states at each of its decisions in this hand so far, the current one last
+    (docs/state_encoding.md). act.counts tallies the actions chosen; act.free_folds counts the
+    folds chosen when checking was legal (by the network, before any rule). free_fold_rule=True
+    applies the play-time option no_free_fold (helper.no_free_fold) before the argmax; it is off in
+    training and in the pre-registered evaluation. If record is a list, each decision is appended to
+    it: the observations this hand (the current one last), the network input, the mask, the
+    Q-values, the action without the rule and the action with it."""
+    hist, seen = {}, {}
+
     def act(obs, mask, rng):
-        a = agent.select_action(encode_observation(obs, big_blind=BB), mask)
-        return int(rng.choice(legal_idxs(mask))) if mask[a] != 0.0 else a  # same guard as training
+        s = encode_observation(obs, big_blind=BB)
+        seen.setdefault(obs.viewer_id, []).append(obs)
+        if sequence:
+            hist.setdefault(obs.viewer_id, []).append(s)
+            s = np.stack(hist[obs.viewer_id])
+        with torch.no_grad():
+            q = model(torch.from_numpy(s)[None])[0]
+        a_raw = int(torch.argmax(q + torch.from_numpy(mask)))
+        a_rule = int(torch.argmax(q + torch.from_numpy(no_free_fold(mask))))
+        act.free_folds += int(a_raw == A_FOLD and mask[A_CHECK] == 0.0)
+        a = a_rule if free_fold_rule else a_raw
+        act.counts[a] += 1
+        if record is not None:
+            record.append({"observations": list(seen[obs.viewer_id]), "input": s, "mask": mask, "q": q.numpy().copy(),
+                           "action": a_raw, "action_no_free_fold": a_rule, "hand": act.hands})
+        return a
+
+    def new_hand():
+        hist.clear(); seen.clear()
+        act.hands += 1
+    act.new_hand = new_hand
+    act.counts = [0] * N_ACTIONS
+    act.free_folds = 0
+    act.hands = 0
     return act
 
 
-def play_hand(g, policies, rng):
-    g.reset_tournament(STACK)
+def agent_policy(agent):
+    agent.model.eval()
+    return greedy_policy(agent.model, agent.sequence)
+
+
+def play_hand(g, policies, rng, stack=STACK):
+    g.reset_tournament(stack)
     g.start_hand()
+    for pol in policies:
+        if hasattr(pol, "new_hand"):
+            pol.new_hand()
     steps = 0
     while not g.hand_terminal():
         steps += 1
@@ -115,13 +155,14 @@ def play_hand(g, policies, rng):
         p = g.currentPlayerSafe()
         obs = g.getObservation(p)
         mask = legal_mask_from_obs(obs)
-        step_with_fallback(g, p, policies[p](obs, mask, rng), obs)
-    return [(s - STACK) / BB for s in g.getObservation(0).stack]
+        g.step(action_index_to_engine_action(policies[p](obs, mask, rng)), p)
+    return [(s - stack) / BB for s in g.getObservation(0).stack]
 
 
-def evaluate(policy, bot, deals, seed):
-    """Agent result in BB per hand for each deal, averaged over the 4 seat rotations."""
-    g = pe.GameEngine(SEATS, STACK, BB, SB)
+def evaluate(policy, bot, deals, seed, stack=STACK, keep_scores=False):
+    """Agent result in BB per hand for each deal, averaged over the 4 seat rotations. keep_scores
+    adds the per-deal scores (for paired comparisons on the same deals)."""
+    g = pe.GameEngine(SEATS, stack, BB, SB)
     rng = random.Random(seed)
     scores = []
     for d in range(deals):
@@ -129,12 +170,15 @@ def evaluate(policy, bot, deals, seed):
         for seat in range(SEATS):
             g.seed(seed * 1_000_003 + d)  # same deck for all 4 rotations of this deal
             pols = [policy if i == seat else bot for i in range(SEATS)]
-            total += play_hand(g, pols, rng)[seat]
+            total += play_hand(g, pols, rng, stack)[seat]
         scores.append(total / SEATS)
     s = np.array(scores)
     mean, half = s.mean(), 1.96 * s.std(ddof=1) / np.sqrt(len(s))
-    return {"bb100": 100 * mean, "ci95_lo": 100 * (mean - half), "ci95_hi": 100 * (mean + half),
-            "sd_bb_per_deal": float(s.std(ddof=1)), "deals": deals, "hands": deals * SEATS}
+    out = {"bb100": 100 * mean, "ci95_lo": 100 * (mean - half), "ci95_hi": 100 * (mean + half),
+           "sd_bb_per_deal": float(s.std(ddof=1)), "deals": deals, "hands": deals * SEATS}
+    if keep_scores:
+        out["scores"] = s
+    return out
 
 
 def main():
@@ -163,9 +207,6 @@ def main():
                  "tournament_resets": len(history["resets"]), "aborted_hands": len(history["aborted"]),
                  "abort_reasons": [r for _, r in history["aborted"]]}
         print(json.dumps(train), flush=True)
-        for ag in agents:
-            ag.random_range = 0  # epsilon 0
-            ag.model.eval()
         results = []
         players = [(ARCH[i], agent_policy(ag)) for i, ag in enumerate(agents)] + [("random-bot", bot_random)]
         t1 = time.time()

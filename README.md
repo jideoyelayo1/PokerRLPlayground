@@ -23,9 +23,9 @@ The dealer button, and with it the blinds, moves one seat after each hand.
 This action abstraction keeps the state–action space manageable while still allowing meaningful strategic decisions.
 
 As implemented in `PokerEngine/GameEngine.cpp` (the points the list above leaves open):
-- **Seats.** Standard hold'em order. A dealer button moves one seat per hand among the players still in the tournament; on a new engine and after `reset_tournament()` it starts on seat 0. With three or more players the first seat after the button posts the small blind and the next one the big blind. Preflop the seat after the big blind acts first and the big blind acts last, and may raise if nobody has. On the flop, turn and river the first seat after the button that can still act (has not folded and is not all-in) acts first. Heads-up the button posts the small blind, acts first preflop and last on the later streets.
+- **Seats.** Standard hold'em order. A dealer button moves one seat per hand among the players still in the tournament; on a new engine and after `reset_tournament()` it starts on seat 0. With three or more players the first seat after the button posts the small blind and the next one the big blind. Preflop the seat after the big blind acts first and the big blind acts last: if nobody has raised, it may check or raise. The amount to call preflop is the larger of the two posted blinds, so when the big blind is short (all-in for less than a big blind) it can be the small blind's. On the flop, turn and river the first seat after the button that can still act (has not folded and is not all-in) acts first. Heads-up the button posts the small blind, acts first preflop and last on the later streets.
 - **Busted players.** Each hand the button goes to the first seat after the previous button's seat (in seat order, wrapping round) that is still in the tournament, whether or not the previous button has just busted; the blinds then follow from the button as above. There is no dead button and there are no dead blinds. So a player can miss a blind or post the big blind twice in a row: for example, three-handed, if the button busts, the big blind posts the big blind again in the first heads-up hand (tournament rules move the button to prevent this). Until 2a3e3df the engine used a non-standard order (the small blind sat after the big blind and acted last on every street); results measured before then, in the git history, used that order.
-- **Raise sizes** are "raise to": the current bet plus one big blind, half the pot or the whole pot (the pot including bets already in front of players). A size below the minimum raise (the last full raise increment) or above the player's stack is rejected; the training loop then tries the other sizes, then check, call, all-in, fold.
+- **Raise sizes** are "raise to": the current bet plus one big blind, half the pot or the whole pot (the pot including bets already in front of players). A size below the minimum raise (the last full raise increment) or above the player's stack is illegal. `legalActions` (and `Observation.legal`) lists each size as its own entry with its `raise_to`, marked legal exactly when `step()` accepts it from the player to act, so the size a player picks is the size played. (`step(action, seat)` always acts for the current player, whatever `seat` is, and `getObservation(seat)` for a seat that is not to act still lists that seat's actions as if it were.) Until this was fixed, all three sizes were marked legal whenever any raise was, and the training loop silently replaced a rejected size with another size, or check, call, all-in or fold.
 - **Betting rounds.** Every player who can still act acts at least once per street, and again after any bet or raise; the street closes when nobody is left to act. When at most one player can act and the bet is matched, the board is run out to showdown.
 - **Pots.** Side pots are built from each player's total contribution; ties split the pot, with any odd chip to the winner in the lowest-numbered seat. A hand won by folds pays the whole pot to the last player in.
 - **Deck.** Reshuffled every hand. `GameEngine.seed(n)` makes the deals repeatable; otherwise the seed comes from the clock. The shuffle is `std::shuffle`, so the same seed gives the same deals only with the same C++ standard library.
@@ -52,24 +52,23 @@ This allows explicit mathematical expressions to be discovered that approximate 
 ### Learning setup
 
 **RL formulation**
-- **State (`s`)**: `encode_observation(obs, big_blind)` produces a fixed-length feature vector from the current player’s observation. The observation contains the player’s private hole cards plus public game information (street, pot/to-call, stacks, etc.).
+- **State (`s`)**: `encode_observation(obs, big_blind)` produces a fixed-length feature vector (151 floats for 4 seats) from the current player’s observation: the player’s private hole cards, the board, pot and amounts to call, street, each seat’s stack and contributions listed relative to the player, and the button’s position relative to the player. Every element and its scaling is specified in [`docs/state_encoding.md`](docs/state_encoding.md). Until the encoding was made relative to the player, the seats were listed by absolute seat number with no indication of which one was the player’s own, so an agent trained in one seat saw a different layout in any other (and the evaluation puts it in every seat).
 - **Action (`a`)**: a discrete action index chosen from:
   - Fold, Check, Call, Raise(BB), Raise(Half Pot), Raise(Pot), All-In (exact mapping via `ACTION_NAME` / `A_*` constants).
-- **Reward (`r`)**: sparse, terminal-only. When the hand ends (`done=True`), the acting player receives:
-  - `reward = (stack_end[player] - stack_start[player]) / big_blind`
+- **Reward (`r`)**: sparse, terminal-only. When the hand ends (`done=True`), every player who acted in it receives, on its last decision:
+  - `reward = (stack_end[player] - stack_start[player]) / big_blind × reward_scale` (`reward_scale` 1.0 by default; 0.01 for the demo agents)
   - i.e. profit/loss in **big blinds** for that hand.
 - **Episode termination**: one poker **hand** is treated as an episode. A hand ends when `g.hand_terminal()` becomes true.
 
 **Self-play (multi-agent)**
-- Training is **multi-agent self-play** with `n_players = len(models)`. Each seat is controlled by its own `DQNAgent(model_i)`.
-- Opponents are the other agents in the same hand (no external bots).
+- Training is **multi-agent self-play**: one `DQNAgent` per model. With as many models as seats (as in `main.ipynb`) each seat has its own agent; with fewer, seat `i` is played by agent `i % len(models)`, so a single model plays every seat and learns from all of them (the demo agents are trained this way).
+- Opponents are the other agents in the same hand, or the same agent in the other seats (no external bots).
 - The opponent pool is effectively **latest-only** (each agent always plays the current versions of the others). There is no snapshot/league system in this implementation.
+- By default the stacks carry over between hands (a tournament, reset when fewer than two players have chips); `reset_stacks=True` resets every stack before each hand, as the demo is played.
 
 **Exploration + legality**
-- Action selection uses **epsilon-greedy** inside `agents[acting].select_action(s, mask)` (exact epsilon schedule is defined in `DQNAgent`).
-- **Legal-action masking**: `mask = legal_mask_from_obs(obs)` marks illegal actions. The agent selects using the mask, and a safety fallback forces a random legal action if needed:
-  - If `mask[a_idx] != 0.0`, choose `random.choice(legal_idxs)`.
-- Additional robustness: `step_with_fallback(...)` may adjust the action if the engine rejects it, and the executed action is what gets logged and learned from.
+- Action selection uses **epsilon-greedy** inside `agents[acting].select_action(s, mask)`: with probability epsilon a uniformly random legal action. Epsilon falls linearly from `eps_start` (1.0) to `eps_end` (0.05) over the first `eps_decay_hands` (10,000) hands, then stays there (`DQNAgent` arguments). It used to be `max(0, 80 − hands)/201`: at most 40% random actions, and none after the first 80 hands.
+- **Legal-action masking**: `mask = legal_mask_from_obs(obs)` marks illegal actions, one entry per action index (each raise size separately), exactly as the engine will judge them for the player to act. The agent selects using the mask, and the chosen action is the one played: there is no fallback, so an illegal choice would raise an error. A guard (`if mask[a_idx] != 0.0`, choose `random.choice(legal_idxs)`) remains in the loop; with the exact mask it does not fire.
 
 ---
 
@@ -104,20 +103,18 @@ For every completed hand, a row is logged **per player** with:
 ### Training loop details
 
 **Replay buffer**
-- Each agent stores transitions via `agents[acting].remember(s, a, r, s2, done)`.
-- A short-term update happens immediately with `train_short_memory(...)`.
-- A long-term update happens once per hand with `train_long_memory()` (typically sampling from replay).
-- (Buffer size, warmup, batch size, and sampling strategy are defined inside `DQNAgent`.)
+- Each agent stores transitions via `agents[i].remember(s, a, r, s2, done)` (see *Multi-player credit assignment* for when).
+- One update per agent per hand with `train_long_memory()`, on a batch sampled uniformly from the agent's replay buffer (a ring of `memory_size` transitions; `batch_size` and `lr` are `DQNAgent` arguments).
+- There used to be a single-sample update at every decision as well (`train_short_memory`). It was the bulk of the training cost and is gone.
 
 **Target network**
-- If your `DQNAgent` includes a target network, it is used inside `train_short_memory` / `train_long_memory` (update frequency defined there). The loop is compatible with standard DQN + target network updates.
+- `DQNAgent` keeps a target network for the bootstrap targets, copied from the online network every `target_update_freq` (200) hands.
 
 **Optimisation**
-- Standard DQN training: predicted Q(s,a) vs target computed from reward + discounted max Q(s’,·).
-- (Loss function, optimiser, learning rate, and any gradient clipping are implemented in `DQNAgent`.)
+- DQN: predicted Q(s,a) against the target reward + gamma × max over the **legal** actions at s’ of the target network's Q(s’,·), where s’ is the player's next decision in the hand. With `double=True` (Double DQN) the online network picks the action at s’ and the target network values it.
+- Mean squared error, Adam (`lr`), no gradient clipping (`QTrainer`).
 
 **Update cadence**
-- **Per-step updates**: the currently acting player performs `train_short_memory(...)` every decision.
 - **Per-hand updates**: after the hand ends, every agent runs `train_long_memory()` once.
 
 ---
@@ -128,18 +125,17 @@ For every completed hand, a row is logged **per player** with:
 - Rewards are **sparse** (terminal only). During the hand, `reward=0.0`; when `done=True`, reward becomes that player’s **end-of-hand BB profit/loss**.
 
 **Multi-player credit assignment**
-- The acting player receives its terminal reward when it takes the final action that ends the hand.
-- For the other players, terminal rewards are added as a final “terminal transition”:
-  - `agents[i].remember(None, 0, r_i, None, True)`
-  - where `r_i` is each non-acting player’s BB profit/loss for the hand.
-- These terminal transitions have no `(state, action)` pair, and `train_long_memory` drops any transition whose state is `None` (`Agent.py`, line 45), so they never train. Only the player whose action ends the hand (a fold, or the last call or check) receives a non-zero reward. The others see only rewards of 0 and the bootstrapped value of their next state, so, for example, a bettor never learns directly that a bet won when the opponent folded. Not changed here: the agents measured in `bench/RESULTS.md` were trained with this loop as it is.
+- Each seat's decision is stored once its outcome is known: at the seat's next decision in the same hand (reward 0, next state = the state at that decision), or when the hand ends (reward = the seat's BB profit/loss for the hand, `done=True`).
+- So every seat that acted in a hand receives its result on its last decision, whoever's action ended the hand. `python bench/check_terminal_rewards.py` checks this on every hand of a short run ([raw](bench/raw/check_terminal_rewards.txt)).
+- Before this fix, only the player whose action ended the hand received a non-zero reward. The others' results were stored as `remember(None, 0, r_i, None, True)`, and `train_long_memory` dropped any transition without a state, so, for example, a bettor never learned directly that a bet won when the opponent folded. The agents in the 2,000-hand table of `bench/RESULTS.md` (section 5) were trained that way.
 
 ---
 
 ### Stability / safety controls (implementation detail)
-- Hands are aborted if they exceed `MAX_STEPS_PER_HAND` or `HAND_TIMEOUT_SEC`, or if no legal action exists.
+- Hands are aborted if they exceed `MAX_STEPS_PER_HAND` (2,000 decisions), or if no legal action exists.
 - If a hand is aborted, the tournament is reset and the hand is not logged. `history["aborted"]` lists them.
-- Before the betting-round fix (see `bench/RESULTS.md`), these guards fired often: a street whose closing seat had folded or was all-in never closed. With some policy mixes 25–50% of hands never finished, so they were aborted and the tournament reset. `HAND_TIMEOUT_SEC` is wall-clock time, so on a slow or busy machine a long but legal hand can still be aborted. Since the fix, every aborted hand seen has been a timeout, and because each decision has already updated the network, a seeded run repeats only until its first timeout (`bench/RESULTS.md`, section 4).
+- Before the betting-round fix (see `bench/RESULTS.md`), these guards fired often: a street whose closing seat had folded or was all-in never closed. With some policy mixes 25–50% of hands never finished, so they were aborted and the tournament reset.
+- There used to be a 2-second wall-clock limit per hand as well (`HAND_TIMEOUT_SEC`). After the betting fix it was the only guard that fired, on long but legal hands on a busy machine, and because each decision had already updated the network, a seeded run repeated only until its first timeout (`bench/RESULTS.md`, section 4). It is gone, so a seeded run repeats on the same machine, software and number of threads: `bench/rerun_training.py` trains one seed twice, in two processes, and compares the logs row by row.
 
 
 
@@ -190,7 +186,7 @@ All models in this project are intentionally **simple, lightweight implementatio
 ---
 
 ### LSTMModel (recurrent Q-network)
-**What it is:** An LSTM that processes a **sequence of state or state-history features**, producing Q-values from the last timestep.
+**What it is:** An LSTM that processes a **sequence of state or state-history features**, producing Q-values from the last timestep. With `DQNAgent(..., sequence=True)` the sequence is the player's own encoded states at each of its decisions in the hand so far, the current one last ([`docs/state_encoding.md`](docs/state_encoding.md)); otherwise, as in `main.ipynb`, it is given one state, a sequence of length 1, and has no memory to use.
 
 **Why it exists:**
 - Poker is **partially observable**; memory of past actions/bets can matter.
@@ -210,7 +206,7 @@ All models in this project are intentionally **simple, lightweight implementatio
 ---
 
 ### GRUModel (recurrent Q-network, lighter than LSTM)
-**What it is:** A GRU-based sequence model similar to the LSTM approach, generally with fewer gates and slightly cheaper compute.
+**What it is:** A GRU-based sequence model similar to the LSTM approach, generally with fewer gates and slightly cheaper compute. It is given the same sequences as the LSTM (the hand so far with `sequence=True`, one state otherwise). The demo's `gru` candidate is one GRU layer of 128 over the hand so far.
 
 **Why it exists:**
 - Same motivation as LSTM (history matters), but with a simpler recurrent cell.
@@ -465,7 +461,7 @@ However, it does **not** guarantee:
 - Minimal exploitability
 - Robustness against unseen opponent populations
 
-Win rate against fixed baseline bots (random, calling, tight), in big blinds per 100 hands with confidence intervals over seeds, is now measured for a short training budget in [`bench/RESULTS.md`](bench/RESULTS.md). Cross-play leagues and exploitability-style testing are still future work.
+Win rate against fixed baseline bots (random, calling, tight), in big blinds per 100 hands with 95% intervals, is measured in [`bench/RESULTS.md`](bench/RESULTS.md): for the demo agents at 100 big blinds (section 6, which supersedes the 2,000-hand table of section 5). Cross-play leagues and exploitability-style testing are still future work.
 
 
 ## Limitations & Future Work
@@ -495,6 +491,7 @@ This project intentionally uses a **simplified poker environment**, which introd
 **Initial-condition bias**
 - The ratio between starting stack size and blind size is relatively fixed.
 - This may bias strategies toward deep-stack play and reduce exposure to edge cases such as short-stack or all-in-dominated scenarios.
+- The demo agents are trained and measured at one depth only, 100 big blinds with stacks reset every hand; how they play at other depths is not measured.
 
 **Sample size limitations**
 - Some pocket hands occur infrequently, leading to noisy EV estimates despite large overall hand counts.
@@ -503,7 +500,8 @@ This project intentionally uses a **simplified poker environment**, which introd
 - Training relies on frequent data transfer between C++ (simulation) and Python (learning) via pybind11.
 - This introduces significant overhead; for example, ~30,000 hands required several hundred CPU hours.
 - The current setup prioritises correctness and flexibility over raw throughput.
-- *Measured since* (`bench/RESULTS.md`, Apple M1 Pro, CPU): the engine runs about 44,000 hands/s in C++ and 13,500 hands/s through the binding with fixed policies. The training loop's engine, binding and encoding work costs about 0.54 ms per hand. Training the four README models costs about 0.36 s and 0.8–1.2 CPU-seconds per hand. So the networks' updates, not the C++↔Python crossing, dominate, and 30,000 hands come to roughly 7–10 CPU-hours here, an extrapolation from 2,000-hand runs. The "several hundred CPU hours" figure was not reproduced. Hands that hung on the old engine until the training loop's 2-second timeout may account for part of it.
+- *Measured since* (`bench/RESULTS.md`, Apple M1 Pro, CPU): the engine runs about 44,000 hands/s in C++ and 13,500 hands/s through the binding with fixed policies. The training loop's engine, binding and encoding work costs about 0.54 ms per hand. With the old loop (a single-sample update at every decision as well as the replay update), training the four README models cost about 0.36 s and 0.8–1.2 CPU-seconds per hand, so 30,000 hands would have come to roughly 7–10 CPU-hours, an extrapolation from 2,000-hand runs. The networks' updates, not the C++↔Python crossing, dominate. The "several hundred CPU hours" figure was not reproduced; hands that hung on the old engine until the training loop's 2-second timeout may account for part of it.
+- With the loop as it now is (one replay update per hand), one network playing all four seats at 100 big blinds trained at about 190 hands per CPU-second for the 37,000-parameter MLP, 85 for the 474,000-parameter MLP and 17 for the GRU (`bench/RESULTS.md`, section 6: 400,000 hands in 0.58–0.60, 1.31–1.33 and, for 150,000 hands, 2.15–2.56 CPU-hours).
 
 ---
 
@@ -512,7 +510,7 @@ This project intentionally uses a **simplified poker environment**, which introd
 Several extensions could meaningfully improve realism, stability, and performance:
 
 - **Richer temporal modelling**
-  - Use GRU/LSTM models or explicit action-history tokens for transformer-based agents.
+  - The GRU/LSTM models can now be given the hand so far (`sequence=True`); explicit action-history tokens for transformer-based agents are still future work.
 - **Improved self-play diversity**
   - Population-based training or opponent snapshotting to reduce overfitting.
 - **Stronger evaluation**
@@ -520,7 +518,7 @@ Several extensions could meaningfully improve realism, stability, and performanc
 - **More realistic game dynamics**
   - Finer-grained bet sizing, variable stack depths, and rake modelling.
 - **Richer state representations**
-  - Explicit position encoding, pot odds, implied odds, and betting-history features.
+  - Pot odds, implied odds, and betting-history features (position relative to the button is now encoded).
 - **Alternative learning algorithms**
   - Actor–critic methods (e.g. PPO) or NFSP-style approaches for imperfect-information games.
 - **Performance optimisation**
@@ -561,12 +559,32 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build && ctest -
 ```
 
 - `test_hand_eval`: known answers for every hand category and the main tie-breaks.
-- `test_betting`: betting rounds through the `step()` API: every seat acts, every street closes, chips are conserved; the seat order (button, blinds, who acts first and last on each street, the big blind's option) for 2, 3, 4 and 6 seats, and the button's moves as players bust.
+- `test_betting`: betting rounds through the `step()` API: every seat acts, every street closes, chips are conserved; the seat order (button, blinds, who acts first and last on each street, the big blind's option) for 2, 3, 4 and 6 seats, and the button's moves as players bust; every action `legalActions` marks legal is accepted and every other one rejected, raise sizes included.
+- `test_hand_result`: what a table view reads from the engine: `reset_stacks` (stacks reset, the button keeps moving), the hand's action history, each pot's winners and shares, the seats that reached showdown.
+- `test_agent`: the C++ agent (`PokerEngine/Agent.hpp`) against every PyTorch parity record in `weights/demo/`.
+- `test_table`: the browser table (`web/Table.hpp`); see *7) The table in WebAssembly*.
 - `eval_exhaustive`: every 5-card and 7-card hand (133,784,560) against an independent reference evaluator and the published category counts (about a minute on 10 threads).
 
-`sh bench/run_benchmarks.sh` re-runs the tests and the throughput benchmarks with the venv active. `sh bench/run_benchmarks.sh winrate` also trains and evaluates the agents (about an hour). Results, method and raw output: [`bench/RESULTS.md`](bench/RESULTS.md).
+Python tests (training code, and the exported agents in `weights/demo/`), with the extension built:
 
-### 5) Run training / experiments (Jupyter)
+```bash
+python -m unittest discover -s tests -v
+```
+
+`sh bench/run_benchmarks.sh` re-runs the tests and the throughput benchmarks with the venv active. `sh bench/run_benchmarks.sh winrate` also trains and evaluates the README's four agents for 2,000 hands (about an hour; superseded, see `bench/RESULTS.md` section 5). Results, method and raw output: [`bench/RESULTS.md`](bench/RESULTS.md).
+
+### 5) Demo agents (trained weights)
+
+The agents for the browser demo (4 seats, 100 big blinds, stacks reset every hand) are trained, evaluated, selected and exported with one command, with the venv active:
+
+```bash
+JOBS=6 sh bench/run_benchmarks.sh demo
+```
+
+It runs `bench/train_demo.py --all` (every candidate and seed in [`bench/SELECTION.md`](bench/SELECTION.md) whose `weights/runs/<run>/run.json` is not there yet, `JOBS` at a time), `bench/eval_demo.py` (evaluation and the selection rule), `bench/confirm_demo.py` (the selected agents again, on fresh deals), `bench/export_weights.py` and the Python tests. On a clone, the committed runs (`weights/runs/`) and evaluation cells (`bench/raw/demo_cells/`) are reused, so nothing is retrained or re-evaluated: delete `weights/runs/<run>/` to retrain a run, and run with `NO_CACHE=1` (or `python bench/eval_demo.py --no-cache`) to recompute every evaluation cell. The weights, their format and how to play one decision with them: [`weights/README.md`](weights/README.md). The state vector: [`docs/state_encoding.md`](docs/state_encoding.md). Results: [`bench/RESULTS.md`](bench/RESULTS.md), section 6.
+
+### 6) Run training / experiments (Jupyter)
+
 
 Open `main.ipynb` and edit the model list / hyperparameters:
 
@@ -601,9 +619,38 @@ agents, history = train_poker_dqn(
 )
 ```
 
+### 7) The table in WebAssembly (`web/`)
+
+The browser demo's table, compiled to WebAssembly: the engine, `web/Table.hpp` and the selected agent in C++ (`PokerEngine/Agent.hpp`: the state encoding of [`docs/state_encoding.md`](docs/state_encoding.md), the legal mask and the MLP's forward pass), with the weights compiled in. Needs [emsdk](https://github.com/emscripten-core/emsdk) with Emscripten 6.0.13 (CI checks out emsdk at commit `35659964bc2762fffec0d257997fb61475f765b7`, its tag `6.0.13`) and Node. From the repository root:
+
+```bash
+source path/to/emsdk/emsdk_env.sh
+web/build.sh                         # web/dist/poker.mjs, poker.wasm, BUILD.txt, SHA256SUMS
+cmake --build build --target replay_driver
+node web/test.mjs                    # against PyTorch's parity records and the native build
+```
+
+`web/build.sh` calls `em++` directly (C++20, `-O2`, single-threaded, no filesystem, an ES module for browsers and Node) and stops if `weights/demo/<run>.bin` does not have the sha256 in its manifest. With Emscripten 6.0.13 the module is 56,471 bytes of JavaScript and 460,190 of WebAssembly (14,030 and 241,999 gzipped); nothing is fetched at run time. `web/dist/` is not committed: a `v*` tag on a commit on `main` makes CI attach the files to a GitHub Release.
+
+**What it exposes.** `new Table(seed)`, `startHand()`, `act(action)` for the visitor, `advance()` for one agent decision, `view()` and `delete()`; `Table.format()`; `decideObservation(json, noFreeFold)`, the network's decision for one observation. `view()` is the visitor's view: the board, pot, each seat's stack, contributions and status, the button and blinds, whose turn it is, the visitor's own cards and legal actions with their amounts, the hand's log and, at the end, each pot's winners and shares, each seat's result and the cards of the seats that reached showdown (never an agent's cards before that, nor a folded seat's). Refused calls return an error code and change nothing; only the constructor throws (a `TypeError` for a seed that is not a whole number from 0 to 2^53 − 1).
+
+**Format and agents.** The format of the agents' measurements, 4 seats, blinds 1/2 and every stack reset to 200 (100 big blinds) before each hand, with the button moving one seat per hand (in the measurements it stayed on seat 0). The visitor plays seat 0; the other three seats are the saved network `mlp-s-seed3` ([`weights/`](weights/README.md)) with the play-time option `no_free_fold` on (if checking is free, it does not fold). With the rule on, on 40,000 duplicate deals against three copies of each baseline, it won +365 [338, 392] bb/100 against random bots, +357 [340, 375] against calling bots and +27 [23, 32] against tight bots ([`bench/RESULTS.md`](bench/RESULTS.md), section 6, *After selection*). The rule was decided after the agent was selected and is not part of the pre-registered evaluation.
+
+**Tests.** `test_agent` and `web/test.mjs` run every parity record (2,674) through the native and the WebAssembly agent: the same state vector and mask, Q-values within 1e-5 of PyTorch's (largest difference 8.3e-7) and the same action with the rule off and on in every record. `web/test.mjs` also replays 5,000 seeded hands with a scripted visitor through the WebAssembly table and through the native build (`web/replay_driver.cpp`) and requires identical output: the WebAssembly build deals the same cards for a seed as the macOS build (both use libc++'s `std::shuffle`).
+
+**Known limits.**
+- The agents were measured only against the three baselines, not against people, and always with the button on seat 0 (their input is relative to the button, but a moving button was not measured).
+- Hands can be long: the agents re-raise each other by one big blind many times. In the 5,000-hand replay a hand took a median of 12 decisions and up to 160 (159 by the agents); a hand reaching 2,000 decisions, the training loop's cap, would be aborted.
+- The same seed is only known to give the same deals with the same C++ standard library (the engine shuffles with `std::shuffle`); a native build with another one, such as libstdc++, may deal differently (not checked).
+- The engine's simplified rules apply (top of this README): three raise sizes and all-in, and an all-in for less than a full raise reopens the betting for players who have already acted.
+
 ## Results
 
-This section summarises the learned behaviour of the agents after self-play training, focusing on expected value (EV), stability, and variance across starting hands.
+### Demo agents at 100 big blinds (measured)
+
+One network, `mlp-s` seed 3 (151 → 128 → 128 → 7, 36,871 parameters), plays all three agent seats of the browser demo. It was selected from nine candidates (two MLP sizes and a GRU, three seeds each) by the rule in [`bench/SELECTION.md`](bench/SELECTION.md), written before training. On 40,000 fresh duplicate deals per baseline (4 seats, stacks reset to 100 big blinds every hand), not used in its selection, it wins +372 [345, 398] bb/100 against random bots, +332 [314, 350] against calling bots and +18 [14, 23] against tight bots. (On the evaluation deals it was selected on, the best of nine scored on those deals, it had +359, +341 and +16.) Of the other eight candidates, none beats the tight bot with an interval above zero. Full table, method and what is not measured: [`bench/RESULTS.md`](bench/RESULTS.md), section 6; the weights: [`weights/`](weights/README.md).
+
+The rest of this section summarises the learned behaviour of the agents after self-play training, focusing on expected value (EV), stability, and variance across starting hands. These figures come from the old code and logging and have not been regenerated.
 
 ---
 

@@ -112,49 +112,35 @@ def legal_mask_from_obs(obs) -> np.ndarray:
     Returns mask of shape (N_ACTIONS,), with 0 for legal and -1e9 for illegal.
     """
     mask = np.full((N_ACTIONS,), -1e9, dtype=np.float32)
-
-    # obs.legal is list of ActionSpec
-    allowed = {spec.type: spec.allowed for spec in obs.legal}
-
-    def is_allowed(t):
-        return bool(allowed.get(t, False))
-
-    if is_allowed(pe.ActionType.Fold):  mask[A_FOLD] = 0.0
-    if is_allowed(pe.ActionType.Check): mask[A_CHECK] = 0.0
-    if is_allowed(pe.ActionType.Call):  mask[A_CALL] = 0.0
-
-    # Raise depends on raiseSize, but your legality already encodes "Raise allowed"
-    # We treat RaiseBB/Half/Pot as legal only if Raise is legal.
-    if is_allowed(pe.ActionType.Raise):
-        mask[A_RAISE_BB] = 0.0
-        mask[A_RAISE_HALF] = 0.0
-        mask[A_RAISE_POT] = 0.0
-
-    if is_allowed(pe.ActionType.AllIn): mask[A_ALLIN] = 0.0
-
+    # obs.legal has one ActionSpec per action, one per raise size; for the player to act, each is
+    # marked exactly as step() judges it
+    for spec in obs.legal:
+        if spec.allowed:
+            mask[spec_index(spec)] = 0.0
     return mask
+
+
+def no_free_fold(mask: np.ndarray) -> np.ndarray:
+    """Play-time option "no_free_fold" (off in training and in the pre-registered evaluation):
+    if Check is allowed, Fold is treated as not allowed. Applied to the mask before the argmax."""
+    if mask[A_CHECK] != 0.0:
+        return mask
+    m = mask.copy()
+    m[A_FOLD] = -1e9
+    return m
+
+
+def spec_index(spec) -> int:
+    """Action index of an engine ActionSpec (the inverse of action_index_to_engine_action)."""
+    if spec.type == pe.ActionType.Raise:
+        return {pe.RaiseSize.BB: A_RAISE_BB, pe.RaiseSize.HalfPot: A_RAISE_HALF, pe.RaiseSize.Pot: A_RAISE_POT}[spec.raise_size]
+    return {pe.ActionType.Fold: A_FOLD, pe.ActionType.Check: A_CHECK, pe.ActionType.Call: A_CALL,
+            pe.ActionType.AllIn: A_ALLIN}[spec.type]
 
 def encode_card(card) -> np.ndarray:
     """encodes the cards and outputs a numpy array"""
     # rank in [0..14], suit in [0..4]
     return np.array([int(card.rank), int(card.suit)], dtype=np.float32)
-
-
-def pick_fallback_action_from_obs(obs) -> int:
-    """
-    Return an action index that should be legal given obs.legal.
-    Preference: Check > Call > AllIn > Fold
-    """
-    allowed = {spec.type: bool(spec.allowed) for spec in obs.legal}
-
-    if allowed.get(pe.ActionType.Check, False):
-        return A_CHECK
-    if allowed.get(pe.ActionType.Call, False):
-        return A_CALL
-    if allowed.get(pe.ActionType.AllIn, False):
-        return A_ALLIN
-    return A_FOLD
-
 
 
 def parse_pocket(p):
@@ -173,35 +159,6 @@ def pocket_169_key(p):
     return f"{hi}{lo}{'s' if suited else 'o'}"
 
 
-def step_with_fallback(g, acting: int, a_idx: int, obs):
-    """
-    Try the chosen action.
-    If it's a raise and fails, try other raise sizes.
-    Finally fall back to safe actions.
-    """
-    def try_action(idx):
-        g.step(action_index_to_engine_action(idx), acting)
-        return idx, bool(g.hand_terminal())
-
-    try:
-        return try_action(a_idx)
-    except RuntimeError:
-        pass
-
-    # If raise failed, try other raise sizes
-    if a_idx in (A_RAISE_BB, A_RAISE_HALF, A_RAISE_POT):
-        for alt in (A_RAISE_BB, A_RAISE_HALF, A_RAISE_POT):
-            if alt == a_idx:
-                continue
-            try:
-                return try_action(alt)
-            except RuntimeError:
-                continue
-
-    # Final fallback
-    fb = pick_fallback_action_from_obs(obs)
-    return try_action(fb)
-
 def card_one_hot(card):
     """
     Card → 17-dim vector
@@ -218,21 +175,29 @@ def card_one_hot(card):
     return vec
 
 def encode_observation(obs, big_blind=2):
-    """encodes the observation"""
+    """State vector for the player viewing obs (obs.viewer_id), 127 + 6 * seats floats (151 for 4).
+
+    docs/state_encoding.md specifies every element. Seats are listed relative to the viewer
+    (viewer first, then the seats after it in table order), so the same network can play any seat,
+    and chip amounts are in units of 100 big blinds.
+    """
     n_players = len(obs.stack)
+    v = obs.viewer_id
+    chips = 1.0 / (100.0 * big_blind)
     parts = []
 
-    # 7 cards -> 7 * 17 = 119
+    # 7 cards -> 7 * 17 = 119 (hole, then board; cards not dealt yet are all zeros)
     for c in obs.hole:
         parts.append(card_one_hot(c))
     for c in obs.board:
         parts.append(card_one_hot(c))
 
-    # scalars -> 3
+    # scalars -> 4
     parts.append(np.array([
-        obs.pot_total / big_blind,
-        obs.to_call / big_blind,
-        obs.min_raise / big_blind,
+        obs.pot_total * chips,
+        obs.to_call * chips,
+        obs.min_raise * chips,
+        obs.viewer_to_call * chips,
     ], dtype=np.float32))
 
     # street one-hot -> 4
@@ -241,19 +206,26 @@ def encode_observation(obs, big_blind=2):
         street_oh[obs.street] = 1.0
     parts.append(street_oh)
 
-    # per-player info: 5 each -> 5*n_players
+    # per-seat info, viewer first: 5 each -> 5*n_players
     per = []
-    for i in range(n_players):
+    for k in range(n_players):
+        i = (v + k) % n_players
         per.extend([
-            obs.stack[i] / big_blind,
+            obs.stack[i] * chips,
             float(obs.folded[i]),
             float(obs.all_in[i]),
-            obs.street_contrib[i] / big_blind,
-            obs.total_contrib[i] / big_blind,
+            obs.street_contrib[i] * chips,
+            obs.total_contrib[i] * chips,
         ])
     parts.append(np.array(per, dtype=np.float32))
 
-    return np.concatenate(parts, axis=0)
+    # button, relative to the viewer: one-hot over n_players (0 = the viewer has the button)
+    button_oh = np.zeros(n_players, dtype=np.float32)
+    if obs.button >= 0:
+        button_oh[(obs.button - v) % n_players] = 1.0
+    parts.append(button_oh)
+
+    return np.concatenate(parts, axis=0, dtype=np.float32)  # the card lists would otherwise make it float64
 
 
 def pocket_features(pocket: str) -> dict: 
