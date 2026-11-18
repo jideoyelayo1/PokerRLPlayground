@@ -96,7 +96,7 @@ evaluation deals. The candidates, the evaluation and the rule were fixed before 
 hand budget was cut afterwards, from 400,000 to 150,000, for speed alone (a profile of a pilot GRU
 on its own training hands: 17 hands per second, 55 decisions per hand), not on those results.
 
-## Amendment (18 November, 00:45 GMT, during training, before any candidate was evaluated)
+## Amendment (18 November, committed at 00:40:48 GMT in db21bf8, during training, before any candidate was evaluated)
 
 From about 00:10 another job on the machine (twelve training processes) raised the load average
 from about 10 to 200–360, and each of these runs now gets about a third of a core. At that rate
