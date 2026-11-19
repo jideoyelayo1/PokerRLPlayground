@@ -137,3 +137,9 @@ them, for the same reason.
   are drawn from a different set), 9.2% of the calling bot's (whose choices do not change: it
   never raises) and 32.4% of the tight bot's, whose action changes in 12 of 43,502 decisions (it
   now calls where the old fallback made it raise half the pot).
+- **Training-budget fairness** (added 19 November, after the runs; #18). The MLPs had 400,000
+  hands and the GRU 150,000, as pre-registered, and that is unchanged, as are the rule and the
+  selection. `python bench/budget_fairness.py` re-reads the nine committed runs at equal hands and at
+  equal CPU seconds, and a matched 15,000-hand run of all three candidates (seeds 1 and 2, outside
+  `weights/runs`) was added. Tables, limits and what they do and do not show are in
+  `RESULTS.md` section 13; raw files in `bench/raw/budget_fairness.json` and `bench/raw/budget_fairness/`.

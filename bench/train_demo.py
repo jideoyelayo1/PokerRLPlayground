@@ -12,6 +12,9 @@ written last, so a run with run.json is complete and is skipped).
 
     python bench/train_demo.py --candidate mlp-s --seed 1    # one run
     python bench/train_demo.py --all --jobs 5                # every candidate x seed not yet done
+
+--keep-checkpoints also saves ckpt-<hands>.pt (the state_dict) at every checkpoint; model.pt is
+still the best-validation one. --all exits non-zero if any run failed (--fail-fast stops at the first).
 """
 import argparse
 import copy
@@ -79,7 +82,7 @@ def git(*args):
     return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True).stdout.strip()
 
 
-def train(name, seed, hands, out, checkpoints, threads):
+def train(name, seed, hands, out, checkpoints, threads, keep=False):
     out.mkdir(parents=True, exist_ok=True)
     # the code the run uses, read before it starts (other commits may land while it trains)
     commit = git("rev-parse", "HEAD")
@@ -112,6 +115,8 @@ def train(name, seed, hands, out, checkpoints, threads):
         if score > state["score"]:
             state["score"], state["best"] = score, n
             torch.save(ag.model.state_dict(), out / "model.pt")
+        if keep:
+            torch.save(ag.model.state_dict(), out / f"ckpt-{n}.pt")
         log.write(json.dumps(row) + "\n"); log.flush()
         print(f"{name} seed {seed}: {n} hands, {row['wall_s']} s, val score {score:.0f} (best {state['score']:.0f} at {state['best']})", flush=True)
 
@@ -126,11 +131,34 @@ def train(name, seed, hands, out, checkpoints, threads):
            "validation": {"seed": VAL_SEED, "deals": VAL_DEALS, "every_hands": every},
            "kept_checkpoint_hands": state["best"], "kept_val_score": state["score"],
            "wall_s": round(time.time() - t0, 1), "cpu_s": round(r.ru_utime + r.ru_stime, 1),
-           "torch_threads": threads, "aborted_hands": len(history["aborted"]),
+           "torch_threads": threads, "keep_checkpoints": keep, "aborted_hands": len(history["aborted"]),
            "commit": commit, "dirty": dirty, "started_utc": started_utc,
            "python": sys.version.split()[0], "torch": torch.__version__, "numpy": np.__version__,
            "parameters": sum(p.numel() for p in model.parameters())}
     (out / "run.json").write_text(json.dumps(run, indent=1) + "\n")
+
+
+def run_jobs(jobs, n_parallel, fail_fast=False, poll=5):
+    """Run jobs = [(label, cmd)], n_parallel at a time. Returns the failures [(label, returncode)];
+    with fail_fast, the first failure terminates the running jobs and no more are started."""
+    todo, running, failures = list(jobs), [], []
+    while todo or running:
+        while todo and len(running) < n_parallel:
+            label, cmd = todo.pop(0)
+            running.append((label, subprocess.Popen(cmd)))
+        time.sleep(poll)
+        for label, p in list(running):
+            if p.poll() is None:
+                continue
+            running.remove((label, p))
+            if p.returncode:
+                print(f"FAILED: {label} exited with code {p.returncode}", flush=True)
+                failures.append((label, p.returncode))
+        if failures and fail_fast:
+            for label, p in running:
+                p.terminate(); p.wait(); print(f"stopped: {label}", flush=True)
+            running, todo = [], []
+    return failures
 
 
 def main():
@@ -142,26 +170,27 @@ def main():
     ap.add_argument("--hands", type=int, help="training hands (default: the candidate's budget)")
     ap.add_argument("--checkpoints", type=int, default=CHECKPOINTS)
     ap.add_argument("--threads", type=int, default=1, help="torch threads per run")
+    ap.add_argument("--keep-checkpoints", action="store_true", help="also save ckpt-<hands>.pt at every checkpoint")
+    ap.add_argument("--fail-fast", action="store_true", help="with --all, stop at the first failed run")
     ap.add_argument("--out", help="run directory (default weights/runs/<candidate>-seed<seed>)")
     a = ap.parse_args()
     if not a.all:
         out = Path(a.out) if a.out else RUNS / f"{a.candidate}-seed{a.seed}"
         if (out / "run.json").exists():
             print(f"{out} is complete, skipped"); return
-        return train(a.candidate, a.seed, a.hands or CANDIDATES[a.candidate]["hands"], out, a.checkpoints, a.threads)
+        return train(a.candidate, a.seed, a.hands or CANDIDATES[a.candidate]["hands"], out, a.checkpoints, a.threads, a.keep_checkpoints)
     todo = [(c, s) for c in reversed(CANDIDATES) for s in SEEDS  # slowest candidates first
             if not (RUNS / f"{c}-seed{s}" / "run.json").exists()]
     print(f"{len(todo)} runs to do: {todo}", flush=True)
-    running = []
-    while todo or running:
-        while todo and len(running) < a.jobs:
-            c, s = todo.pop(0)
-            cmd = [sys.executable, str(Path(__file__)), "--candidate", c, "--seed", str(s),
-                   "--hands", str(a.hands or CANDIDATES[c]["hands"]), "--checkpoints", str(a.checkpoints),
-                   "--threads", str(a.threads)]
-            running.append(subprocess.Popen(cmd))
-        time.sleep(5)
-        running = [p for p in running if p.poll() is None]
+    jobs = []
+    for c, s_ in todo:
+        cmd = [sys.executable, str(Path(__file__)), "--candidate", c, "--seed", str(s_),
+               "--hands", str(a.hands or CANDIDATES[c]["hands"]), "--checkpoints", str(a.checkpoints),
+               "--threads", str(a.threads)] + (["--keep-checkpoints"] if a.keep_checkpoints else [])
+        jobs.append((f"{c} seed {s_}", cmd))
+    failed = run_jobs(jobs, a.jobs, a.fail_fast)
+    if failed:
+        sys.exit(f"{len(failed)} of {len(jobs)} runs failed: " + ", ".join(f"{l} (code {r})" for l, r in failed))
 
 
 if __name__ == "__main__":
