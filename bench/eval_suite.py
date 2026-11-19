@@ -163,11 +163,14 @@ def tournament(policy, bot, sessions, seed, stack=STACK, max_hands=MAX_HANDS):
     standard order). A session is 1 agent (seat s mod 4 in session s) and 3 copies of bot, from a
     fresh tournament, until one player is left, the agent has no chips or max_hands hands have
     been played. A session's value is the agent's chip result in bb divided by its hands; the
-    deck of session s comes from seed * 1_000_003 + s. Returns the mean of the values with a 95%
-    interval over sessions, the same result pooled over hands, and how sessions ended."""
+    deck of session s comes from seed * 1_000_003 + s. Returns the pooled result (all sessions'
+    chips / all hands) with a 95% interval over sessions (ratio estimator: the sessions' residuals
+    res - pooled * hands), the mean of the sessions' values with its 95% interval (a short session
+    that ends in a bust weighs as much as a long one), and how sessions ended."""
     g = pe.GameEngine(SEATS, stack, BB, SB)
     rng = random.Random(seed)
     vals, chips, hands, ended = [], 0.0, 0, {"agent_busted": 0, "agent_won_all": 0, "cap": 0}
+    rs, ns = [], []
     for s in range(sessions):
         seat = s % SEATS
         pols = [policy if i == seat else bot for i in range(SEATS)]
@@ -190,12 +193,14 @@ def tournament(policy, bot, sessions, seed, stack=STACK, max_hands=MAX_HANDS):
                 obs = g.getObservation(p)
                 g.step(action_index_to_engine_action(pols[p](obs, legal_mask_from_obs(obs), rng)), p)
         res = (g.getObservation(0).stack[seat] - stack) / BB
-        vals.append(res / n); chips += res; hands += n
+        vals.append(res / n); chips += res; hands += n; rs.append(res); ns.append(n)
         ended["agent_busted" if g.getObservation(0).stack[seat] <= 0 else "agent_won_all" if alive() < 2 else "cap"] += 1
     v = np.array(vals)
     half = 1.96 * v.std(ddof=1) / np.sqrt(len(v))
-    return {"mean_bb_per_hand": float(v.mean()), "ci95_lo": float(v.mean() - half), "ci95_hi": float(v.mean() + half),
-            "pooled_bb_per_hand": chips / hands, "sessions": sessions, "hands": hands, "mean_session_hands": hands / sessions,
+    pooled = chips / hands
+    ph = 1.96 * (np.array(rs) - pooled * np.array(ns)).std(ddof=1) / np.sqrt(sessions) / np.mean(ns)
+    return {"pooled_bb_per_hand": pooled, "pooled_ci95_lo": pooled - ph, "pooled_ci95_hi": pooled + ph,
+            "mean_bb_per_hand": float(v.mean()), "ci95_lo": float(v.mean() - half), "ci95_hi": float(v.mean() + half), "sessions": sessions, "hands": hands, "mean_session_hands": hands / sessions,
             "ended": ended, "max_hands": max_hands, "stack": stack}
 
 
@@ -342,14 +347,14 @@ def report(cells):
     tn = [c for c in cells if c["part"] == "tournament"]
     if tn:
         out += ["", f"Tournament carry-over (stack {STACK // BB} bb, blinds 1/2, the button moves; session = 1 agent and 3 bots until one player is left, the agent busts or "
-                f"{MAX_HANDS} hands; {tn[0]['deals']:,} sessions per cell, seed {FORMAT_SEED}): mean of the sessions' agent result in bb per hand [95% CI over sessions], "
-                "the same pooled over hands, mean hands per session, how sessions ended (agent busted / agent won everything / hand cap).", "",
-                "| agent | opponent | bb per hand | pooled | hands per session | ended |", "|---|---|---:|---:|---:|---|"]
+                f"{MAX_HANDS} hands; {tn[0]['deals']:,} sessions per cell, seed {FORMAT_SEED}): agent's chips won in bb per hand, pooled over all sessions' hands "
+                "[95% CI over sessions], then the mean of the sessions' own bb per hand [95% CI], mean hands per session, how sessions ended (agent busted / agent won everything / hand cap).", "",
+                "| agent | opponent | pooled bb per hand | mean of sessions | hands per session | ended |", "|---|---|---:|---:|---:|---|"]
         for a in FORMAT_AGENTS:
             for o in BOTS:
                 c = by[("tournament", a, o, STACK)]
                 e = c["ended"]
-                out.append(f"| {a} | {o} | {c['mean_bb_per_hand']:.3f} [{c['ci95_lo']:.3f}, {c['ci95_hi']:.3f}] | {c['pooled_bb_per_hand']:.3f} | "
+                out.append(f"| {a} | {o} | {c['pooled_bb_per_hand']:.3f} [{c['pooled_ci95_lo']:.3f}, {c['pooled_ci95_hi']:.3f}] | {c['mean_bb_per_hand']:.2f} [{c['ci95_lo']:.2f}, {c['ci95_hi']:.2f}] | "
                            f"{c['mean_session_hands']:.0f} | {e['agent_busted']} / {e['agent_won_all']} / {e['cap']} |")
     (CELLS / "tables.md").write_text("\n".join(out) + "\n")
     return out, md
