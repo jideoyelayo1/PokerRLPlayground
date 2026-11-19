@@ -17,6 +17,25 @@ Baselines:
   tight   preflop: pot-raise TT+/AK/AQ, call other pairs, two broadway cards or suited aces,
           otherwise check/fold; postflop: call/check with a pocket pair or a hole card that
           pairs the board, otherwise check/fold
+  BOTS above is the pre-registered baseline set (bench/SELECTION.md); SUITE adds four more (#13)
+  without changing it. Pair/pair-with-board strength is read from hole and board ranks only
+  (straights, flushes and draws are ignored); BB is the big blind in chips, "level" the postflop
+  made-hand strength: 0 nothing, 1 a pair below the top board card, 2 top pair or an overpair,
+  3 two pair or better (a set, trips or two pair using a hole card).
+  tag      tight-aggressive. Preflop: raises the pot with QQ+/AK; raises the rest of its range
+           (55+, AT+, KQ, KJs) while the bet to call is at most 1 BB, else calls it; otherwise checks or
+           folds. Postflop: raises half the pot with level 2, the pot with level 3; calls with level 1
+           when the call is at most half the pot; otherwise checks or folds
+  lag      loose-aggressive. Preflop: raises half the pot with any pair, ace, two cards T+ (9+ with
+           the lower one), or suited cards within three ranks with a high card 7+, while the bet to
+           call is at most 2 BB, else calls; otherwise checks or folds. Postflop: when checked to,
+           bets half the pot on the flop and turn with anything (river: level 1+); facing a bet,
+           raises half the pot with level 2+, calls with level 1, otherwise checks or folds
+  potodds  calls when a rough equity proxy beats the pot odds to_call / (pot + to_call), otherwise
+           checks or folds; never bets or raises. The proxy is a fixed function of the hole cards
+           preflop and of the level postflop (0.12, 0.35, 0.55, 0.80)
+  bluff    raises half the pot (else one BB) with probability BLUFF_FREQ = 0.25 at every decision,
+           with any hand (one draw from the rng per decision); otherwise plays like call
 
     python bench/winrate.py --seeds 1 2 3 --train-hands 2000 --eval-deals 1000
 """
@@ -42,7 +61,7 @@ from Models.TransformerQModel import TransformerQModel
 from ReinforcementLearningEnvironment.helper import action_index_to_engine_action, encode_observation, legal_mask_from_obs, no_free_fold
 from ReinforcementLearningEnvironment.Poker import train_poker_dqn
 from ReinforcementLearningEnvironment.TrainingEnvironmentVariables import (
-    A_CALL, A_CHECK, A_FOLD, A_RAISE_POT, N_ACTIONS)
+    A_CALL, A_CHECK, A_FOLD, A_RAISE_BB, A_RAISE_HALF, A_RAISE_POT, N_ACTIONS)
 
 SEATS, STACK, BB, SB = 4, 10000, 2, 1
 ARCH = ["MLP", "LSTM", "GRU", "Transformer"]
@@ -95,6 +114,76 @@ def bot_tight(obs, mask, rng):
 
 
 BOTS = {"random": bot_random, "call": bot_call, "tight": bot_tight}
+BLUFF_FREQ = 0.25
+
+
+def _level(obs):
+    """Postflop made-hand level 0-3 (see the module docstring); ranks only."""
+    hole = [rank(c) for c in obs.hole]
+    board = [rank(c) for c in obs.board if rank(c) != 0]
+    cnt = {r: (hole + board).count(r) for r in set(hole + board)}
+    pairs = [r for r in set(hole) if cnt[r] >= 2]
+    if not pairs:
+        return 0
+    if any(cnt[r] >= 3 for r in pairs) or len([r for r in cnt if cnt[r] >= 2]) >= 2:
+        return 3
+    return 2 if pairs[0] >= max(board) else 1
+
+
+def bot_tag(obs, mask, rng):
+    h1, h2 = obs.hole
+    hi, lo = max(rank(h1), rank(h2)), min(rank(h1), rank(h2))
+    tc = obs.viewer_to_call
+    if obs.street == 0:
+        if (hi == lo and hi >= 12) or (hi == 14 and lo == 13):
+            return pick(mask, A_RAISE_POT, A_CALL, A_CHECK)
+        if (hi == lo and hi >= 5) or (hi == 14 and lo >= 10) or (hi == 13 and lo == 12) or (hi == 13 and lo == 11 and h1.suit == h2.suit):
+            return pick(mask, A_RAISE_POT, A_CALL, A_CHECK) if tc <= BB else pick(mask, A_CALL, A_CHECK)
+        return pick(mask, A_CHECK, A_FOLD)
+    lvl = _level(obs)
+    if lvl >= 2:
+        return pick(mask, A_RAISE_HALF if lvl == 2 else A_RAISE_POT, A_CALL, A_CHECK)
+    if lvl == 1 and 2 * tc <= obs.pot_total:
+        return pick(mask, A_CALL, A_CHECK)
+    return pick(mask, A_CHECK, A_FOLD)
+
+
+def bot_lag(obs, mask, rng):
+    h1, h2 = obs.hole
+    hi, lo = max(rank(h1), rank(h2)), min(rank(h1), rank(h2))
+    tc = obs.viewer_to_call
+    if obs.street == 0:
+        if hi == lo or hi == 14 or lo >= 9 or (h1.suit == h2.suit and hi - lo <= 3 and hi >= 7):
+            return pick(mask, A_RAISE_HALF, A_CALL, A_CHECK) if tc <= 2 * BB else pick(mask, A_CALL, A_CHECK)
+        return pick(mask, A_CHECK, A_FOLD)
+    lvl = _level(obs)
+    if tc == 0:
+        return pick(mask, A_RAISE_HALF, A_CHECK) if (obs.street < 3 or lvl >= 1) else pick(mask, A_CHECK)
+    if lvl >= 2:
+        return pick(mask, A_RAISE_HALF, A_CALL, A_CHECK)
+    return pick(mask, A_CALL, A_CHECK) if lvl == 1 else pick(mask, A_CHECK, A_FOLD)
+
+
+def bot_potodds(obs, mask, rng):
+    tc = obs.viewer_to_call
+    if tc == 0:
+        return pick(mask, A_CHECK)
+    h1, h2 = obs.hole
+    hi, lo = max(rank(h1), rank(h2)), min(rank(h1), rank(h2))
+    if obs.street == 0:
+        eq = 0.25 + 0.0267 * (hi - 2) if hi == lo else 0.09 + 0.012 * (hi - 2) + 0.007 * (lo - 2) + 0.02 * (h1.suit == h2.suit)
+    else:
+        eq = (0.12, 0.35, 0.55, 0.80)[_level(obs)]
+    return pick(mask, A_CALL) if eq > tc / (obs.pot_total + tc) else pick(mask, A_CHECK, A_FOLD)
+
+
+def bot_bluff(obs, mask, rng):
+    if rng.random() < BLUFF_FREQ:
+        return pick(mask, A_RAISE_HALF, A_RAISE_BB, A_CALL, A_CHECK)
+    return pick(mask, A_CALL, A_CHECK)
+
+
+SUITE = {**BOTS, "tag": bot_tag, "lag": bot_lag, "potodds": bot_potodds, "bluff": bot_bluff}
 
 
 def greedy_policy(model, sequence=False, record=None, free_fold_rule=False):
@@ -141,9 +230,14 @@ def agent_policy(agent):
     return greedy_policy(agent.model, agent.sequence)
 
 
-def play_hand(g, policies, rng, stack=STACK, holes=None):
+def play_hand(g, policies, rng, stack=STACK, holes=None, stats=None):
     """Each seat's result in big blinds, blinds included. If holes is a list, it gets each seat's
-    hole cards, read straight after the deal (a folded seat's are hidden later)."""
+    hole cards, read straight after the deal (a folded seat's are hidden later). If stats is given
+    (bench/eval_suite.py's Stats; opt-in, it changes nothing in the play), it gets
+    stats.decision(seat, obs, mask, action) before each action is applied and
+    stats.hand(results, holes, final_obs) at the end; stats.agent is the seat it reports on."""
+    if stats is not None and holes is None:
+        holes = []
     g.reset_tournament(stack)
     g.start_hand()
     if holes is not None:
@@ -159,13 +253,21 @@ def play_hand(g, policies, rng, stack=STACK, holes=None):
         p = g.currentPlayerSafe()
         obs = g.getObservation(p)
         mask = legal_mask_from_obs(obs)
-        g.step(action_index_to_engine_action(policies[p](obs, mask, rng)), p)
-    return [(s - stack) / BB for s in g.getObservation(0).stack]
+        a = policies[p](obs, mask, rng)
+        if stats is not None:
+            stats.decision(p, obs, mask, a)
+        g.step(action_index_to_engine_action(a), p)
+    end = g.getObservation(0)
+    res = [(s - stack) / BB for s in end.stack]
+    if stats is not None:
+        stats.hand(res, holes, end)
+    return res
 
 
-def evaluate(policy, bot, deals, seed, stack=STACK, keep_scores=False):
+def evaluate(policy, bot, deals, seed, stack=STACK, keep_scores=False, stats=None):
     """Agent result in BB per hand for each deal, averaged over the 4 seat rotations. keep_scores
-    adds the per-deal scores (for paired comparisons on the same deals)."""
+    adds the per-deal scores (for paired comparisons on the same deals). stats (opt-in, see
+    play_hand) is told the agent's seat before each hand."""
     g = pe.GameEngine(SEATS, stack, BB, SB)
     rng = random.Random(seed)
     scores = []
@@ -174,7 +276,9 @@ def evaluate(policy, bot, deals, seed, stack=STACK, keep_scores=False):
         for seat in range(SEATS):
             g.seed(seed * 1_000_003 + d)  # same deck for all 4 rotations of this deal
             pols = [policy if i == seat else bot for i in range(SEATS)]
-            total += play_hand(g, pols, rng, stack)[seat]
+            if stats is not None:
+                stats.agent = seat
+            total += play_hand(g, pols, rng, stack, stats=stats)[seat]
         scores.append(total / SEATS)
     s = np.array(scores)
     mean, half = s.mean(), 1.96 * s.std(ddof=1) / np.sqrt(len(s))

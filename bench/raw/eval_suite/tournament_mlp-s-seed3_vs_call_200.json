@@ -1,0 +1,34 @@
+{
+ "pooled_bb_per_hand": 0.7268813346488474,
+ "pooled_ci95_lo": 0.41961755096154546,
+ "pooled_ci95_hi": 1.0341451183361494,
+ "mean_bb_per_hand": 5.634866741389378,
+ "ci95_lo": 1.0563035611125162,
+ "ci95_hi": 10.21342992166624,
+ "sessions": 300,
+ "hands": 22298,
+ "mean_session_hands": 74.32666666666667,
+ "ended": {
+  "agent_busted": 155,
+  "agent_won_all": 104,
+  "cap": 41
+ },
+ "max_hands": 200,
+ "stack": 200,
+ "part": "tournament",
+ "agent": "mlp-s-seed3",
+ "opponent": "call",
+ "seed": 32000,
+ "deals": 300,
+ "format": "tournament",
+ "wall_s": 18.2,
+ "cpu_s": 11.7,
+ "load_average": [
+  20.2490234375,
+  33.86279296875,
+  33.78125
+ ],
+ "model_sha256": "6ecbda169ef188f5f19e0e4cdfd6f44dcb9d61a2f30f707b674712c5a4257900",
+ "computed_utc": "2026-11-19T06:18:40Z",
+ "commit": "acc3104"
+}

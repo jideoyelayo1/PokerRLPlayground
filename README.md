@@ -30,6 +30,25 @@ As implemented in `PokerEngine/GameEngine.cpp` (the points the list above leaves
 - **Pots.** Side pots are built from each player's total contribution; ties split the pot, with any odd chip to the winner in the lowest-numbered seat. A hand won by folds pays the whole pot to the last player in.
 - **Deck.** Reshuffled every hand. `GameEngine.seed(n)` makes the deals repeatable; otherwise the seed comes from the clock. The shuffle is `std::shuffle`, so the same seed gives the same deals only with the same C++ standard library.
 
+### Where the rules differ from tournament poker, and the formats results are measured in
+
+Deviations from tournament rules, each read from `PokerEngine/GameEngine.cpp` (the bullets above give the detail):
+- **Button after busts:** it goes to the next live seat after the previous button's seat, with no dead button or dead blinds, so a player can post the big blind twice in a row.
+- **Odd chip:** a split pot's odd chip goes to the lowest-numbered winning seat (per side pot), not the first winner left of the button.
+- **Short all-in raise:** an all-in that raises by less than the minimum raise does not change the minimum raise, but it still reopens the betting for players who have already acted (tournament rules would not).
+- **Raise sizes:** three "raise to" sizes only (the bet plus one big blind, half the pot, the pot; the pot is measured before the raiser's own call, so a "pot" raise is smaller than a conventional pot-sized raise). No other amount, no ante, blinds fixed, no limit on the number of raises.
+
+Game formats used by the training and evaluation scripts, checked against the code (`train_poker_dqn(reset_stacks=...)`, `winrate.play_hand`, `winrate.evaluate`); blinds are 1/2 everywhere and 4 seats everywhere:
+
+| script | stack (chips / big blinds) | stacks between hands | button | players |
+|---|---|---|---|---|
+| `main.ipynb` (training) | 10,000 / 5,000 | carried over; the tournament resets when fewer than two players have chips | moves one seat per hand among players with chips; seat 0 after a reset | four different networks, one per seat, no bots |
+| `bench/train_demo.py` (demo agents) | 200 / 100 | reset every hand (`reset_stacks=True`, which calls `reset_tournament`) | seat 0 every hand | one network in all four seats |
+| `bench/winrate.py` (its own training run, RESULTS section 5) | trains at 10,000 / 5,000 with carry-over as the notebook; evaluates at 10,000 | evaluation: reset every hand | evaluation: seat 0 every hand | agent against three copies of one bot |
+| `bench/eval_demo.py`, `confirm_demo.py`, `eval_suite.py` | 200 / 100 (`eval_suite.py` varies it) | reset every hand | seat 0 every hand; duplicate deals put the agent in each of the four seats, so it plays every position equally often | agent against three copies of one bot, greedy |
+
+With stacks reset every hand and the button fixed on seat 0, the only difference from a moving button is which seat gets an odd chip; duplicate deals rotate the agent through all four positions. What carries over from the 100-big-blind format to other stack depths and to carried-over stacks is measured, for the demo agents, in `bench/RESULTS.md` section 12. Every result there states its format.
+
 The agents are trained using Deep Q-Learning (DQN) in a self-play setting. Multiple agents compete against one another over hundreds of thousands of hands, continuously updating their policies based on observed rewards. The reward signal is derived from chip (big blind) profit and loss, encouraging agents to learn strategies that maximise expected value over time rather than short-term wins.
 
 To improve interpretability and validate learned behaviour, symbolic regression is applied after training. Using the agent’s simulated data:

@@ -1,0 +1,34 @@
+{
+ "pooled_bb_per_hand": 0.29806259314456035,
+ "pooled_ci95_lo": -4.09727453486516,
+ "pooled_ci95_hi": 4.69339972115428,
+ "mean_bb_per_hand": -21.085832617226483,
+ "ci95_lo": -31.29326521688853,
+ "ci95_hi": -10.87840001756444,
+ "sessions": 300,
+ "hands": 1342,
+ "mean_session_hands": 4.473333333333334,
+ "ended": {
+  "agent_busted": 224,
+  "agent_won_all": 76,
+  "cap": 0
+ },
+ "max_hands": 200,
+ "stack": 200,
+ "part": "tournament",
+ "agent": "random-bot",
+ "opponent": "random",
+ "seed": 32000,
+ "deals": 300,
+ "format": "tournament",
+ "wall_s": 0.2,
+ "cpu_s": 0.2,
+ "load_average": [
+  24.65185546875,
+  32.70947265625,
+  33.34228515625
+ ],
+ "model_sha256": null,
+ "computed_utc": "2026-11-19T06:19:30Z",
+ "commit": "acc3104"
+}
