@@ -1,0 +1,9 @@
+# python bench/check_terminal_rewards.py   (train/dqn-fixes, after #12: a hand's transitions are stored only when the hand finishes)
+checkout agent-a0add9482a14fe41a, tournament: 300 hands checked (0 aborted, skipped)
+  hands where two or more seats acted: 257
+  seats that acted: 707; last decision terminal with the seat's bb_delta: 707
+  seat-hands breaking the rule: 0; terminal rewards stored without a state (never trained): 0
+checkout agent-a0add9482a14fe41a, stacks reset every hand: 300 hands checked (0 aborted, skipped)
+  hands where two or more seats acted: 300
+  seats that acted: 1198; last decision terminal with the seat's bb_delta: 1198
+  seat-hands breaking the rule: 0; terminal rewards stored without a state (never trained): 0
