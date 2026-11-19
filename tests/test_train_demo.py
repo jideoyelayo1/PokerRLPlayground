@@ -3,6 +3,7 @@
     python -m unittest discover -s tests -v
 """
 import json
+import os
 import sys
 import tempfile
 import time
@@ -104,6 +105,24 @@ class League(unittest.TestCase):
             train_demo.train("mlp-s", 1, 40, out2, 2, 1)
             self.assertIsNone(tp.call_args.kwargs["league"])
             self.assertIsNone(json.loads((out2 / "run.json").read_text())["league"])
+
+    def test_league_run_resumed_equals_uninterrupted(self):
+        score = lambda m, seq: ({}, float(sum(p.sum() for p in m.parameters())))
+        real_replace = os.replace
+
+        def interrupt_after_resume_file(*a):
+            real_replace(*a)
+            raise KeyboardInterrupt
+
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(train_demo, "validate", score):
+            full, part = Path(d) / "full", Path(d) / "part"
+            train_demo.train("mlp-s", 1, 60, full, 3, 1, league_p_bot=0.2)
+            with mock.patch.object(train_demo.os, "replace", interrupt_after_resume_file), self.assertRaises(KeyboardInterrupt):
+                train_demo.train("mlp-s", 1, 60, part, 3, 1, league_p_bot=0.2)
+            train_demo.train("mlp-s", 1, 60, part, 3, 1, resume=True, league_p_bot=0.2)
+            a, b = (torch.load(x / "model.pt") for x in (full, part))
+            self.assertTrue(all(torch.equal(a[k], b[k]) for k in a))
+            self.assertEqual(json.loads((part / "run.json").read_text())["league"]["snapshot_every"], 6)
 
 
 if __name__ == "__main__":

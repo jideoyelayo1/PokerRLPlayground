@@ -2,6 +2,7 @@
 
     python -m unittest discover -s tests -v
 """
+import io
 import os
 import random
 import sys
@@ -20,15 +21,20 @@ from ReinforcementLearningEnvironment import Poker
 from ReinforcementLearningEnvironment.Agent import DQNAgent
 from ReinforcementLearningEnvironment.TrainingEnvironmentVariables import A_CALL, A_CHECK
 
+torch.set_num_threads(1)
 F, A = 151, 7
 
 
-def run(league, hands=60, seed=3, model=None, on_hand_end=None, **kw):
-    random.seed(seed); np.random.seed(seed); torch.manual_seed(seed)
+def bot_call(obs, mask, rng):
+    return A_CALL if mask[A_CALL] == 0.0 else A_CHECK
+
+
+def run(league, hands=60, seed=3, model=None, on_hand_end=None, resume=None, **kw):
+    random.seed(seed); np.random.seed(seed); torch.manual_seed(99 if resume else seed)  # a resumed run must take everything from the snapshot
     agent_kw = dict(batch_size=16, eps_decay_hands=40, **kw)
     return Poker.train_poker_dqn([model or MLPModel(F, A, hidden=(16,))], 4, 200, 2, 1, max_hands=hands, seed=seed,
                                  reset_stacks=True, log_csv=False, agent_kwargs=agent_kw, reward_scale=0.01,
-                                 league=league, on_hand_end=on_hand_end)
+                                 league=league, on_hand_end=on_hand_end, resume=resume)
 
 
 def weights(net):
@@ -39,7 +45,7 @@ class League(unittest.TestCase):
     def test_snapshots_join_at_the_right_hands_and_the_pool_is_bounded(self):
         pool, seen = [], []
         run({"snapshot_every": 10, "pool_size": 3, "pool": pool}, hands=55,
-            on_hand_end=lambda n, ags: seen.append((n, len(pool))))
+            on_hand_end=lambda n, ags, snap: seen.append((n, len(pool))))
         size = dict(seen)
         self.assertEqual(size[9], 0)
         self.assertEqual(size[10], 1)
@@ -51,7 +57,7 @@ class League(unittest.TestCase):
     def test_snapshots_are_frozen_copies_of_the_learner_at_that_hand(self):
         pool, at = [], {}
         run({"snapshot_every": 20, "pool_size": 5, "pool": pool}, hands=60,
-                   on_hand_end=lambda n, ags: at.__setitem__(n, weights(ags[0].model).clone()) if n % 20 == 0 else None)
+                   on_hand_end=lambda n, ags, snap: at.__setitem__(n, weights(ags[0].model).clone()) if n % 20 == 0 else None)
         self.assertEqual(len(pool), 3)
         for snap, n in zip(pool, (20, 40, 60)):
             self.assertFalse(snap.training)
@@ -74,7 +80,7 @@ class League(unittest.TestCase):
         stored = []
         with mock.patch.object(DQNAgent, "select_action", counted):
             agents, _ = run({"snapshot_every": 10, "p_snapshot": 0.3, "bots": [bot], "p_bot": 0.5}, hands=80,
-                            on_hand_end=lambda n, ags: (stored.append(ags[0].transitions), now.__setitem__(0, n)))
+                            on_hand_end=lambda n, ags, snap: (stored.append(ags[0].transitions), now.__setitem__(0, n)))
         self.assertTrue(seats)
         self.assertLessEqual(max(len(v) for v in seats.values()), 3)  # a learner seat in every hand
         per_hand = np.diff([0] + stored)
@@ -89,7 +95,7 @@ class League(unittest.TestCase):
             return A_CALL if mask[A_CALL] == 0.0 else A_CHECK
 
         run({"snapshot_every": 1000, "p_snapshot": 0.0, "bots": [bot], "p_bot": 1.0}, hands=40,
-            on_hand_end=lambda n, ags: now.__setitem__(0, n))
+            on_hand_end=lambda n, ags, snap: now.__setitem__(0, n))
         self.assertTrue(all(len(v) <= 3 for v in seats.values()))
 
     def test_bots_are_asked_only_when_seated(self):
@@ -130,6 +136,45 @@ class League(unittest.TestCase):
         self.assertTrue(all(ndim == 2 and seq for ndim, seq in shapes))  # (decisions so far, F)
         self.assertEqual(len(pool), 4)
         self.assertTrue(all(torch.isfinite(weights(m)).all() for m in (agents[0].model, *pool)))
+
+    def test_resume_is_bitwise_the_straight_run(self):
+        def cfg():  # a fresh dict per run: the pool fills in place
+            return {"snapshot_every": 10, "pool_size": 2, "p_snapshot": 0.4, "p_bot": 0.3, "bots": [bot_call], "pool": []}
+
+        def snap_at_30(n, ags, snapshot):
+            if n == 30:
+                buf = io.BytesIO()
+                torch.save(snapshot(), buf)  # through the file format, as resume.pt
+                saved.append(buf.getvalue())
+
+        saved = []
+        straight_cfg = cfg()
+        (a, ha) = run(straight_cfg, hands=60)
+        run(cfg(), hands=30, on_hand_end=snap_at_30)
+        resumed_cfg = cfg()
+        snap = torch.load(io.BytesIO(saved[0]), weights_only=False)
+        self.assertEqual(len(snap["league"]["pool"]), 2)  # snapshots at 10, 20 and 30, the oldest dropped
+        (b, hb) = run(resumed_cfg, hands=60, resume=snap)
+        self.assertTrue(torch.equal(weights(a[0].model), weights(b[0].model)))
+        self.assertEqual(len(a[0].memory), len(b[0].memory))
+        for t, u in zip(a[0].memory, b[0].memory):
+            for x, y in zip(t, u):
+                np.testing.assert_array_equal(x, y)
+        self.assertEqual(len(straight_cfg["pool"]), 2)
+        self.assertEqual(len(resumed_cfg["pool"]), 2)
+        for p, q in zip(straight_cfg["pool"], resumed_cfg["pool"]):
+            self.assertTrue(torch.equal(weights(p), weights(q)))
+            self.assertFalse(q.training or any(r.requires_grad for r in q.parameters()))
+        for i in range(4):
+            self.assertEqual(list(ha["delta_bb"][i]), list(hb["delta_bb"][i]))
+        self.assertEqual((ha["resets"], ha["aborted"]), (hb["resets"], hb["aborted"]))
+
+    def test_snapshot_without_league_has_no_league_state_and_resume_checks_it(self):
+        snaps = []
+        run(None, hands=4, on_hand_end=lambda n, ags, snap: snaps.append(snap()) if n == 4 else None)
+        self.assertNotIn("league", snaps[0])
+        with self.assertRaisesRegex(ValueError, "resume and league go together"):
+            run({"snapshot_every": 10}, hands=8, resume=snaps[0])
 
     def test_needs_exactly_one_model(self):
         with self.assertRaisesRegex(ValueError, "exactly one model"):
