@@ -1,0 +1,34 @@
+{
+ "pooled_bb_per_hand": -0.12180901825122271,
+ "pooled_ci95_lo": -0.2678459306758309,
+ "pooled_ci95_hi": 0.024227894173385486,
+ "mean_bb_per_hand": -2.0003455622079187,
+ "ci95_lo": -2.896859314251204,
+ "ci95_hi": -1.1038318101646336,
+ "sessions": 300,
+ "hands": 33532,
+ "mean_session_hands": 111.77333333333333,
+ "ended": {
+  "agent_busted": 185,
+  "agent_won_all": 31,
+  "cap": 84
+ },
+ "max_hands": 200,
+ "stack": 200,
+ "part": "tournament",
+ "agent": "gru-seed3",
+ "opponent": "tight",
+ "seed": 32000,
+ "deals": 300,
+ "format": "tournament",
+ "wall_s": 19.6,
+ "cpu_s": 12.3,
+ "load_average": [
+  21.0849609375,
+  32.5146484375,
+  33.28857421875
+ ],
+ "model_sha256": "04af27baf3d8d0a469e5a7abbb26654cc1ade00e0252815f1548831308f9b06f",
+ "computed_utc": "2026-11-19T06:19:16Z",
+ "commit": "acc3104"
+}
