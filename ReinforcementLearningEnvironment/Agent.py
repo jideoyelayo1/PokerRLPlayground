@@ -9,6 +9,28 @@ from ReinforcementLearningEnvironment.QTrainer import QTrainer
 from ReinforcementLearningEnvironment.TrainingEnvironmentVariables import MAX_MEMORY, BATCH_SIZE, LEARNING_RATE, N_ACTIONS
 
 
+def greedy_action(model, state_vec, legal_mask, sequence=False, device="cpu"):
+    """Argmax of the model's Q-values plus the legal mask, with dropout off (the mode is restored)."""
+    st = torch.tensor(state_vec, dtype=torch.float32, device=device)
+    if st.dim() == 1 or sequence:
+        st = st.unsqueeze(0)  # (1, F), or (1, T, F) for a sequence
+
+    was = model.training
+    model.eval()
+    try:
+        with torch.no_grad():
+            q = model(st)     # (1, N_ACTIONS) for all models if standardized
+            if isinstance(q, (tuple, list)):
+                q = q[0]
+            if q.dim() == 2:
+                q = q[0]           # (N_ACTIONS,)
+
+            q = q + torch.tensor(legal_mask, dtype=torch.float32, device=device)
+            return int(torch.argmax(q).item())
+    finally:
+        model.train(was)
+
+
 class DQNAgent:
     def __init__(self, player_id: int, model: nn.Module, state_dim: int, gamma=0.9, device="cpu",
                  memory_size=MAX_MEMORY, batch_size=BATCH_SIZE, lr=LEARNING_RATE,
@@ -98,21 +120,4 @@ class DQNAgent:
             legal_actions = np.where(legal_mask == 0.0)[0].tolist()
             return random.choice(legal_actions)
 
-        st = torch.tensor(state_vec, dtype=torch.float32, device=self.device)
-        if st.dim() == 1 or self.sequence:
-            st = st.unsqueeze(0)  # (1, F), or (1, T, F) for a sequence
-
-        was = self.model.training
-        self.model.eval()  # greedy play without dropout
-        try:
-            with torch.no_grad():
-                q = self.model(st)     # (1, N_ACTIONS) for all models if standardized
-                if isinstance(q, (tuple, list)):
-                    q = q[0]
-                if q.dim() == 2:
-                    q = q[0]           # (N_ACTIONS,)
-
-                q = q + torch.tensor(legal_mask, dtype=torch.float32, device=self.device)
-                return int(torch.argmax(q).item())
-        finally:
-            self.model.train(was)
+        return greedy_action(self.model, state_vec, legal_mask, self.sequence, self.device)
