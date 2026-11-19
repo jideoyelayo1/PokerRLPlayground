@@ -13,9 +13,14 @@ from ReinforcementLearningEnvironment.TrainingEnvironmentVariables import (
 
 from tqdm.auto import tqdm
 from array import array
+import copy
 import random
 import numpy as np
+import torch
 
+
+
+SNAPSHOT_VERSION = 1
 
 
 def train_poker_dqn(
@@ -33,6 +38,7 @@ def train_poker_dqn(
     reward_scale: float = 1.0,
     log_csv: bool = True,
     on_hand_end=None,
+    resume=None,
 ):
     """Self-play DQN training. reset_stacks=True resets every stack to starting_stack before each
     hand (a cash game, as the demo is played; the button then always starts on seat 0); otherwise the
@@ -45,8 +51,23 @@ def train_poker_dqn(
     The terminal reward is the seat's result in big blinds times reward_scale.
 
     log_csv=False skips the per-player-per-hand CSV (CSV_PATH), which grows by about 300 bytes a
-    hand. on_hand_end(hands_played, agents), if given, is called after each hand's updates (for
-    checkpoints and progress logs in long runs)."""
+    hand. on_hand_end(hands_played, agents, snapshot), if given, is called after each hand's updates
+    (for checkpoints and progress logs in long runs). snapshot() returns a dict with everything needed
+    to continue from there (version, hands_played, each agent's state_dict, the engine's deck RNG state,
+    history and the states of random, NumPy and torch); it shares tensors and replay with the agents, so
+    save it (torch.save) before the next hand.
+
+    resume=<such a dict> continues from its hands_played, with max_hands the total. Same models, settings
+    and seed as the original run; then the hands, learning and exploration are the uninterrupted run's.
+    Needs reset_stacks=True: the engine's stacks, button and alive players are not in the snapshot.
+    Not restored: the per-hand CSV (log_csv), which would repeat the hands after the checkpoint."""
+
+    if resume is not None:
+        # shortcut: only reset_stacks=True runs resume; to extend, save the engine's stacks, button and alive seats
+        if not reset_stacks:
+            raise ValueError("resume needs reset_stacks=True: stacks, button and alive players are not in the snapshot")
+        if resume.get("version") != SNAPSHOT_VERSION:
+            raise ValueError(f"unknown snapshot version {resume.get('version')!r}")
 
     g = pe.GameEngine(n_players, starting_stack, big_blind, small_blind)
     if seed is not None:
@@ -74,7 +95,20 @@ def train_poker_dqn(
     }
 
     hands_played = 0
-    pbar = tqdm(total=max_hands)
+    if resume is not None:  # after the probe hand, which drew from the RNGs
+        hands_played = resume["hands_played"]
+        for ag, st in zip(agents, resume["agents"], strict=True):
+            ag.load_state_dict(st)
+        g.set_rng_state(resume["engine_rng"])
+        history = copy.deepcopy(resume["history"])
+        random.setstate(resume["random"]); np.random.set_state(resume["numpy"]); torch.set_rng_state(resume["torch"])
+    pbar = tqdm(total=max_hands, initial=hands_played)
+
+    def snapshot():
+        # torch: CPU generator only (the models run on the CPU)
+        return {"version": SNAPSHOT_VERSION, "hands_played": hands_played, "agents": [ag.state_dict() for ag in agents],
+                "engine_rng": g.rng_state(), "history": copy.deepcopy(history), "random": random.getstate(),
+                "numpy": np.random.get_state(), "torch": torch.get_rng_state()}
 
     MAX_STEPS_PER_HAND = 2000  # no wall-clock limit: it made seeded runs depend on machine load
 
@@ -267,7 +301,7 @@ def train_poker_dqn(
         hands_played += 1
         pbar.update(1)
         if on_hand_end is not None:
-            on_hand_end(hands_played, agents)
+            on_hand_end(hands_played, agents, snapshot)
 
     pbar.close()
 

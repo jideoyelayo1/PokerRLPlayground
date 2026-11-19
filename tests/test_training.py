@@ -303,7 +303,7 @@ class TargetSync(unittest.TestCase):
         helper.CSV_PATH = str(Path(tempfile.mkdtemp()) / "log.csv")
         synced = []
 
-        def on_hand_end(n, agents):
+        def on_hand_end(n, agents, snapshot):
             ag = agents[0]
             synced.append(all(torch.equal(a, b) for a, b in zip(ag.model.state_dict().values(),
                                                                  ag.target_model.state_dict().values())))
