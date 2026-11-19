@@ -1,0 +1,55 @@
+{
+ "candidate": "gru-noseq",
+ "architecture": {
+  "cls": "GRUModel",
+  "kwargs": {
+   "hidden_dim": 128,
+   "layer_dim": 1,
+   "dropout": 0.0
+  },
+  "sequence": false
+ },
+ "sequence": false,
+ "seed": 2,
+ "hands": 10000,
+ "kept_checkpoint_hands": 10000,
+ "parameters": 108807,
+ "train_wall_s": 130.3,
+ "train_cpu_s": 109.6,
+ "eval_wall_s": 11.2,
+ "eval": {
+  "seed": 31500,
+  "deals": 1000,
+  "bb100": {
+   "random": {
+    "bb100": 1321.4,
+    "ci95_lo": 1077.6622683493708,
+    "ci95_hi": 1565.1377316506293
+   },
+   "call": {
+    "bb100": 666.9,
+    "ci95_lo": 451.6183542190971,
+    "ci95_hi": 882.1816457809028
+   },
+   "tight": {
+    "bb100": -116.19999999999999,
+    "ci95_lo": -220.50478233817765,
+    "ci95_hi": -11.895217661822354
+   }
+  }
+ },
+ "train_commit": "5e9a3b3ad10045c4e38b8aa1a08e8e08855cffea",
+ "commit": "00dc186",
+ "dirty": false,
+ "load_average_before": [
+  104.31982421875,
+  90.5732421875,
+  71.88232421875
+ ],
+ "load_average_after": [
+  20.4833984375,
+  32.59130859375,
+  33.31982421875
+ ],
+ "torch": "2.9.1"
+}

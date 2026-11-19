@@ -169,7 +169,7 @@ All models in this project are intentionally **simple, lightweight implementatio
 ---
 
 ### TransformerQModel (attention-based Q-network)
-**What it is:** A transformer encoder that processes input as a **sequence** (or as a length-1 sequence if you only pass a vector), then outputs Q-values from the final token.
+**What it is:** A transformer encoder that processes input as a **sequence** (or as a length-1 sequence if you only pass a vector), then outputs Q-values from the final token. Each token is the projected state plus a learned position embedding, so the order of the decisions matters. `forward(x, lengths=None)` takes the lengths of a right-padded batch (as `QTrainer` builds for `sequence=True`): pad positions are masked out of attention and each sequence is read at its last real token, so a padded batch gives the same Q-values as running each sequence alone. `max_len` (default 64) is the longest sequence, the decisions of one player in one hand; a longer one raises a `ValueError`.
 
 **Why it exists:**
 - Transformers can model relationships between elements (e.g., cards, betting tokens, action-history tokens) using attention.
@@ -184,7 +184,7 @@ All models in this project are intentionally **simple, lightweight implementatio
 - If you feed only a single feature vector (T=1), it behaves more like a richer function approximator than a true sequence model.
 
 **Key hyperparameters (current defaults):**
-- `d_model=256`, `nhead=8`, `num_layers=3`, `dim_feedforward=512`, `dropout=0.05`
+- `d_model=256`, `nhead=8`, `num_layers=3`, `dim_feedforward=512`, `dropout=0.05`, `max_len=64`
 
 ---
 
@@ -224,6 +224,11 @@ All models in this project are intentionally **simple, lightweight implementatio
 
 **Key hyperparameters (current defaults):**
 - `hidden_dim=1024`, `layer_dim=3`, `dropout=0.05`
+
+---
+
+### Saving and loading
+All four models share one `save`/`load` (`Models/checkpoint.py`). `model.save("m.pth")` writes `./model/m.pth` holding the constructor kwargs and the weights, and `Cls.load("m.pth")` rebuilds the same architecture from them, in eval mode; kwargs passed to `load` override the saved ones. A file holding a bare `state_dict` (the demo agents' `weights/runs/*/model.pt`, loaded with `model.load_state_dict`) has no architecture, so `Cls.load` needs the constructor kwargs for it and otherwise raises a `ValueError`.
 
 ---
 

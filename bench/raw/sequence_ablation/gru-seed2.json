@@ -1,0 +1,56 @@
+{
+ "candidate": "gru",
+ "architecture": {
+  "cls": "GRUModel",
+  "kwargs": {
+   "hidden_dim": 128,
+   "layer_dim": 1,
+   "dropout": 0.0
+  },
+  "sequence": true,
+  "hands": 150000
+ },
+ "sequence": true,
+ "seed": 2,
+ "hands": 10000,
+ "kept_checkpoint_hands": 10000,
+ "parameters": 108807,
+ "train_wall_s": 505.2,
+ "train_cpu_s": 401.7,
+ "eval_wall_s": 14.1,
+ "eval": {
+  "seed": 31500,
+  "deals": 1000,
+  "bb100": {
+   "random": {
+    "bb100": 1172.925,
+    "ci95_lo": 923.1967517981577,
+    "ci95_hi": 1422.6532482018424
+   },
+   "call": {
+    "bb100": 157.0625,
+    "ci95_lo": 10.758125003601338,
+    "ci95_hi": 303.3668749963987
+   },
+   "tight": {
+    "bb100": 48.0625,
+    "ci95_lo": -23.209746185454744,
+    "ci95_hi": 119.33474618545475
+   }
+  }
+ },
+ "train_commit": "5e9a3b3ad10045c4e38b8aa1a08e8e08855cffea",
+ "commit": "00dc186",
+ "dirty": false,
+ "load_average_before": [
+  93.02734375,
+  85.1591796875,
+  68.4033203125
+ ],
+ "load_average_after": [
+  20.25048828125,
+  32.96728515625,
+  33.4599609375
+ ],
+ "torch": "2.9.1"
+}
