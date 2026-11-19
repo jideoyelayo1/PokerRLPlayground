@@ -62,8 +62,13 @@ def main():
     ap.add_argument("--out", required=True, help="scratch directory for the weights and the training log")
     a = ap.parse_args()
     out = Path(a.out) / f"{a.candidate}-seed{a.seed}"
+    raw = RAW / f"{a.candidate}-seed{a.seed}.json"
     load_before = os.getloadavg()
-    train_demo.train(a.candidate, a.seed, a.hands, out, checkpoints=2, threads=1)
+    if (out / "run.json").exists():  # trained already: evaluate again, keep the training's load average
+        print(f"{out} is trained, evaluating only")
+        load_before = json.loads(raw.read_text())["load_average_before"] if raw.exists() else None
+    else:
+        train_demo.train(a.candidate, a.seed, a.hands, out, checkpoints=2, threads=1)
     run = json.loads((out / "run.json").read_text())
 
     model = build(a.candidate)
@@ -74,15 +79,15 @@ def main():
     vs, t0 = {}, time.time()
     for bname, bot in BOTS.items():
         with torch.no_grad():
-            r = evaluate(greedy_policy(model, seq), bot, EVAL_DEALS, EVAL_SEED)
+            r = evaluate(greedy_policy(model, seq), bot, EVAL_DEALS, EVAL_SEED, stack=train_demo.STACK)
         vs[bname] = {k: r[k] for k in ("bb100", "ci95_lo", "ci95_hi")}
     RAW.mkdir(parents=True, exist_ok=True)
-    (RAW / f"{a.candidate}-seed{a.seed}.json").write_text(json.dumps({
+    raw.write_text(json.dumps({
         "candidate": a.candidate, "architecture": CANDIDATES[a.candidate], "sequence": seq, "seed": a.seed,
         "hands": a.hands, "kept_checkpoint_hands": run["kept_checkpoint_hands"], "parameters": run["parameters"],
         "train_wall_s": run["wall_s"], "train_cpu_s": run["cpu_s"], "eval_wall_s": round(time.time() - t0, 1),
         "eval": {"seed": EVAL_SEED, "deals": EVAL_DEALS, "bb100": vs},
-        "commit": subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True,
+        "train_commit": run["commit"], "commit": subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True,
                                  text=True).stdout.strip(),
         "dirty": run["dirty"], "load_average_before": load_before, "load_average_after": os.getloadavg(),
         "torch": torch.__version__}, indent=1) + "\n")
