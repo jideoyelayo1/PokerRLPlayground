@@ -51,7 +51,7 @@ class MainAll(unittest.TestCase):
     def run_main(self, failures):
         with tempfile.TemporaryDirectory() as d, mock.patch.object(train_demo, "RUNS", Path(d)), \
                 mock.patch.object(train_demo, "run_jobs", return_value=failures) as rj, \
-                mock.patch.object(sys, "argv", ["train_demo.py", "--all", "--keep-checkpoints"]):
+                mock.patch.object(sys, "argv", ["train_demo.py", "--all", "--keep-checkpoints", "--resume"]):
             try:
                 train_demo.main()
             finally:
@@ -62,7 +62,7 @@ class MainAll(unittest.TestCase):
             self.run_main([("gru seed 2", 3)])
         self.assertIn("gru seed 2 (code 3)", str(cm.exception.code))
         self.assertEqual(len(self.jobs), 9)
-        self.assertTrue(all("--keep-checkpoints" in cmd for _, cmd in self.jobs))  # passed to the children
+        self.assertTrue(all("--keep-checkpoints" in cmd and "--resume" in cmd for _, cmd in self.jobs))  # passed to the children
 
     def test_exits_zero_when_all_pass(self):
         self.run_main([])

@@ -13,6 +13,14 @@ written last, so a run with run.json is complete and is skipped).
     python bench/train_demo.py --candidate mlp-s --seed 1    # one run
     python bench/train_demo.py --all --jobs 5                # every candidate x seed not yet done
 
+--resume: at every checkpoint but the last the run also writes resume.pt: the whole training state
+(networks, optimizer, replay, counters, every RNG, this script's bookkeeping and the time spent so far),
+written to a temporary file and moved into place, so a kill leaves the previous one. With --resume, a
+run that has resume.pt and no run.json continues from it. model.pt and the log.jsonl rows then come out
+exactly as the uninterrupted run's (bitwise, on the same machine, with the same code, library versions
+and torch threads), except wall_s and cpu_s, which add up the time of all the segments. resume.pt holds
+the replay (about 100 MB at the full budget), so it is deleted once run.json is written.
+
 --keep-checkpoints also saves ckpt-<hands>.pt (the state_dict) at every checkpoint; model.pt is
 still the best-validation one. --all exits non-zero if any run failed (--fail-fast stops at the first).
 """
@@ -90,7 +98,12 @@ def diagnostics(stats):
     return {k: float(sum(s[k] for s in stats) if k == "nonfinite" else np.mean([s[k] for s in stats])) for k in stats[0]}
 
 
-def train(name, seed, hands, out, checkpoints, threads, keep=False):
+def cpu_s():
+    r = resource.getrusage(resource.RUSAGE_SELF)
+    return r.ru_utime + r.ru_stime
+
+
+def train(name, seed, hands, out, checkpoints, threads, keep=False, resume=False):
     out.mkdir(parents=True, exist_ok=True)
     # the code the run uses, read before it starts (other commits may land while it trains)
     commit = git("rev-parse", "HEAD")
@@ -101,12 +114,27 @@ def train(name, seed, hands, out, checkpoints, threads, keep=False):
     model = build(name)
     seq = CANDIDATES[name]["sequence"]
     agent_kw = dict(AGENT, eps_decay_hands=hands // 5, sequence=seq)
-    log = (out / "log.jsonl").open("w")
     every = hands // checkpoints
-    state = {"best": None, "score": -float("inf"), "loss": [], "stats": [], "t0": time.time(),
-             "r0": resource.getrusage(resource.RUSAGE_SELF), "transitions": 0}
+    # wall_s and cpu_s count from the start of the first segment: t0 and c0 are shifted back by the time already spent
+    state = {"best": None, "score": -float("inf"), "loss": [], "stats": [], "transitions": 0}
+    snap, spent = None, {"wall_s": 0.0, "cpu_s": 0.0}
+    rpath = out / "resume.pt"
+    if resume and rpath.exists():
+        # weights_only=False: the file holds numpy arrays and RNG states, and is our own
+        saved = torch.load(rpath, map_location="cpu", weights_only=False)
+        if saved["version"] != 1 or saved["run"] != [name, seed, hands, checkpoints]:
+            sys.exit(f"{rpath} is not from this run (version {saved['version']}, run {saved['run']})")
+        snap, spent = saved["snapshot"], saved["spent"]
+        state.update(saved["state"])
+    t0, c0 = time.time() - spent["wall_s"], cpu_s() - spent["cpu_s"]
+    rows = []
+    if snap:
+        rows = (out / "log.jsonl").read_text().splitlines()[:snap["hands_played"] // every]  # drop a row written after resume.pt
+    log = (out / "log.jsonl").open("w")
+    for row in rows:
+        log.write(row + "\n")
 
-    def on_hand_end(n, agents):
+    def on_hand_end(n, agents, snapshot):
         ag = agents[0]
         if ag.last_loss is not None:
             state["loss"].append(ag.last_loss)
@@ -114,9 +142,7 @@ def train(name, seed, hands, out, checkpoints, threads, keep=False):
         if n % every:
             return
         val, score = validate(ag.model, seq)
-        r = resource.getrusage(resource.RUSAGE_SELF)
-        row = {"hands": n, "wall_s": round(time.time() - state["t0"], 1),
-               "cpu_s": round(r.ru_utime + r.ru_stime - state["r0"].ru_utime - state["r0"].ru_stime, 1),
+        row = {"hands": n, "wall_s": round(time.time() - t0, 1), "cpu_s": round(cpu_s() - c0, 1),
                "epsilon": round(ag.epsilon, 4), "mean_loss": float(np.mean(state["loss"])) if state["loss"] else None,
                **diagnostics(state["stats"]),
                "decisions_per_hand": round((ag.transitions - state["transitions"]) / every, 2),
@@ -129,23 +155,26 @@ def train(name, seed, hands, out, checkpoints, threads, keep=False):
             torch.save(ag.model.state_dict(), out / f"ckpt-{n}.pt")
         log.write(json.dumps(row) + "\n"); log.flush()
         print(f"{name} seed {seed}: {n} hands, {row['wall_s']} s, val score {score:.0f} (best {state['score']:.0f} at {state['best']})", flush=True)
+        if n < hands:
+            torch.save({"version": 1, "run": [name, seed, hands, checkpoints], "snapshot": snapshot(), "state": state,
+                        "spent": {"wall_s": row["wall_s"], "cpu_s": row["cpu_s"]}}, f"{rpath}.tmp")
+            os.replace(f"{rpath}.tmp", rpath)
 
-    t0 = time.time()
     agents, history = train_poker_dqn([model], SEATS, STACK, BB, SB, max_hands=hands, device="cpu", seed=seed,
                                       reset_stacks=True, agent_kwargs=agent_kw, reward_scale=REWARD_SCALE,
-                                      log_csv=False, on_hand_end=on_hand_end, ma_window=1)
-    r = resource.getrusage(resource.RUSAGE_SELF)
+                                      log_csv=False, on_hand_end=on_hand_end, ma_window=1, resume=snap)
     run = {"candidate": name, "architecture": CANDIDATES[name], "seed": seed, "hands": hands,
            "agent": agent_kw, "reward_scale": REWARD_SCALE, "format": {"seats": SEATS, "stack": STACK, "blinds": [SB, BB],
                                                                        "reset_stacks": True},
            "validation": {"seed": VAL_SEED, "deals": VAL_DEALS, "every_hands": every},
            "kept_checkpoint_hands": state["best"], "kept_val_score": state["score"],
-           "wall_s": round(time.time() - t0, 1), "cpu_s": round(r.ru_utime + r.ru_stime, 1),
+           "wall_s": round(time.time() - t0, 1), "cpu_s": round(cpu_s() - c0, 1),
            "torch_threads": threads, "keep_checkpoints": keep, "aborted_hands": len(history["aborted"]),
            "commit": commit, "dirty": dirty, "started_utc": started_utc,
            "python": sys.version.split()[0], "torch": torch.__version__, "numpy": np.__version__,
            "parameters": sum(p.numel() for p in model.parameters())}
     (out / "run.json").write_text(json.dumps(run, indent=1) + "\n")
+    rpath.unlink(missing_ok=True)
 
 
 def run_jobs(jobs, n_parallel, fail_fast=False, poll=5):
@@ -181,6 +210,7 @@ def main():
     ap.add_argument("--checkpoints", type=int, default=CHECKPOINTS)
     ap.add_argument("--threads", type=int, default=1, help="torch threads per run")
     ap.add_argument("--keep-checkpoints", action="store_true", help="also save ckpt-<hands>.pt at every checkpoint")
+    ap.add_argument("--resume", action="store_true", help="continue a run that has resume.pt and no run.json")
     ap.add_argument("--fail-fast", action="store_true", help="with --all, stop at the first failed run")
     ap.add_argument("--out", help="run directory (default weights/runs/<candidate>-seed<seed>)")
     a = ap.parse_args()
@@ -188,7 +218,7 @@ def main():
         out = Path(a.out) if a.out else RUNS / f"{a.candidate}-seed{a.seed}"
         if (out / "run.json").exists():
             print(f"{out} is complete, skipped"); return
-        return train(a.candidate, a.seed, a.hands or CANDIDATES[a.candidate]["hands"], out, a.checkpoints, a.threads, a.keep_checkpoints)
+        return train(a.candidate, a.seed, a.hands or CANDIDATES[a.candidate]["hands"], out, a.checkpoints, a.threads, a.keep_checkpoints, a.resume)
     todo = [(c, s) for c in reversed(CANDIDATES) for s in SEEDS  # slowest candidates first
             if not (RUNS / f"{c}-seed{s}" / "run.json").exists()]
     print(f"{len(todo)} runs to do: {todo}", flush=True)
@@ -196,7 +226,7 @@ def main():
     for c, s_ in todo:
         cmd = [sys.executable, str(Path(__file__)), "--candidate", c, "--seed", str(s_),
                "--hands", str(a.hands or CANDIDATES[c]["hands"]), "--checkpoints", str(a.checkpoints),
-               "--threads", str(a.threads)] + (["--keep-checkpoints"] if a.keep_checkpoints else [])
+               "--threads", str(a.threads)] + (["--keep-checkpoints"] if a.keep_checkpoints else []) + (["--resume"] if a.resume else [])
         jobs.append((f"{c} seed {s_}", cmd))
     failed = run_jobs(jobs, a.jobs, a.fail_fast)
     if failed:
