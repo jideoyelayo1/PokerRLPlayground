@@ -349,6 +349,143 @@ Diagnostics at each checkpoint, mean over the train steps since the previous one
 
 Not covered: the Python layer (`tests/test_training.py`); hands with more than 6 seats; blinds that are not 1/2, 2/4 or 5/10; the randomized payout reference shares the engine's odd-chip rule by construction, so that rule is pinned by the fixtures only.
 
+## 12. Opponent suite, diagnostics and game formats (#13, #20, #23)
+
+`python bench/eval_suite.py suite|cross|formats|report` (`bench/eval_suite.py`; bots in `bench/winrate.py`; tests in `tests/test_eval_suite.py`). Every cell is one file in [`raw/eval_suite/`](raw/eval_suite/), the tables below are [`raw/eval_suite/tables.md`](raw/eval_suite/tables.md), and the diagnostics of every duplicate-deal cell are in [`raw/diagnostics.md`](raw/diagnostics.md) and [`raw/diagnostics.json`](raw/diagnostics.json). Logs: `raw/eval_suite/{suite,cross,formats}.log`. **Checkpoint progression (the last item of #13) is not part of this section**; another piece of work does it.
+
+**Agents and format.** The nine kept runs of section 6 (`weights/runs/*/model.pt`, the same weights as the committed cells; greedy, `no_free_fold` off, as in the pre-registered evaluation) and the random bot as control. Unless a table says otherwise: 4 seats, blinds 1/2, stacks 200 chips (100 big blinds) reset before every hand, the button on seat 0 every hand, duplicate deals (each deal replayed with the agent in each of the 4 seats, the three other seats three copies of one opponent; the agent's score on a deal is the mean over the 4 replays; bb/100 = 100 x mean over deals, 95% CI = mean +/- 1.96 sd / sqrt(deals)). Test deals are separate from selection: seeds 31000 (suite), 32000 (formats) and 33000 (cross-play), used by nothing else; selection used 5000 and 7000, confirmations 9000 and 13000 (`SELECTION.md`, section 6).
+
+**New bots** (`winrate.SUITE` = the three pre-registered `BOTS` plus four; `BOTS` itself is unchanged, so the selection rule and the cached cells of section 6 are untouched, and `python bench/check_cell_reproduces.py mlp-s-seed3 tight <dir>` still prints `all equal: True`). Rules are in the `winrate.py` docstring. `tag`: raises the pot with QQ+/AK, raises 55+/AT+/KQ/KJs only when facing at most 1 bb, bets or raises made pairs postflop, folds the rest. `lag`: raises half the pot with any pair, ace, two cards T+ and suited connectors, bets half the pot whenever checked to on the flop and turn. `potodds`: calls when a rough equity proxy beats the pot odds, never bets. `bluff`: raises half the pot 25% of the time with any hand, otherwise calls. Postflop strength reads hole and board ranks only (no straights, flushes or draws). Hand-written, untuned, and not strong players: they are different behaviours to test against, not a ranking of strategies.
+
+### Opponent suite (#13)
+
+10,000 duplicate deals (40,000 hands) per cell, seed 31000. bb/100 [95% CI over deals].
+
+| run | random | call | tight | tag | lag | potodds | bluff |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| gru-seed1 | 986 [918, 1,055] | 109 [73, 145] | -25 [-42, -9] | -294 [-320, -267] | -332 [-369, -295] | -4 [-11, 2] | 687 [614, 760] |
+| gru-seed2 | 907 [837, 977] | 309 [264, 354] | -56 [-75, -36] | -166 [-188, -145] | -190 [-224, -156] | -30 [-41, -19] | 662 [592, 733] |
+| gru-seed3 | 823 [760, 886] | 326 [283, 369] | -3 [-19, 12] | -146 [-166, -126] | -139 [-169, -109] | 3 [-4, 9] | 822 [751, 892] |
+| mlp-l-seed1 | 476 [418, 533] | 249 [207, 292] | -62 [-81, -43] | -359 [-388, -330] | -470 [-510, -429] | -29 [-39, -19] | 549 [483, 615] |
+| mlp-l-seed2 | 300 [247, 353] | -30 [-48, -12] | -33 [-50, -17] | -267 [-291, -242] | -337 [-371, -302] | -11 [-18, -4] | 329 [271, 388] |
+| mlp-l-seed3 | 652 [585, 720] | 123 [93, 154] | -41 [-59, -23] | -295 [-322, -268] | -392 [-431, -354] | -4 [-13, 5] | 664 [596, 731] |
+| mlp-s-seed1 | 400 [348, 453] | 95 [72, 117] | -18 [-28, -8] | -129 [-145, -113] | -148 [-171, -125] | 2 [-3, 7] | 538 [480, 595] |
+| mlp-s-seed2 | 342 [287, 397] | 198 [169, 226] | -10 [-23, 4] | -139 [-156, -123] | -144 [-166, -121] | -14 [-23, -4] | 296 [247, 345] |
+| mlp-s-seed3 | 405 [352, 459] | 364 [328, 400] | 5 [-4, 15] | -138 [-154, -121] | -175 [-199, -151] | 23 [17, 29] | 629 [571, 688] |
+| random-bot | 24 [-56, 105] | -153 [-232, -75] | -679 [-724, -633] | -563 [-602, -525] | -890 [-951, -829] | -261 [-284, -237] | -627 [-711, -544] |
+
+Per family, mean of the per-seed bb/100 [95% t-interval over seeds].
+
+| family | random | call | tight | tag | lag | potodds | bluff |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| gru (3 seeds) | 905 [755, 1,056] | 248 [26, 469] | -28 [-76, 20] | -202 [-349, -55] | -220 [-404, -37] | -11 [-42, 21] | 724 [566, 881] |
+| mlp-l (3 seeds) | 476 [152, 800] | 114 [-143, 371] | -46 [-73, -18] | -307 [-394, -220] | -400 [-522, -277] | -15 [-38, 9] | 514 [202, 826] |
+| mlp-s (3 seeds) | 383 [318, 447] | 219 [-31, 469] | -8 [-30, 14] | -135 [-145, -126] | -156 [-187, -124] | 4 [-30, 37] | 488 [171, 804] |
+
+- **Every run loses to both aggressive bots.** All nine intervals against `tag` (-129 to -359) and against `lag` (-139 to -470) are below zero, so none of the nine, including the shipped agent (`mlp-s-seed3`: -138 [-154, -121] and -175 [-199, -151]), is robust to an opponent that raises its good hands and bets when checked to. The three baselines of section 6 did not show this.
+- **The shipped agent against the rest:** random +405, call +364, `bluff` +629 (its interval is wide, 571 to 688), `potodds` +23 [17, 29] (the only run above zero against it; `gru-seed3` +3 [-4, 9] and `mlp-s-seed1` +2 [-3, 7] are level), tight +5 [-4, 15] on these 10,000 deals (section 6's 40,000 fresh deals gave +18 [14, 23]; the intervals only just touch, and the larger sample is the better estimate).
+- Against `bluff` every run wins (+296 to +822): a bot that raises a quarter of the time with anything is easy to exploit. Against `potodds` eight of nine are level with zero or below.
+- The random bot in the agent's seat (control) loses to every opponent except the random bot (+24 [-56, 105]), so the suite separates a learned policy from no learning.
+- **Reading the per-family means** with 3 seeds each: the intervals across seeds are wide (e.g. `mlp-s` against `call` 219 [-31, 469]); the seed is as big a factor as the architecture, as in section 6.
+
+### Head-to-head cross-play (#13)
+
+One kept run in one seat against three copies of the shipped agent's greedy policy (`mlp-s-seed3`), 10,000 duplicate deals, seed 33000, same format. Negative = the shipped agent wins.
+
+| run | bb/100 [95% CI] |
+|---|---:|
+| gru-seed1 | -298 [-342, -254] |
+| gru-seed2 | -225 [-265, -186] |
+| gru-seed3 | -129 [-166, -92] |
+| mlp-l-seed1 | -610 [-659, -561] |
+| mlp-l-seed2 | -478 [-522, -434] |
+| mlp-l-seed3 | -468 [-514, -421] |
+| mlp-s-seed1 | -41 [-68, -14] |
+| mlp-s-seed2 | -31 [-58, -3] |
+
+- **The shipped agent beats all eight other runs**, the two other `mlp-s` seeds narrowly (-31 [-58, -3] and -41 [-68, -14]) and the `gru` and `mlp-l` runs widely (-129 to -298 and -468 to -610). It was not selected on this; it is a second view that agrees with section 6's ranking of it, but it is one opponent, not a rating of the nine, and 1 against 3 copies is not a 1-v-1 match. Every cell here has the diagnostics of the next subsection.
+
+### Play diagnostics (#20)
+
+Collected in every duplicate-deal cell above and below (126 cells: 70 suite, 8 cross-play, 48 stack-depth), for the agent's seat; definitions and flag thresholds are in `eval_suite.py` (`Stats`, `FLAGS`). Per cell, all in [`diagnostics.md`](raw/diagnostics.md): VPIP, PFR, 3-bet, fold to a bet, showdown (river reached, not folded), aggression factor, free folds, all-in rate, result by position, final pot size, result by starting-hand class (169, in the JSON).
+
+- **Legality and all-ins.** 0 actions with a nonzero mask in all 126 cells. No hand with two or more all-ins by the agent (not possible in this engine: an all-in player cannot act again, so that check is a guard, not a finding). The all-in rate of the nine runs at 100 bb is at most 10.3% of decisions (the shipped agent 0% to 4%); the highest in any cell is the random control, 24.5%.
+- **Free folds are flagged in all 126 cells.** The threshold (any fold when check was legal) is the issue's; at 100 bb the nine runs fold with a free check in 12-22% of their decisions against the calling bot, 5-9% against tight, 0.4-11% against the others; the shipped agent 11.7% / 5.3% against call / tight (section 6 gave 11.6% and 5.3% on other deals). Measuring is not a fix: `no_free_fold` is a play-time option (section 6).
+- **Other flags: 4 cells, all at 400 bb** (section below): `gru-seed3` has VPIP 0% and folds to every bet against all three baselines (`vpip_low`, `fold_to_bet`), `mlp-s-seed2` has VPIP 100% against the calling bot (`vpip_high`). No suite cell at 100 bb trips VPIP or fold-to-bet.
+- **What the shipped agent does** (100 bb; against random / call / tight / tag / lag / potodds / bluff): VPIP 60 / 61 / 68 / 69 / 70 / 66 / 67%, PFR 23-32%, fold to a bet 42 / 28 / 17 / 18 / 18 / 16 / 32%, showdown 16 / 46 / 32 / 20 / 25 / 29 / 18%. Against the tight and `tag` bots it enters 68-69% of hands (`tag` itself plays about 11% by its rule) and folds to a bet only 17-18% of the time: it calls a lot against opponents whose bets mean strength, which is where it loses (consistent with the losses to `tag` and `lag`, but the cause was not tested). Against `tag` and `lag` it loses from every position (BTN -88 and -62, SB -177 and -278, BB -145 and -223, UTG -141 and -136); against the calling bot it wins from every position (+310 to +393). Mean final pot: 7 bb (tight), 15 (`tag`), 22 (call), 44 (`lag`), 150 (`bluff`), 195 (random: the random bot goes all-in at random).
+- Result by starting hand per cell is in the JSON (each class has about 100-400 hands per cell here, so single classes are noisy; compare the 250,000-hand figure of section 7).
+
+### Rules and game formats (#23)
+
+Deviations from tournament rules and the format of every training and evaluation script: the table in the README, *Where the rules differ from tournament poker, and the formats results are measured in*, checked against `GameEngine.cpp`, `train_poker_dqn` and `winrate.play_hand`. Two it adds to the README's list of engine rules: a short all-in raise still reopens the betting, and the "pot" raise is measured before the raiser's own call.
+
+Format of each result in this report:
+
+| result | stack | between hands | button | deals |
+|---|---|---|---|---|
+| sections 6-7, suite, cross-play | 200 chips (100 bb) | reset | seat 0 | duplicate, agent in all 4 seats |
+| stack-depth table | 100, 200, 400, 800 chips (50, 100, 200, 400 bb) | reset | seat 0 | duplicate, seed 32000 |
+| tournament table | 200 chips (100 bb), carried over | carried over; one session = one tournament | moves one seat per hand among players with chips | one engine seed per session; no duplicate |
+| section 5 (superseded) | trained at 10,000 chips with carry-over, evaluated at 10,000 | evaluation reset | evaluation seat 0 | duplicate |
+
+**Stack depth.** Same agents against `BOTS`, 4,000 duplicate deals (16,000 hands) per cell, seed 32000, blinds 1/2 (BB = 2, so 50 bb = 100 chips), stacks reset every hand. The networks' inputs divide chip amounts by 100 big blinds (`docs/state_encoding.md`), so a stack feature is 1.0 at 100 bb in training and 0.5, 2.0 and 4.0 here. `gru-seed3` and `mlp-s-seed2` are the next two runs by the selection rule; the random bot is the control. bb/100 [95% CI].
+
+| agent | opponent | 50 bb | 100 bb | 200 bb | 400 bb |
+|---|---|---:|---:|---:|---:|
+| mlp-s-seed3 | random | 244 [194, 295] | 437 [350, 523] | 534 [392, 677] | 688 [354, 1,023] |
+| mlp-s-seed3 | call | 165 [133, 197] | 326 [270, 381] | 305 [217, 393] | 314 [157, 470] |
+| mlp-s-seed3 | tight | -1 [-14, 12] | 24 [10, 38] | 17 [-1, 35] | -31 [-70, 9] |
+| gru-seed3 | random | 514 [455, 572] | 782 [685, 880] | 676 [547, 805] | 76 [14, 138] |
+| gru-seed3 | call | 273 [223, 322] | 290 [222, 358] | 66 [19, 113] | -35 [-37, -33] |
+| gru-seed3 | tight | -11 [-31, 9] | -13 [-38, 12] | 4 [-17, 25] | -19 [-20, -18] |
+| mlp-s-seed2 | random | 294 [235, 353] | 375 [289, 461] | -220 [-329, -112] | -1,149 [-1,321, -977] |
+| mlp-s-seed2 | call | 106 [80, 131] | 191 [147, 234] | 95 [47, 143] | 98 [41, 155] |
+| mlp-s-seed2 | tight | -13 [-27, 1] | -13 [-34, 7] | -79 [-102, -56] | -626 [-678, -574] |
+| random-bot | random | 9 [-56, 73] | 45 [-82, 172] | -19 [-268, 231] | 169 [-334, 673] |
+| random-bot | call | -162 [-225, -99] | -188 [-312, -64] | -441 [-692, -190] | -209 [-717, 299] |
+| random-bot | tight | -340 [-377, -303] | -661 [-734, -588] | -1,302 [-1,446, -1,157] | -2,763 [-3,050, -2,476] |
+
+- **The shipped agent holds up better than the other two.** Against random and call it wins at every depth (+244 to +688 and +165 to +326); against tight it is at -1, +24, +17 and -31 (the 400 bb interval, -70 to +9, includes zero), so the +18 of section 6 is a 100 bb result that is not clearly there at 50 or at 400 bb.
+- **The other two fall apart at depth.** `gru-seed3` goes from +782 (random) / +290 (call) at 100 bb to +76 / -35 at 400 bb, with VPIP 0%: it folds its hands and loses the blinds (-35 against the call bot, near the -37.5 bb/100 that folding every hand costs). `mlp-s-seed2` turns hyper-aggressive: VPIP 67-100% and PFR 63-100% from 200 bb, -220 and -1,149 against the random bot and -79 and -626 against the tight bot at 200 and 400 bb. Both are outside what they were trained on; why each fails the way it does was not examined, and neither was retrained at depth.
+- The control's losses scale with depth (tight: -340, -661, -1,302, -2,763), since results are in big blinds and the pots grow with the stacks; compare an agent with the control at the same depth, not across depths.
+
+**Tournament carry-over.** A new format, `eval_suite.tournament`: stacks carry over from hand to hand, the button moves one seat per hand among players with chips (the engine's standard order), blinds 1/2, 200-chip (100 bb) starting stacks. A session is one fresh tournament of 1 agent (seat s mod 4 in session s) and 3 copies of one bot, until one player is left, the agent has no chips, or 200 hands; the deck of session s is seeded from 32000 x 1,000,003 + s. 300 sessions per cell. Not a duplicate format: the sessions do not share deals across agents or bots beyond the seed, and the agent is paired with no mirror. The first column is the agent's chips won over all sessions' hands in big blinds per hand, the interval over sessions (a ratio estimator: sessions are the independent units, sessions have different lengths); the second is the mean of the sessions' own bb per hand, which a three-hand session that ends in a bust moves as much as a 200-hand one, shown because it was the plan but not to be preferred. Last column: sessions ended by the agent busting / by the agent winning everything / by the hand cap.
+
+| agent | opponent | pooled bb per hand | mean of sessions | hands per session | ended |
+|---|---|---:|---:|---:|---|
+| mlp-s-seed3 | random | 0.571 [0.073, 1.069] | -1.63 [-7.76, 4.49] | 44 | 195 / 92 / 13 |
+| mlp-s-seed3 | call | 0.727 [0.420, 1.034] | 5.63 [1.06, 10.21] | 74 | 155 / 104 / 41 |
+| mlp-s-seed3 | tight | 0.018 [-0.064, 0.101] | -1.01 [-1.97, -0.05] | 161 | 93 / 20 / 187 |
+| gru-seed3 | random | 0.796 [0.246, 1.346] | -1.91 [-8.15, 4.33] | 41 | 197 / 99 / 4 |
+| gru-seed3 | call | 1.080 [0.349, 1.811] | 2.40 [-2.83, 7.63] | 30 | 199 / 98 / 3 |
+| gru-seed3 | tight | -0.122 [-0.268, 0.024] | -2.00 [-2.90, -1.10] | 112 | 185 / 31 / 84 |
+| mlp-s-seed2 | random | -0.630 [-0.910, -0.350] | 2.15 [-4.73, 9.04] | 57 | 247 / 47 / 6 |
+| mlp-s-seed2 | call | 0.572 [0.383, 0.761] | 3.22 [-1.16, 7.61] | 103 | 140 / 77 / 83 |
+| mlp-s-seed2 | tight | -0.204 [-0.311, -0.097] | -2.61 [-3.95, -1.27] | 133 | 161 / 12 / 127 |
+| random-bot | random | 0.298 [-4.097, 4.693] | -21.09 [-31.29, -10.88] | 4 | 224 / 76 / 0 |
+| random-bot | call | -1.487 [-6.908, 3.934] | -14.04 [-26.00, -2.08] | 4 | 229 / 71 / 0 |
+| random-bot | tight | -3.810 [-4.837, -2.782] | -21.89 [-26.37, -17.40] | 17 | 273 / 27 / 0 |
+
+- **The pooled result is far below the cash result.** The shipped agent: +0.57 [0.07, 1.07] bb per hand against random (cash, 100 bb duplicate: +437 bb/100 = +4.4 bb per hand), +0.73 [0.42, 1.03] against call (+3.3), +0.02 [-0.06, 0.10] against tight (+0.24). It busts in 195 of 300 sessions against the random bot (mean 44 hands per session) and in 93 of 300 against tight. Sessions that go deep and sessions that end fast are different games from a reset hand: a bust loses up to 100 bb, and a win lasts as long as the agent keeps the chips. How much of the gap is the format (variable stacks, busts ending the session) and how much the unpaired deals and 300 sessions was not separated.
+- **Signs change for some agents.** `mlp-s-seed2` against the random bot is -0.63 [-0.91, -0.35] per hand in this format and +375 bb/100 in the 100 bb cash format; Against tight, `mlp-s-seed2` is below zero (-0.20 [-0.31, -0.10]), `gru-seed3` is at -0.12 [-0.27, 0.02] and `mlp-s-seed3` level. The trained agents were selected, trained and validated in the reset format only.
+- The control against random and call is within noise of zero or below (+0.30 [-4.1, 4.7], -1.49 [-6.9, 3.9]) and loses 3.8 [2.8, 4.8] bb per hand against tight.
+
+### Compute, seeds and limits
+
+| part | cells | deals or sessions per cell | seed | CPU time | wall | load average at the end (1, 5, 15 min) |
+|---|---:|---:|---:|---:|---:|---|
+| suite | 70 | 10,000 deals | 31000 | 1,924 s | 1,229 s | 49.4, 77.1, 82.6 |
+| cross-play | 8 | 10,000 deals | 33000 | 1,380 s | 723 s | 25.8, 36.3, 54.5 |
+| stack depth and tournament | 48 + 12 | 4,000 deals; 300 sessions | 32000 | 336 s + 84 s (the tournament cells again in the rerun below: 84 s, wall 75 s with the 48 cached) | 213 s | 41.4, 44.1, 54.0 |
+
+Two evaluation processes at a time (`--jobs 2`, one torch thread each), 3,724 CPU-seconds in all, 3,808 with the tournament rerun (about 1.0 hours; 36 minutes of wall time from 23:43 GMT on 18 November), at commit acc3104 for the suite, cross-play and stack-depth cells and the tournament cells at the tree that became 1256d0f (the pooled interval was added after a first run of the same sessions; the sessions are identical, the first run's cells were overwritten). The machine was shared with other jobs; the load average was 71, 65, 55 when the first cell started and 15 to 134 per cell afterwards (`load_average` in each cell file), so wall times here are not speeds. `check_cell_reproduces.py mlp-s-seed3 tight`: all equal True at 1256d0f (90 s, load 26.1, 31.8, 33.0).
+
+- One machine and one seed per deal set. Intervals are over deals and do not include the variation of retraining; the nine runs are the only agents, three per family.
+- The suite bots were written after the agents were selected and tuned on nothing; their rules are guesses at "tight-aggressive" and so on, and an agent that loses to `tag` loses to this rule, not to a strong player. `potodds` and `tag` see only ranks (no draws).
+- Diagnostics describe the agent's seat in aggregate. Behaviour by street, by action size, or against a particular line, and exploitability, were not measured. 3-bet, fold-to-bet and aggression use the definitions in `Stats` (an all-in counts as a raise; fold to a bet counts every street and the blinds as a bet).
+- **Not measured:** blinds other than 1/2 (the encoding divides by the big blind, so a different blind with the same depth in big blinds is a rescaling of the same game, which was not run); a moving button with stacks reset (the Python binding exposes `reset_tournament` only, which puts the button back on seat 0; duplicate deals already give the agent every position; only the odd chip differs); stack depths between those listed; retraining at another depth or in the carry-over format; fewer or more than 4 seats; checkpoint progression (#13).
+- Section 8's "not measured" list below was written before this section; the demo agents against each other (cross-play, above), against other opponents (suite) and at other stack depths are now measured, with the limits stated here.
+
 ## 13. Training-budget fairness (#18)
 
 The MLPs trained for 400,000 hands and the GRU for 150,000 ([`SELECTION.md`](SELECTION.md)), so the curves in section 6 mix two things: how much a network learns from a given number of hands (**sample efficiency**) and how much it learns from a given amount of computation (**compute efficiency**). `python bench/budget_fairness.py` reads the nine committed runs (`weights/runs/*/log.jsonl`, `run.json`) and writes [`raw/budget_fairness.json`](raw/budget_fairness.json), [`raw/budget_fairness/tables.md`](raw/budget_fairness/tables.md) and [`raw/budget_fairness/curves.png`](raw/budget_fairness/curves.png) (every run's validation score against hands, and against CPU seconds on a log scale: the two views side by side). The value in every cell is the run's validation score at that checkpoint (the section 6 score on the 1,000 validation deals, bb/100), not the evaluation score.
