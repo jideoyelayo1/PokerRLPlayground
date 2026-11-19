@@ -1,0 +1,57 @@
+{
+ "candidate": "transformer-seq",
+ "architecture": {
+  "cls": "TransformerQModel",
+  "sequence": true,
+  "kwargs": {
+   "d_model": 64,
+   "nhead": 4,
+   "num_layers": 2,
+   "dim_feedforward": 128,
+   "dropout": 0.0
+  }
+ },
+ "sequence": true,
+ "seed": 2,
+ "hands": 10000,
+ "kept_checkpoint_hands": 5000,
+ "parameters": 81223,
+ "train_wall_s": 510.9,
+ "train_cpu_s": 423.3,
+ "eval_wall_s": 15.6,
+ "eval": {
+  "seed": 31500,
+  "deals": 1000,
+  "bb100": {
+   "random": {
+    "bb100": 1103.975,
+    "ci95_lo": 858.7213112496274,
+    "ci95_hi": 1349.2286887503726
+   },
+   "call": {
+    "bb100": 571.6125,
+    "ci95_lo": 344.5372976907352,
+    "ci95_hi": 798.6877023092648
+   },
+   "tight": {
+    "bb100": -249.375,
+    "ci95_lo": -393.1678267835688,
+    "ci95_hi": -105.58217321643124
+   }
+  }
+ },
+ "train_commit": "5e9a3b3ad10045c4e38b8aa1a08e8e08855cffea",
+ "commit": "00dc186",
+ "dirty": false,
+ "load_average_before": [
+  121.7978515625,
+  101.919921875,
+  79.23291015625
+ ],
+ "load_average_after": [
+  21.0849609375,
+  32.5146484375,
+  33.28857421875
+ ],
+ "torch": "2.9.1"
+}
