@@ -255,6 +255,47 @@ With the rule the agent does better against the calling and tight bots, with pai
 - A result by starting hand mixes the hand's strength with how the agent plays it (which hands it folds, how far it goes with the rest). Agreement or disagreement with an equity ordering says something about both, and the equity used here assumes four players all-in before the flop.
 - Two deck seeds for Fig. 1 and one machine; the button stays on seat 0 (above). The validation curves are only as fine as the runs recorded them: ten points per run, 1,000 deals each.
 
+## 9. DQN fixes (#9-#12, #16)
+
+Five faults in the trainer, fixed on `train/dqn-fixes`; the unit tests are in `tests/test_training.py`.
+
+- **#9 loss.** `train_step` took MSE over the whole (B, 7) matrix, with zero residual on the six actions not taken, so the loss and its gradient were 1/7 of the TD loss of the chosen action. It is now taken on Q(s, a) only (a test checks it equals the mean squared TD error of the chosen actions, and the Huber one equals `smooth_l1_loss`).
+- **#10 dropout.** `select_action` ran the online network in whatever mode it was in, so a model with dropout chose stochastic "greedy" actions. It now runs in eval mode and restores the previous mode; `train_step` sets train mode (and the Double DQN pick at s' runs in eval mode). Test: 50 greedy calls on one state agree with dropout 0.5.
+- **#11 target cadence.** `train_long_memory()` ran before `n_hands += 1`, so the target was copied after the first hand and then after hands 201, 401, ...; it is now copied after hands 200, 400, ... (`target_update_freq` counts completed hands). Epsilon is read during a hand from `n_hands`, which is the same before and after (a test checks it). Test: with a frequency of 3, the target equals the online network after hands 3, 6, 9 and after no other.
+- **#12 aborted hands.** A hand's transitions are now held until the hand finishes; an aborted hand adds none (before, the earlier transitions of an aborted hand stayed in replay with no terminal). Tests with a scripted agent (seed 3, 4 seats, stacks 200, blinds 1/2) check the exact `(s, a, r, s', done, mask')` records of every seat for a hand with a raise, a call and a fold over two streets, a hand won by one raise and three preflop folds, terminal rewards summing to 0 in every hand (also over 60 hands of the real agent), and an aborted hand (the engine call forced to fail on its 6th decision): nothing from it is in replay. `python bench/check_terminal_rewards.py` on this branch: 707 of 707 and 1,198 of 1,198 seat-hands end with their result, none lost, as before ([raw](raw/dqn_fixes/check_terminal_rewards.txt)).
+- **#16 stability.** `QTrainer`/`DQNAgent` take `loss="mse"|"huber"` and `max_grad_norm=None` (defaults: MSE, no clipping). Each step sets `last_stats` (`td_abs_mean`, `td_abs_max`, `q_abs_max`, `grad_norm` before clipping, `nonfinite`), which `bench/train_demo.py` averages between checkpoints into `log.jsonl`. Tests: loss, gradients and stats stay finite for rewards of +/-100 (200 chips at 2 per big blind, `reward_scale` 1) with MSE, Huber and clipping; a NaN reward is counted in `nonfinite`; with `max_grad_norm=1` the gradient norm after the step is at most 1.
+
+**Paired-seed comparison.** `bench/train_demo.py --candidate mlp-s --seed S --hands 40000 --checkpoints 4 --threads 1`, seeds 1 and 2, same settings as section 6 (lr 1e-4, batch 256, Double DQN, gamma 1, `reward_scale` 0.01, epsilon 1 to 0.05 over the first 8,000 hands, target update 200). `old` is 57b741f (the code before these fixes) from a separate worktree; the other three are this branch, with Huber and `max_grad_norm=10` set by [a driver](raw/dqn_fixes/driver.py) that overrides `train_demo.AGENT`. Same seed gives the same network initialisation and the same deals; exploration and replay sampling differ once the code differs. At most two runs at a time, on a machine shared with other jobs: load average is `vm.loadavg` when the run started, so wall seconds are not comparable between rows. `val_score` is section 6's: the worst, over the three baselines, of the lower end of the 95% interval on bb/100, on 1,000 validation deals (seed 5000). Raw: [raw/dqn_fixes/](raw/dqn_fixes/) (`log.jsonl`, `run.json`, `vm.loadavg` per run).
+
+| variant | seed | commit | val_score at 10k / 20k / 30k / 40k hands | kept (best) | final mean_loss | wall s | CPU s | load average at start (1, 5, 15 min) |
+|---|---:|---|---|---:|---:|---:|---:|---|
+| old | 1 | 57b741f | -657 / -166 / -100 / -151 | -100 (30k) | 0.0118 | 222 | 206 | 72.6 80.6 53.5 |
+| old | 2 | 57b741f | -483 / -241 / -93 / -24 | -24 (40k) | 0.0099 | 241 | 223 | 72.6 80.6 53.5 |
+| fixed, MSE | 1 | 47f4bb1 | -433 / -228 / -213 / -94 | -94 (40k) | 0.0872 | 448 | 310 | 69.4 65.0 55.1 |
+| fixed, MSE | 2 | 47f4bb1 | -540 / -112 / -203 / -81 | -81 (40k) | 0.0689 | 460 | 319 | 69.4 65.0 55.1 |
+| fixed, Huber | 1 | 80efffe | -272 / -146 / -90 / -123 | -90 (30k) | 0.0211 | 356 | 278 | 102.7 91.1 72.5 |
+| fixed, Huber | 2 | 80efffe | -636 / -102 / -125 / -63 | -63 (40k) | 0.0196 | 349 | 271 | 102.0 91.4 73.0 |
+| fixed, MSE, `max_grad_norm` 10 | 1 | 80efffe | -433 / -228 / -213 / -94 | -94 (40k) | 0.0872 | 323 | 294 | 108.2 110.3 88.9 |
+| fixed, MSE, `max_grad_norm` 10 | 2 | 80efffe | -540 / -112 / -203 / -81 | -81 (40k) | 0.0689 | 332 | 304 | 104.9 109.5 88.7 |
+
+(47f4bb1 and 80efffe differ only in the README; the training code is the same. The `old` runs have no diagnostics, and the old `mean_loss` is the 1/7 loss, so it is not comparable with the others.)
+
+Diagnostics at each checkpoint, mean over the train steps since the previous one (`nonfinite` is 0 in every row of every run):
+
+| variant | seed | 10k: td_abs_mean / td_abs_max / q_abs_max / grad_norm | 40k: td_abs_mean / td_abs_max / q_abs_max / grad_norm |
+|---|---:|---|---|
+| fixed, MSE | 1 | 0.424 / 3.18 / 1.37 / 1.06 | 0.105 / 2.06 / 1.45 / 0.52 |
+| fixed, MSE | 2 | 0.431 / 3.20 / 1.47 / 1.10 | 0.090 / 2.01 / 1.59 / 0.49 |
+| fixed, Huber | 1 | 0.353 / 3.42 / 1.39 / 0.29 | 0.077 / 1.65 / 1.62 / 0.15 |
+| fixed, Huber | 2 | 0.362 / 3.47 / 1.41 / 0.30 | 0.076 / 1.60 / 1.57 / 0.16 |
+
+**What changed.**
+- With `reward_scale` 0.01, TD errors are at most about 3 and the mean gradient norm is about 1 or less: nothing here is near an unstable regime. `max_grad_norm=10` gave bit-identical `val_score`, loss and diagnostics to plain MSE for both seeds, so no step's gradient norm reached 10 (a clipped step would have changed the trajectory). Clipping is available but did nothing in this setup.
+- Huber's mean gradient norm is about a third of MSE's. Its `val_score` went -123 and -63 at 40k against -94 and -81 for MSE.
+- Fixed MSE against old: the kept scores are -94 and -81 against -100 and -24; at 40k hands, -94 and -81 against -151 and -24. Means over the two seeds: kept -87.5 (fixed) against -62 (old); at 40k -87.5 both. In the fixed runs the curve rises more steadily at the end (-213 to -94, -203 to -81), but with two seeds and one 1,000-deal validation per point (at 40k the binding baseline is the tight bot in every run; its bb/100 interval is 70 to 140 wide, and the old and MSE point estimates, 11 and -25 for seed 2, are about one interval apart) the difference between old and fixed MSE, and between MSE and Huber, is within what a seed or a validation draw changes. **Learning did not measurably change at 40,000 hands; no variant is shown better or worse.** All are still negative, losing to the strongest baseline.
+
+**Limits.** 40,000 hands, not the 400,000 of section 6; 2 seeds; one candidate (`mlp-s`); the validation scores are the only measure here (no 40,000-deal evaluation). Adam is largely insensitive to a constant rescaling of the loss, so a small effect of #9 is expected here (not tested against SGD). The shipped demo weights in `weights/` were trained before these fixes and are unchanged; retraining them would be a new selection run (`SELECTION.md`). Loads of 70 to 110 during the runs make the wall seconds meaningless for comparing the variants; the CPU seconds (206 to 223 for old, 271 to 319 for the rest) are less affected, and the per-step statistics add some cost.
+
 ## 11. Engine rule and property tests (#19)
 
 `PokerEngine/tests/test_engine_rules.cpp` (ctest `test_engine_rules`, 1.3 s). Fixed deals and stacks come from a setup hook (the file opens the class with `#define private public` to set stacks, the button and the deck order; the engine has no public way to do either); everything after that goes through `start_hand()` and `step()`. "Standard" means standard no-limit hold'em; "deliberate" means a simplification the README states, and the test pins it so a change to it is noticed.
