@@ -1,7 +1,7 @@
 """Training-budget fairness (#18): compare the demo candidates at equal hands and at equal CPU time.
 
 Reads weights/runs/*/log.jsonl and run.json (the committed runs) and writes
-bench/raw/budget_fairness.json and bench/raw/budget_fairness/tables.md:
+bench/raw/budget_fairness.json, bench/raw/budget_fairness/tables.md and curves.png (both views):
   sample efficiency   val_score at equal hands (the last checkpoint at or before each hand budget)
   compute efficiency  val_score at equal CPU seconds (the last checkpoint at or before each budget)
   throughput          hands per CPU second and per wall second, parameters
@@ -131,6 +131,26 @@ def matched(scratch):
     return md + "\n\n" + table(["candidate", f"mean CPU s for {MATCHED_HANDS:,} hands", f"mean val_score at {MATCHED_HANDS:,}"], mean), js
 
 
+def plot(runs, path):
+    """val_score against hands (sample efficiency) and against CPU seconds (compute efficiency), one line per run."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    colour = {"mlp-s": "#2a78d6", "mlp-l": "#eb6834", "gru": "#1baf7a"}  # bench/figures.py's FAMILY
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4), sharey=True)
+    for (c, s), v in runs:
+        for ax, key in zip(axes, ("hands", "cpu_s")):
+            ax.plot([r[key] for r in v["log"]], [r["val_score"] for r in v["log"]], color=colour[c], lw=1.2, marker="o", ms=3,
+                    label=c if s == 1 else None)
+    axes[0].set(xlabel="training hands", ylabel="validation score (bb/100)", title="Sample efficiency: equal hands")
+    axes[1].set(xlabel="CPU seconds", xscale="log", title="Compute efficiency: equal CPU time")
+    axes[0].legend(title="one line per seed")
+    for ax in axes:
+        ax.grid(alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(path, dpi=100)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs", default=str(RUNS), help="directory of committed runs")
@@ -160,6 +180,7 @@ def main():
     (OUT / "budget_fairness").mkdir(parents=True, exist_ok=True)
     (OUT / "budget_fairness.json").write_text(json.dumps(result, indent=1) + "\n")
     (OUT / "budget_fairness" / "tables.md").write_text("\n\n".join(md) + "\n")
+    plot(runs, OUT / "budget_fairness" / "curves.png")
     print("\n\n".join(md))
 
 
