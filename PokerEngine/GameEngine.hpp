@@ -2,6 +2,7 @@
 
 #include "PokerProperties.hpp"
 #include "Player.hpp"
+#include <sstream>
 
 class GameEngine{
     public:
@@ -225,6 +226,10 @@ class GameEngine{
 
         // Re-seed the deck RNG; every later shuffle follows from this seed.
         void seed(uint64_t s) { rng_.seed(s); }
+
+        // The deck RNG's state as text, and back: a resumed run deals the hands an uninterrupted one would.
+        std::string rng_state() const { std::ostringstream o; o << rng_; return o.str(); }
+        void set_rng_state(const std::string& s) { std::istringstream i(s); i >> rng_; }
 
         // Convenience
         int bigBlind() const { return big_blind_; }
