@@ -38,7 +38,8 @@ def train_poker_dqn(
     hand (a cash game, as the demo is played; the button then always starts on seat 0); otherwise the
     stacks carry over and the tournament is reset when fewer than two players have chips.
 
-    One DQNAgent per model (agent_kwargs are passed to each). With fewer models than seats, seat i
+    One DQNAgent per model. agent_kwargs is one dict passed to every agent, or a list with one dict
+    per model (e.g. sequence=True for the recurrent models only). With fewer models than seats, seat i
     is played by agent i % len(models): one model plays every seat, learning from all of them.
 
     The terminal reward is the seat's result in big blinds times reward_scale.
@@ -59,8 +60,9 @@ def train_poker_dqn(
     state_dim = encode_observation(tmp_obs, big_blind=big_blind).shape[0]
     g.reset_tournament(starting_stack)  # discard probe hand
 
-    agents = [DQNAgent(i, m, state_dim=state_dim, device=device, **(agent_kwargs or {}))
-              for i, m in enumerate(models)]
+    kws = agent_kwargs if isinstance(agent_kwargs, (list, tuple)) else [agent_kwargs or {}] * len(models)
+    agents = [DQNAgent(i, m, state_dim=state_dim, device=device, **kw)
+              for i, (m, kw) in enumerate(zip(models, kws, strict=True))]
     seat_agent = [agents[i % len(agents)] for i in range(n_players)]
 
     history = {

@@ -329,6 +329,19 @@ class SharedSeats(unittest.TestCase):
         self.assertGreaterEqual(sum(t[4] for t in agents[0].memory), 20 * 2)
         self.assertEqual(len(hist["delta_bb"]), 4)
 
+    def test_per_model_agent_kwargs(self):
+        import tempfile
+        import ReinforcementLearningEnvironment.helper as helper
+        from Models.GRUModel import GRUModel
+        from ReinforcementLearningEnvironment.Poker import train_poker_dqn
+        helper.CSV_PATH = str(Path(tempfile.mkdtemp()) / "log.csv")
+        torch.manual_seed(0)
+        agents, _ = train_poker_dqn([MLPModel(F, A, hidden=(8,)), GRUModel(F, A, hidden_dim=8, layer_dim=1)], 4, 200, 2, 1,
+                                    max_hands=5, seed=1, reset_stacks=True,
+                                    agent_kwargs=[{"memory_size": 100}, {"memory_size": 200, "sequence": True}])
+        self.assertEqual([(ag.sequence, ag.memory_size) for ag in agents], [(False, 100), (True, 200)])
+        self.assertTrue(all(t[0].ndim == 1 for t in agents[0].memory) and all(t[0].ndim == 2 for t in agents[1].memory))
+
 
 class Sequences(unittest.TestCase):
     def test_padded_batch_gives_each_sequences_own_output(self):
