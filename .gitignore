@@ -150,3 +150,6 @@ outputs
 
 # sanitizer build (bench/ctest_sanitizers.sh)
 build-asan/
+
+# resume state of an unfinished demo run (bench/train_demo.py --resume): the whole replay, deleted when the run ends
+weights/runs/*/resume.pt*

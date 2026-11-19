@@ -3,10 +3,13 @@
     python -m unittest discover -s tests -v
 """
 import io
+import json
+import os
 import random
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,6 +17,7 @@ sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "bench"))
 import numpy as np
 import torch
 
+import train_demo
 import PokerEngine.poker_engine as pe
 import ReinforcementLearningEnvironment.helper as helper
 from Models.GRUModel import GRUModel
@@ -84,6 +88,39 @@ class Resume(unittest.TestCase):
     def test_unknown_snapshot_version_raises(self):
         with self.assertRaisesRegex(ValueError, "version"):
             self.run_train(lambda: MLPModel(F, A, hidden=(8,)), 5, {}, resume={"version": 0})
+
+
+class TrainDemo(unittest.TestCase):
+    def test_interrupted_run_resumed_equals_uninterrupted(self):
+        # the score depends on the weights, so the best checkpoint is decided by the training; real validation is slow
+        score = lambda m, seq: ({}, float(sum(p.sum() for p in m.parameters())))
+        lines = lambda out: (out / "log.jsonl").read_text().splitlines()
+        rows = lambda out: [{k: v for k, v in json.loads(line).items() if k not in ("wall_s", "cpu_s")}
+                            for line in lines(out)]
+        real_replace = os.replace
+
+        def interrupt_after_resume_file(*a):
+            real_replace(*a)
+            raise KeyboardInterrupt
+
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(train_demo, "validate", score):
+            full, part = Path(d) / "full", Path(d) / "part"
+            train_demo.train("mlp-s", 1, 60, full, 3, 1)
+            with mock.patch.object(train_demo.os, "replace", interrupt_after_resume_file), \
+                    self.assertRaises(KeyboardInterrupt):
+                train_demo.train("mlp-s", 1, 60, part, 3, 1)
+            self.assertTrue((part / "resume.pt").exists())
+            self.assertFalse((part / "run.json").exists())
+            with (part / "log.jsonl").open("a") as f:
+                f.write('{"hands": 99}\n')  # a row written after resume.pt: dropped on resume
+            train_demo.train("mlp-s", 1, 60, part, 3, 1, resume=True)
+            self.assertEqual(len(rows(part)), 3)
+            self.assertEqual(rows(part), rows(full))
+            self.assertTrue(same(torch.load(full / "model.pt"), torch.load(part / "model.pt")))
+            self.assertFalse((part / "resume.pt").exists())
+            self.assertTrue((part / "run.json").exists())
+            walls = [json.loads(line)["wall_s"] for line in lines(part)]
+            self.assertEqual(walls, sorted(walls))  # the resumed segment adds to the time before it
 
 
 class EngineRng(unittest.TestCase):
