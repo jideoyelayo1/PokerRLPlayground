@@ -278,6 +278,72 @@ With the rule the agent does better against the calling and tight bots, with pai
 
 Not covered: the Python layer (`tests/test_training.py`); hands with more than 6 seats; blinds that are not 1/2, 2/4 or 5/10; the randomized payout reference shares the engine's odd-chip rule by construction, so that rule is pinned by the fixtures only.
 
+## 13. Training-budget fairness (#18)
+
+The MLPs trained for 400,000 hands and the GRU for 150,000 ([`SELECTION.md`](SELECTION.md)), so the curves in section 6 mix two things: how much a network learns from a given number of hands (**sample efficiency**) and how much it learns from a given amount of computation (**compute efficiency**). `python bench/budget_fairness.py` reads the nine committed runs (`weights/runs/*/log.jsonl`, `run.json`) and writes [`raw/budget_fairness.json`](raw/budget_fairness.json) and [`raw/budget_fairness/tables.md`](raw/budget_fairness/tables.md). The value in every cell is the run's validation score at that checkpoint (the section 6 score on the 1,000 validation deals, bb/100), not the evaluation score.
+
+**Sample efficiency: equal hands.** Each cell is the last checkpoint at or before the hand budget, and says which when it is not the budget. The MLPs checkpoint every 40,000 hands and the GRU every 15,000, so **120,000 is the only budget where all three have a checkpoint**; at 40,000 and 80,000 the GRU row is its checkpoint at 30,000 and 75,000 (fewer hands than the MLPs), and at 150,000 the MLPs are at 120,000 (their last before it).
+
+| val_score at hands | 40,000 | 80,000 | 120,000 | 150,000 |
+|---|---:|---:|---:|---:|
+| mlp-s-seed1 | -504 | -43 | -99 | -99 @120k |
+| mlp-s-seed2 | -911 | -178 | -54 | -54 @120k |
+| mlp-s-seed3 | -583 | -103 | -141 | -141 @120k |
+| mlp-l-seed1 | -851 | -333 | -88 | -88 @120k |
+| mlp-l-seed2 | -709 | -401 | -163 | -163 @120k |
+| mlp-l-seed3 | -965 | -411 | -106 | -106 @120k |
+| gru-seed1 | -291 @30k | -68 @75k | -112 | -135 |
+| gru-seed2 | -292 @30k | -174 @75k | -123 | -202 |
+| gru-seed3 | -192 @30k | -246 @75k | -119 | -74 |
+| **mlp-s mean** | -666 | -108 | -98 | -98 |
+| **mlp-l mean** | -842 | -382 | -119 | -119 |
+| **gru mean** | -258 | -163 | -118 | -137 |
+
+At 120,000 hands the means are -98 (`mlp-s`), -119 (`mlp-l`) and -118 (`gru`), with per-seed ranges that overlap (-141 to -54, -163 to -88, -123 to -112): no architecture is clearly ahead at equal hands there. At 40,000 and 80,000 the GRU is far ahead (-258 against -666 and -842 at about 40,000), but this is not a clean sample-efficiency result: every run decays epsilon over a fifth of its own hands, so the GRU (30,000-hand decay) is at epsilon 0.05 at its 30,000-hand checkpoint while the MLPs (80,000-hand decay) are at 0.525 at 40,000. The matched-hands runs below remove that difference.
+
+**Compute efficiency: equal CPU seconds.** Each cell is the last checkpoint reached by that many CPU seconds of the run itself (`cpu_s` in the log: user plus system time of the process), with the hands that checkpoint had; `-` means none yet. Past a run's end the cell repeats its final checkpoint. CPU seconds, not wall seconds, because the committed runs shared the machine with a heavy job (wall/CPU 1.9 to 2.7); the per-run rows are in the raw file, the means over three seeds here.
+
+| val_score by CPU s | 150 | 300 | 600 | 1,100 | 2,100 | 4,800 | 9,300 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| **mlp-s mean** | -666 | -666 | -85 | -55 | -76 | -49 | -49 |
+| **mlp-l mean** | - | -842 | -382 | -300 | -130 | -316 | -316 |
+| **gru mean** | -567 | -567 | -258 | -155 | -85 | -122 | -137 |
+
+At equal CPU time `mlp-s` is ahead from 600 s on (-85 against -258 for the GRU and -382 for `mlp-l`), and the GRU's mean only reaches `mlp-s`'s neighbourhood at 2,100 s (-85 against -76) before falling back. `mlp-l` is the worst per CPU second. Against equal hands, the GRU's early lead at 150 and 300 s (-567 against -666 for `mlp-s` and none for `mlp-l`) is confounded by the same epsilon difference.
+
+**Throughput and size.** Per run, from `run.json`, means over three seeds. The last two columns are hands per CPU second over the first and last checkpoint interval.
+
+| candidate | parameters | hands | CPU s | wall s | hands/CPU-s | hands/wall-s | wall/CPU | hands/CPU-s, first checkpoint interval | last interval |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| mlp-s | 36,871 | 400,000 | 2137 | 5861 | 187.2 | 68.3 | 2.7 | 304 | 198 |
+| mlp-l | 473,607 | 400,000 | 4741 | 10622 | 84.4 | 37.7 | 2.2 | 158 | 83 |
+| gru | 108,807 | 150,000 | 8656 | 16640 | 17.4 | 9.0 | 1.9 | 121 | 15 |
+
+The GRU's cost per hand is not constant: 121 hands per CPU second in the first 15,000 hands, 15 in the last, as hands lengthen from about 8 to 20 or more decisions and the network reads the whole hand each decision. Overall it costs 10.8 times an `mlp-s` hand in CPU and 7.6 times in wall time. `mlp-l` costs 2.2 times `mlp-s` per hand with 12.8 times the parameters. No two candidates have the same parameter count (36,871, 473,607, 108,807), so there is no equal-parameter comparison, and inference cost was not measured; per decision the MLPs do about their parameter count in multiply-adds, and the GRU does about its parameter count per step times the decisions so far in the hand.
+
+**Matched hands: 15,000 hands for all three** (seeds 1 and 2, `python bench/budget_fairness.py --matched <scratch> --run`, which runs `train_demo.py --hands 15000 --checkpoints 3 --threads 1` two at a time into a scratch directory, nothing in `weights/runs`). Same code, same epsilon schedule for all three (decay over 3,000 hands), validation every 5,000. Raw: [`raw/budget_fairness/matched/`](raw/budget_fairness/matched/). The load average is the one-minute figure read before and after each pair of runs; other projects' processes were on the machine and loaded it far above its 10 cores.
+
+| run | wall s | CPU s | hands/CPU-s | hands/wall-s | val @5k | val @10k | val @15k | load avg (1 min) before -> after |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| mlp-s-seed1 | 84 | 84 | 178 | 179 | -1067 | -461 | -283 | 28.2 -> 17.4 |
+| mlp-s-seed2 | 76 | 77 | 196 | 197 | -728 | -253 | -215 | 28.2 -> 17.4 |
+| mlp-l-seed1 | 172 | 156 | 96 | 87 | -329 | -263 | -257 | 43.9 -> 129.0 |
+| mlp-l-seed2 | 218 | 170 | 88 | 69 | -389 | -178 | -450 | 129.0 -> 28.2 |
+| gru-seed1 | 979 | 712 | 21 | 15 | -377 | -336 | -126 | 43.9 -> 129.0 |
+| gru-seed2 | 808 | 729 | 21 | 19 | -267 | -37 | -78 | 129.0 -> 28.2 |
+
+| candidate | mean CPU s for 15,000 hands | mean val_score at 15,000 |
+|---|---:|---:|
+| mlp-s | 80 | -249 |
+| mlp-l | 163 | -353 |
+| gru | 720 | -102 |
+
+At equal hands the GRU's validation score is the highest in both seeds (-126, -78; the MLPs' best is -215), and `mlp-l` is the lowest on average (-353), but `mlp-l` seed 2 fell from -178 to -450 between 10,000 and 15,000 hands, and each validation score is the lower end of a 1,000-deal interval whose full width is 120 to 520 bb/100 (the `val` fields in the logs), so with two seeds this shows a direction, not a ranking. The same runs measure compute: the GRU needed about nine times the CPU of `mlp-s` for the same hands, so what it gains per hand it more than loses per CPU second, as in the committed runs. The CPU seconds themselves are inflated by contention: the GRU's first 15,000 hands took 124 CPU s in the committed runs and 712 and 729 s here (load 44 to 129), and the matched runs also have a different epsilon schedule (so different hands), so the two are not strictly comparable. Compare ratios between candidates only within a pair run at the same time, never across pairs.
+
+**Which comparison is which.** Sample efficiency: the equal-hands table and the matched-hands runs. Compute efficiency: the equal-CPU table and the throughput table. The section 6 final results are neither: they are three architectures at different hands and different CPU time, each at its own best checkpoint.
+
+**Limits.** Three seeds in the committed runs and two in the matched runs; validation scores that move by 100 bb/100 or more between checkpoints of one run (wide intervals on 1,000 deals); the committed checkpoints too coarse to share budgets (one shared point); the epsilon schedule tied to each run's own length in the committed runs; a machine shared with other jobs, so wall time is not usable and CPU time is inflated and varies with load (the committed runs and the matched runs were under different loads). Not done: a plot, an equal-wall-clock comparison (wall time is contaminated, CPU time stands in), equal-parameter and equal-inference-cost comparisons, and runs longer than 15,000 hands at matched hands. The selection rule in `SELECTION.md` is unchanged.
+
 ## 8. Not measured here
 
 - The first version's own figures (50,000 and 100,000 hands) as they were: neither their run settings nor their seeds were recorded, and they were logged with the faults fixed since. Section 7 answers the same questions from the current code instead.
