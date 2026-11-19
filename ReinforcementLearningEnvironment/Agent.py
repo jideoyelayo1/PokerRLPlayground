@@ -48,6 +48,23 @@ class DQNAgent:
         self.last_stats = None  # the last train step's td_abs_mean, td_abs_max, q_abs_max, grad_norm, nonfinite
 
 
+    def state_dict(self):
+        """Everything needed to continue training: the networks, optimizer, replay (the same tuples of numpy
+        arrays) and counters. Tensors and replay entries are shared with the agent, not copied: save it
+        before training goes on."""
+        return {"model": self.model.state_dict(), "target_model": self.target_model.state_dict(),
+                "optimizer": self.trainer.optimizer.state_dict(), "memory": list(self.memory),
+                "memory_pos": self.memory_pos, "transitions": self.transitions, "n_hands": self.n_hands,
+                "epsilon": self.epsilon, "last_loss": self.last_loss, "last_stats": self.last_stats}
+
+    def load_state_dict(self, d):
+        self.model.load_state_dict(d["model"])
+        self.target_model.load_state_dict(d["target_model"])
+        self.trainer.optimizer.load_state_dict(d["optimizer"])
+        self.memory = list(d["memory"])
+        for k in ("memory_pos", "transitions", "n_hands", "epsilon", "last_loss", "last_stats"):
+            setattr(self, k, d[k])
+
     def remember(self, s, a, r, s2, done, mask2=None):
         """mask2: legal mask at s2 (0 legal, -1e9 not), so the target maxes over legal actions only."""
         t = (s, a, r, s2, done, np.zeros(N_ACTIONS, np.float32) if mask2 is None else mask2)
