@@ -1,5 +1,5 @@
 import PokerEngine.poker_engine as pe
-from ReinforcementLearningEnvironment.Agent import DQNAgent
+from ReinforcementLearningEnvironment.Agent import DQNAgent, greedy_action
 from ReinforcementLearningEnvironment.helper import (
     legal_mask_from_obs, action_index_to_engine_action, moving_average,
     encode_observation, pocket_key, append_hand_rows
@@ -23,6 +23,10 @@ import torch
 SNAPSHOT_VERSION = 1
 
 
+def frozen(model):
+    return copy.deepcopy(model).eval().requires_grad_(False)
+
+
 def train_poker_dqn(
     models,
     n_players: int,
@@ -39,6 +43,7 @@ def train_poker_dqn(
     log_csv: bool = True,
     on_hand_end=None,
     resume=None,
+    league=None,
 ):
     """Self-play DQN training. reset_stacks=True resets every stack to starting_stack before each
     hand (a cash game, as the demo is played; the button then always starts on seat 0); otherwise the
@@ -60,7 +65,24 @@ def train_poker_dqn(
     resume=<such a dict> continues from its hands_played, with max_hands the total. Same models, settings
     and seed as the original run; then the hands, learning and exploration are the uninterrupted run's.
     Needs reset_stacks=True: the engine's stacks, button and alive players are not in the snapshot.
-    Not restored: the per-hand CSV (log_csv), which would repeat the hands after the checkpoint."""
+    Not restored: the per-hand CSV (log_csv), which would repeat the hands after the checkpoint.
+
+    league (opt-in; None = plain self-play) trains against an opponent pool instead of the latest
+    copy of itself. A dict, every key optional except snapshot_every:
+      snapshot_every  every this many hands a frozen copy of the learner (eval mode, no gradients)
+                      joins the pool
+      pool_size       snapshots kept; the oldest is dropped beyond it (default 5)
+      p_snapshot      chance a seat plays a snapshot, uniform over the pool, greedily (default 0.4;
+                      0 while the pool is empty)
+      bots            fixed opponents, callables (obs, mask, rng) -> action index, like winrate.SUITE's
+                      (default none)
+      p_bot           chance a seat plays one of them, uniform over bots (default 0)
+      pool            the snapshots themselves, filled in place (a list you may pass in to inspect them)
+    Each hand one seat, drawn uniformly, is the learner; each other seat is a snapshot with
+    p_snapshot, a bot with p_bot, else the learner. Only learner seats store transitions. Seats
+    are drawn from a random.Random(seed) that the bots also use, apart from the global streams.
+    history["delta_bb"] is by seat, whoever sat there. Needs exactly one model. A snapshot (and so a resume)
+    carries the pool's weights and the league's random state, not the bots."""
 
     if resume is not None:
         # shortcut: only reset_stacks=True runs resume; to extend, save the engine's stacks, button and alive seats
@@ -68,6 +90,8 @@ def train_poker_dqn(
             raise ValueError("resume needs reset_stacks=True: stacks, button and alive players are not in the snapshot")
         if resume.get("version") != SNAPSHOT_VERSION:
             raise ValueError(f"unknown snapshot version {resume.get('version')!r}")
+        if bool(league) != ("league" in resume):
+            raise ValueError("resume and league go together: the snapshot was taken " + ("without" if league else "with") + " a league")
 
     g = pe.GameEngine(n_players, starting_stack, big_blind, small_blind)
     if seed is not None:
@@ -85,6 +109,11 @@ def train_poker_dqn(
     agents = [DQNAgent(i, m, state_dim=state_dim, device=device, **kw)
               for i, (m, kw) in enumerate(zip(models, kws, strict=True))]
     seat_agent = [agents[i % len(agents)] for i in range(n_players)]
+    if league:
+        if len(agents) != 1:  # shortcut: one shared learner; extend with a pool per model when two models need leagues
+            raise ValueError("league needs exactly one model")
+        lrng, pool = random.Random(seed), league.setdefault("pool", [])
+        p_snap, p_bot, bots = league.get("p_snapshot", 0.4), league.get("p_bot", 0.0), league.get("bots", [])
 
     history = {
         "hand": array("l"),  # compact: a long run logs millions of values
@@ -102,13 +131,22 @@ def train_poker_dqn(
         g.set_rng_state(resume["engine_rng"])
         history = copy.deepcopy(resume["history"])
         random.setstate(resume["random"]); np.random.set_state(resume["numpy"]); torch.set_rng_state(resume["torch"])
+        if league:
+            pool.clear()
+            for st in resume["league"]["pool"]:
+                pool.append(frozen(agents[0].model))
+                pool[-1].load_state_dict(st)
+            lrng.setstate(resume["league"]["rng"])
     pbar = tqdm(total=max_hands, initial=hands_played)
 
     def snapshot():
         # torch: CPU generator only (the models run on the CPU)
-        return {"version": SNAPSHOT_VERSION, "hands_played": hands_played, "agents": [ag.state_dict() for ag in agents],
+        snap = {"version": SNAPSHOT_VERSION, "hands_played": hands_played, "agents": [ag.state_dict() for ag in agents],
                 "engine_rng": g.rng_state(), "history": copy.deepcopy(history), "random": random.getstate(),
                 "numpy": np.random.get_state(), "torch": torch.get_rng_state()}
+        if league:
+            snap["league"] = {"pool": [net.state_dict() for net in pool], "rng": lrng.getstate()}
+        return snap
 
     MAX_STEPS_PER_HAND = 2000  # no wall-clock limit: it made seeded runs depend on machine load
 
@@ -127,6 +165,19 @@ def train_poker_dqn(
         dealt_in = [st > 0 for st in stacks_start]
 
         g.start_hand()
+
+        # Seats not played by the learner: seat -> (state, obs, mask) -> action index
+        opp = {}
+        if league:
+            me = lrng.randrange(n_players)
+            for i in range(n_players):
+                u = lrng.random()
+                if i == me:
+                    continue
+                if u < p_snap and pool:
+                    opp[i] = lambda s, o, m, net=lrng.choice(pool): greedy_action(net, s, m, agents[0].sequence, device)
+                elif p_snap <= u < p_snap + p_bot and bots:
+                    opp[i] = lambda s, o, m, bot=lrng.choice(bots): bot(o, m, lrng)
 
         # Pocket cards now: a folded player's observation hides them by the end of the hand,
         # and a busted player still holds stale cards from the hand they busted in
@@ -194,7 +245,7 @@ def train_poker_dqn(
                 hand_aborted = "no legal action"
                 break
 
-            a_idx = seat_agent[acting].select_action(s, mask)
+            a_idx = opp[acting](s, obs, mask) if acting in opp else seat_agent[acting].select_action(s, mask)
             if mask[a_idx] != 0.0:
                 a_idx = int(random.choice(legal_idxs))
 
@@ -207,7 +258,8 @@ def train_poker_dqn(
             if a_idx == A_FOLD and hand_actions[acting]["exit_street"] is None:
                 hand_actions[acting]["exit_street"] = int(obs.street)
 
-            pending[acting] = (s, a_idx)
+            if acting not in opp:
+                pending[acting] = (s, a_idx)
 
             if hand_actions[acting]["first_action"] is None:
                 hand_actions[acting]["first_action"] = a_idx
@@ -299,6 +351,9 @@ def train_poker_dqn(
             ag.train_long_memory()
 
         hands_played += 1
+        if league and hands_played % league["snapshot_every"] == 0:
+            pool.append(frozen(agents[0].model))
+            del pool[:-league.get("pool_size", 5)]
         pbar.update(1)
         if on_hand_end is not None:
             on_hand_end(hands_played, agents, snapshot)

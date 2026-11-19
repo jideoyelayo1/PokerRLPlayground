@@ -351,7 +351,7 @@ Not covered: the Python layer (`tests/test_training.py`); hands with more than 6
 
 ## 12. Opponent suite, diagnostics and game formats (#13, #20, #23)
 
-`python bench/eval_suite.py suite|cross|formats|report` (`bench/eval_suite.py`; bots in `bench/winrate.py`; tests in `tests/test_eval_suite.py`). Every cell is one file in [`raw/eval_suite/`](raw/eval_suite/), the tables below are [`raw/eval_suite/tables.md`](raw/eval_suite/tables.md), and the diagnostics of every duplicate-deal cell are in [`raw/diagnostics.md`](raw/diagnostics.md) and [`raw/diagnostics.json`](raw/diagnostics.json). Logs: `raw/eval_suite/{suite,cross,formats}.log`. **Checkpoint progression (the last item of #13) is not part of this section**; another piece of work does it.
+`python bench/eval_suite.py suite|cross|formats|report` (`bench/eval_suite.py`; bots in `bench/winrate.py`; tests in `tests/test_eval_suite.py`). Every cell is one file in [`raw/eval_suite/`](raw/eval_suite/), the tables below are [`raw/eval_suite/tables.md`](raw/eval_suite/tables.md), and the diagnostics of every duplicate-deal cell are in [`raw/diagnostics.md`](raw/diagnostics.md) and [`raw/diagnostics.json`](raw/diagnostics.json). Logs: `raw/eval_suite/{suite,cross,formats}.log`. Checkpoint progression (the last item of #13) is in section 14.
 
 **Agents and format.** The nine kept runs of section 6 (`weights/runs/*/model.pt`, the same weights as the committed cells; greedy, `no_free_fold` off, as in the pre-registered evaluation) and the random bot as control. Unless a table says otherwise: 4 seats, blinds 1/2, stacks 200 chips (100 big blinds) reset before every hand, the button on seat 0 every hand, duplicate deals (each deal replayed with the agent in each of the 4 seats, the three other seats three copies of one opponent; the agent's score on a deal is the mean over the 4 replays; bb/100 = 100 x mean over deals, 95% CI = mean +/- 1.96 sd / sqrt(deals)). Test deals are separate from selection: seeds 31000 (suite), 32000 (formats) and 33000 (cross-play), used by nothing else; selection used 5000 and 7000, confirmations 9000 and 13000 (`SELECTION.md`, section 6).
 
@@ -483,7 +483,7 @@ Two evaluation processes at a time (`--jobs 2`, one torch thread each), 3,724 CP
 - One machine and one seed per deal set. Intervals are over deals and do not include the variation of retraining; the nine runs are the only agents, three per family.
 - The suite bots were written after the agents were selected and tuned on nothing; their rules are guesses at "tight-aggressive" and so on, and an agent that loses to `tag` loses to this rule, not to a strong player. `potodds` and `tag` see only ranks (no draws).
 - Diagnostics describe the agent's seat in aggregate. Behaviour by street, by action size, or against a particular line, and exploitability, were not measured. 3-bet, fold-to-bet and aggression use the definitions in `Stats` (an all-in counts as a raise; fold to a bet counts every street and the blinds as a bet).
-- **Not measured:** blinds other than 1/2 (the encoding divides by the big blind, so a different blind with the same depth in big blinds is a rescaling of the same game, which was not run); a moving button with stacks reset (the Python binding exposes `reset_tournament` only, which puts the button back on seat 0; duplicate deals already give the agent every position; only the odd chip differs); stack depths between those listed; retraining at another depth or in the carry-over format; fewer or more than 4 seats; checkpoint progression (#13).
+- **Not measured:** blinds other than 1/2 (the encoding divides by the big blind, so a different blind with the same depth in big blinds is a rescaling of the same game, which was not run); a moving button with stacks reset (the Python binding exposes `reset_tournament` only, which puts the button back on seat 0; duplicate deals already give the agent every position; only the odd chip differs); stack depths between those listed; retraining at another depth or in the carry-over format; fewer or more than 4 seats.
 - Section 8's "not measured" list below was written before this section; the demo agents against each other (cross-play, above), against other opponents (suite) and at other stack depths are now measured, with the limits stated here.
 
 ## 13. Training-budget fairness (#18)
@@ -551,6 +551,86 @@ At equal hands the GRU's validation score is the highest in both seeds (-126, -7
 **Which comparison is which.** Sample efficiency: the equal-hands table and the matched-hands runs. Compute efficiency: the equal-CPU table and the throughput table. The section 6 final results are neither: they are three architectures at different hands and different CPU time, each at its own best checkpoint.
 
 **Limits.** Three seeds in the committed runs and two in the matched runs; validation scores that move by 100 bb/100 or more between checkpoints of one run (wide intervals on 1,000 deals); the committed checkpoints too coarse to share budgets (one shared point); the epsilon schedule tied to each run's own length in the committed runs; a machine shared with other jobs, so wall time is not usable and CPU time is inflated and varies with load (the committed runs and the matched runs were under different loads). Not done: a plot, an equal-wall-clock comparison (wall time is contaminated, CPU time stands in), equal-parameter and equal-inference-cost comparisons, and runs longer than 15,000 hands at matched hands. The selection rule in `SELECTION.md` is unchanged.
+
+## 14. Opponent-pool self-play and checkpoint progression (#14, #13)
+
+**What was added.** `train_poker_dqn(..., league={...})` (opt-in; `league=None` is the old code path, and a seeded 150-hand run, MLP and GRU, gave the same replay and weights hash before and after the change, and `tests/test_league.py` checks that a league that never seats a snapshot or a bot equals `league=None`). Every `snapshot_every` hands a frozen copy of the learner (eval mode, no gradients) joins a pool of at most `pool_size`, the oldest dropped. Each hand one seat, drawn uniformly, is the learner; each other seat is, with `p_snapshot`, a pool snapshot (uniform over the pool, greedy, the same stacked states for a sequence model) and, with `p_bot`, a fixed bot from `bots` (callables `(obs, mask, rng)`, like `winrate.SUITE`'s); otherwise the learner. Only learner seats store transitions. Seats and bots draw from a `random.Random(seed)` of their own. The pool and that generator's state are in the resume snapshot of #17, so `train_demo.py --league --resume` continues a league run bit for bit (tested). `train_demo.py --league` uses `LEAGUE` in that file: a snapshot every tenth of the run, a pool of 5, `p_snapshot` 0.4, `p_bot` 0.2 with `BOTS` (random, call, tight); with 4 seats the learner has 55% of the seats (1/4 + 3/4 x 40%), snapshots 30% and bots 15%. The numbers were picked, not tuned: the pool holds the learner of the later half of training, and bots are a minority so the learner still mostly plays itself. `--league-p-bot 0` leaves the bots out. The league is in each run's `run.json`.
+
+**Experiment.** `mlp-s` (the candidate of section 6), 60,000 hands, validation every 10,000 hands (6 checkpoints, all kept, `--keep-checkpoints`), seeds 1 and 2, one torch thread, two runs at a time. Three variants at the same seeds and hands: `latest` (latest-only self-play, as before), `snap` (league, snapshots only: `p_bot` 0, so learner 55%, snapshots 45% of the seats) and `snapbot` (league, snapshots and `BOTS`). Hands are matched, not transitions: a league learner stores only its own seats' decisions, but the hands run longer against greedy snapshots, so the learner's decisions per hand were higher (seed 1, last 10,000 hands: `latest` 20, `snapbot` 21, `snap` 43; the cause was not examined). One train step per hand in all three. `python bench/league_eval.py cells|report bench/raw/league/runs --out bench/raw/league --deals 4000` evaluates every checkpoint against the seven bots of `winrate.SUITE` (greedy, 4 seats, 100 bb stacks reset, blinds 1/2, duplicate deals) and every run's kept checkpoint against every other run's (1 against 3 copies), all from **seed 34000**, which nothing else uses. The kept checkpoint is the best validation score as in section 6 (validation seed 5000, 1,000 deals, worst lower end of the 95% interval over the three `BOTS`); the test deals are separate from that selection. Unseen bots: `tag`, `lag`, `potodds`, `bluff`, none of them in any bot pool (`BOTS` holds `random`, `call`, `tight`). **Unseen mean**: the mean over those four bots of the per-deal score. Intervals are 95% over deals (4,000 per cell) and do not include retraining. Tables with every bot: [`raw/league/tables.md`](raw/league/tables.md); cells in `raw/league/cells/`, per-deal scores in `raw/league/scores/`.
+
+### Variants at the kept checkpoint
+
+bb/100 [95% CI over deals], 4,000 deals per cell.
+
+| run | kept at | val score | tag | lag | potodds | bluff | unseen mean | unseen mean, last checkpoint (60,000) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| latest seed 1 | 60,000 | -47 | -272 [-315, -230] | -273 [-334, -213] | 29 [21, 36] | 796 [690, 901] | 70 [36, 103] | 70 [36, 103] |
+| latest seed 2 | 40,000 | -8 | -208 [-243, -173] | -219 [-272, -167] | 18 [10, 26] | 761 [651, 871] | 88 [55, 121] | 104 [69, 139] |
+| snap seed 1 | 40,000 | -45 | -314 [-357, -272] | -408 [-471, -344] | 8 [-4, 20] | 699 [592, 805] | -4 [-40, 32] | 43 [7, 78] |
+| snap seed 2 | 40,000 | -21 | -276 [-312, -239] | -297 [-350, -244] | 15 [7, 24] | 607 [506, 708] | 13 [-20, 45] | -9 [-39, 21] |
+| snapbot seed 1 | 60,000 | -50 | -175 [-213, -138] | -184 [-245, -124] | 12 [0, 23] | 754 [647, 861] | 101 [68, 135] | 101 [68, 135] |
+| snapbot seed 2 | 30,000 | -80 | -382 [-432, -333] | -514 [-584, -445] | -3 [-15, 10] | 575 [472, 678] | -81 [-118, -44] | 0 [-33, 33] |
+
+Mean of the two seeds, unseen mean: `latest` 79, `snap` 4, `snapbot` 10 (last checkpoint: 87, 17, 51). Against the three bots in the pool, `random` / `call` / `tight`: `latest` 942 / 148 / -2, `snap` 762 / 95 / -2, `snapbot` 959 / 182 / -26 (kept checkpoint, mean of two seeds).
+
+Paired difference from `latest` at the same seed on the same deals (the unseen mean, kept checkpoint; per-bot cells and the last-checkpoint version in `tables.md`):
+
+| seed | snap - latest | snapbot - latest |
+|---|---:|---:|
+| 1 | -74 [-108, -39] | +32 [-5, 68] |
+| 2 | -75 [-109, -42] | -169 [-208, -130] |
+
+### Cross-play (1 against 3 copies)
+
+Kept checkpoints, 4,000 duplicate deals per pairing, seed 34000. Row variant's run in one seat, the column variant's run in the other three; mean bb/100 over the pairings of runs (lowest to highest). Positive: the row wins. The same variant's cell pairs its two seeds. The 30 pairings with intervals are in `tables.md`.
+
+| row \ copies | latest | snap | snapbot |
+|---|---:|---:|---:|
+| latest | -33 (-154 to 88) | 243 (162 to 304) | 368 (237 to 455) |
+| snap | -236 (-306 to -201) | 2 (-0 to 5) | 131 (65 to 184) |
+| snapbot | -318 (-486 to -165) | -155 (-209 to -44) | -47 (-125 to 31) |
+
+### Checkpoint progression (#13)
+
+![bb/100 against the suite by training hands, one panel per opponent](raw/league/progression.png)
+
+[`raw/league/progression.png`](raw/league/progression.png), data in [`progression.csv`](raw/league/progression.csv): every checkpoint of every run against every bot, 4,000 duplicate deals per point, seed 34000, 95% intervals over deals. Unseen mean by training hands (10,000 to 60,000):
+
+| run | 10k | 20k | 30k | 40k | 50k | 60k |
+|---|---:|---:|---:|---:|---:|---:|
+| latest seed 1 | -506 | -103 | -58 | 24 | 44 | 69 |
+| latest seed 2 | -533 | 58 | -70 | 88 | 114 | 104 |
+| snap seed 1 | -440 | -87 | 13 | -3 | 8 | 42 |
+| snap seed 2 | -471 | -44 | 19 | 12 | 36 | -8 |
+| snapbot seed 1 | -452 | -118 | -52 | -34 | 82 | 101 |
+| snapbot seed 2 | -433 | -132 | -81 | 0 | 22 | 0 |
+
+- **Progress is real early and then flat within the noise.** All six runs go from -433 to -533 at 10,000 hands to -132 to +58 at 20,000 (`tight`: from -472 to -692 to -73 to -212). After 30,000 hands the unseen mean is between -81 and +114, the interval half-widths are 30 to 40, and a run moves by 50 to 160 between consecutive checkpoints in either direction (`latest` seed 2: +58, -70, +88 at 20k, 30k, 40k). Five of the six runs end higher at 60,000 than at 30,000 (+29 to +174; `snap` seed 2 is 27 lower), and the last checkpoint is the highest of the six in three runs (`latest` seed 1, `snap` seed 1, `snapbot` seed 1) and not in the other three. So the curves show genuine improvement over the first 20,000 to 30,000 hands against every bot, and after that a slow rise at best that these runs cannot separate from checkpoint-to-checkpoint noise.
+- **No run ever beats `tag` or `lag`.** The best of any checkpoint is -175 (`snapbot` seed 1, `tag`, 60,000) and -128 (`latest` seed 2, `lag`, 50,000); every interval is below zero at every checkpoint of every run. `tight` ends at about zero or a little below (-62 to +3 at 60,000). `potodds` ends between -37 and +29, `bluff` at +482 to +850.
+- Against `random` and `call` the results fall, not rise, after 20,000 hands in most runs (`random` 1,000 to 1,150 at 20,000 and 668 to 1,001 at 60,000); why was not examined. The validation score of the kept checkpoint (`val score` above, worst lower interval over `BOTS`) tracks the unseen mean only loosely: `snap` seed 1 (-45) and `snapbot` seed 1 (-50) differ by 5 in validation score and by 105 in unseen mean.
+
+### Did the league help?
+
+**No measurable benefit in these runs.**
+
+- Snapshots only (`snap`): lower unseen mean than `latest` at both seeds (paired -74 and -75, intervals excluding zero at the kept checkpoint; at the last checkpoint -27 [-64, 9] and -113 [-149, -77]), worse against `tag` and `lag` at both seeds at the kept checkpoint, and losing the head-to-head to `latest` by 236 bb/100 on average (-201 to -306 in the four pairings).
+- Snapshots and bots (`snapbot`): +32 [-5, 68] at seed 1 and -169 [-208, -130] at seed 2 at the kept checkpoint, +32 and -105 at the last. The two seeds disagree in sign, so this section does not support a claim in either direction. It also lost the head-to-head to `latest` (-318 on average).
+- The cross-play favours `latest` over both league variants (+243 and +368 for `latest`), the opposite of what an opponent pool is for. One caution: it is 1 against 3 copies of one policy, and `latest` was trained to beat copies of itself; the two `latest` runs against each other are -154 and +88, so the seed-to-seed spread of one variant here is about 240 bb/100.
+- The "paired" intervals use the same 4,000 deals for both runs, so they say how well the two runs are told apart on these deals, not how much of the difference is the variant and how much the seed: two seeds per variant cannot say. The seed-to-seed difference of `latest` alone is 18 on the unseen mean at the kept checkpoint and 34 at the last, and one run's consecutive checkpoints differ by 50 to 160.
+
+### Compute and load
+
+Training: six runs, 331 to 427 CPU seconds each (2,192 in all), 1,522 s of wall time at two at a time, one torch thread each; load average (1, 5, 15 min) 28.5, 57.7, 61.3 at the start and 65.2, 84.4, 73.5 at the end ([`raw/league/train_load.txt`](raw/league/train_load.txt)). The runs started at commit 21e66ca or 3813892 (`run.json`: the same training code); the results were evaluated at 8b04c40, after a rebase onto the resume work (#17) that changes nothing for `league=None` (the hash check was repeated after the rebase). Wall time per run ran from 452 to 602 s: here it is the load, not the speed. Evaluation: 282 cells (252 checkpoint cells, 2,109 CPU s; 30 cross-play cells, 3,716 CPU s, about 120 s each because three of the four seats are networks) = 5,825 CPU s (1.62 CPU hours; 4,000 deals per cell rather than the 2,000 first planned, so over the 1.5 hours aimed for), 3,351 s of wall time at two processes, per-cell load average (1 minute) from 11 to 130, median 59. The machine was shared with other jobs throughout.
+
+### Limits
+
+- **Short runs**: 60,000 hands against 400,000 for the committed `mlp-s` runs (section 6), with the epsilon schedule scaled to a fifth of the run. The pool's early snapshots (6,000 and 12,000 hands) are from the exploration phase. A league may need more hands to pay off; this does not show that it does not.
+- **Two seeds, one candidate** (`mlp-s`, at 100 bb stacks, 4 seats). The variation between checkpoints of one run (50 to 100 bb/100) and between seeds is as large as most of the differences above; no seed-level interval is given, because two seeds do not support one.
+- **One league setting** (`LEAGUE`: 5 snapshots, one in ten of the run, 40% and 20%). No other pool size, snapshot spacing, mixture, or opponent sampling (e.g. prioritised by recent losses) was tried.
+- **Matched hands, not matched transitions** (see above): the league learners saw more learner decisions per hand against snapshots than `latest` did.
+- The unseen bots are hand-written and untuned (section 12); a loss to `tag` is a loss to that rule. `potodds` and `tag` see only ranks. "Unseen" means not in the pool: four hand-written rules, not a broad sample of opponents.
+- The checkpoint progression uses the same 4,000 test deals at every point, so the points of one line share their deals; the intervals are over deals.
+- Cross-play is 1 against 3 copies and says which of two policies wins that game, not a rating; the kept checkpoints were chosen by validation, and two of the six are early ones (30,000 and 40,000 hands).
 
 ## 8. Not measured here
 
