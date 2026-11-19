@@ -16,8 +16,8 @@ while the weights, deals and seed match. `report` writes OUT/tables.md, OUT/resu
 OUT/progression.csv and OUT/progression.png. The bots in UNSEEN were never in a league's bot pool
 (train_demo.BOTS holds random, call and tight).
 
-    python bench/league_eval.py eval RUNS_DIR --out bench/raw/league [--deals 2000] [--jobs 2]
-    python bench/league_eval.py report RUNS_DIR --out bench/raw/league
+    python bench/league_eval.py cells bench/raw/league/runs --out bench/raw/league --deals 4000 [--jobs 2]
+    python bench/league_eval.py report bench/raw/league/runs --out bench/raw/league
 """
 import argparse
 import csv
@@ -226,20 +226,20 @@ def figure(prog, path, deals):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("part", choices=["eval", "report"])
+    ap.add_argument("part", choices=["cells", "report"])
     ap.add_argument("runs", help="directory of <variant>-seed<k> run directories")
     ap.add_argument("--out", default=str(ROOT / "bench" / "raw" / "league"))
     ap.add_argument("--deals", type=int, default=2000)
     ap.add_argument("--jobs", type=int, default=2)
     a = ap.parse_args()
     runs = runs_in(a.runs)
-    if a.part == "eval":
+    if a.part == "cells":
         t0 = time.time()
         jobs = jobs_for(runs, a.out, a.deals)
         with Pool(a.jobs) as pool:
             for i, c in enumerate(pool.imap_unordered(cell, jobs, chunksize=1), 1):
                 print(i, len(jobs), c["run"], c["ckpt"], c["opponent"], round(c["bb100"]), c["cpu_s"], flush=True)
-        print(f"eval: wall {time.time() - t0:.0f} s, load average {os.getloadavg()}")
+        print(f"cells: wall {time.time() - t0:.0f} s, load average {os.getloadavg()}")
     print("\n".join(report(runs, a.out)))
 
 

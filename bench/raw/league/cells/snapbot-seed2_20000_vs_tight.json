@@ -1,0 +1,22 @@
+{
+ "bb100": -208.346875,
+ "ci95_lo": -273.01579693393904,
+ "ci95_hi": -143.677953066061,
+ "sd_bb_per_deal": 20.86745787131308,
+ "deals": 4000,
+ "hands": 16000,
+ "run": "snapbot-seed2",
+ "ckpt": 20000,
+ "opponent": "tight",
+ "seed": 34000,
+ "sha": "dda0f0be24b1",
+ "opp_sha": null,
+ "wall_s": 6.6,
+ "cpu_s": 6.0,
+ "load_average": [
+  75.0283203125,
+  63.64794921875,
+  61.84375
+ ],
+ "commit": "8b04c40"
+}

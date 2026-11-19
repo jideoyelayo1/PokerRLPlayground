@@ -1,0 +1,22 @@
+{
+ "bb100": -75.8375,
+ "ci95_lo": -104.3855980912362,
+ "ci95_hi": -47.2894019087638,
+ "sd_bb_per_deal": 9.211940085123652,
+ "deals": 4000,
+ "hands": 16000,
+ "run": "latest-seed1",
+ "ckpt": 40000,
+ "opponent": "potodds",
+ "seed": 34000,
+ "sha": "71c794bcc706",
+ "opp_sha": null,
+ "wall_s": 6.5,
+ "cpu_s": 5.6,
+ "load_average": [
+  45.0,
+  58.79736328125,
+  64.427734375
+ ],
+ "commit": "8b04c40"
+}
