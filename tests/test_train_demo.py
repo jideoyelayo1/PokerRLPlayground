@@ -2,6 +2,7 @@
 
     python -m unittest discover -s tests -v
 """
+import json
 import sys
 import tempfile
 import time
@@ -86,6 +87,23 @@ class KeepCheckpoints(unittest.TestCase):
             train_demo.train("mlp-s", 1, 40, out, 2, 1)
             self.assertEqual([p.name for p in out.glob("*.pt")], ["model.pt"])
             self.assertIn('"keep_checkpoints": false', (out / "run.json").read_text())
+
+
+class League(unittest.TestCase):
+    def test_league_run_is_recorded_and_passed_to_the_trainer(self):
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(train_demo, "validate", lambda m, seq: ({}, 0.0)), \
+                mock.patch.object(train_demo, "train_poker_dqn", wraps=train_demo.train_poker_dqn) as tp:
+            out = Path(d) / "run"
+            train_demo.train("mlp-s", 1, 40, out, 2, 1, league_p_bot=0.2)
+            lg = tp.call_args.kwargs["league"]
+            self.assertEqual((lg["snapshot_every"], lg["pool_size"], lg["p_snapshot"], lg["p_bot"]), (4, 5, 0.4, 0.2))
+            self.assertEqual(lg["bots"], list(train_demo.BOTS.values()))
+            self.assertEqual(json.loads((out / "run.json").read_text())["league"],
+                             {"snapshot_every": 4, "pool_size": 5, "p_snapshot": 0.4, "p_bot": 0.2, "bots": ["random", "call", "tight"]})
+            out2 = Path(d) / "plain"
+            train_demo.train("mlp-s", 1, 40, out2, 2, 1)
+            self.assertIsNone(tp.call_args.kwargs["league"])
+            self.assertIsNone(json.loads((out2 / "run.json").read_text())["league"])
 
 
 if __name__ == "__main__":
